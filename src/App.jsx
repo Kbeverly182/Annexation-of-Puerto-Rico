@@ -125,7 +125,7 @@ export default function App() {
       return { ...prev, [week]: { loading: true } };
     });
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${seasonYear}`;
+      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&dates=${seasonYear}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('bad response');
       const json = await res.json();
@@ -292,7 +292,7 @@ export default function App() {
     setSyncing(true);
     setSyncMsg('');
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${seasonYear}`;
+      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&dates=${seasonYear}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('bad response');
       const json = await res.json();

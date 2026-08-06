@@ -64,6 +64,8 @@ export default function App() {
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [showAvailability, setShowAvailability] = useState(false);
   const [schedule, setSchedule] = useState({});
   const [now, setNow] = useState(Date.now());
   const saveTimer = useRef(null);
@@ -209,6 +211,13 @@ export default function App() {
   const aliveCount = data.participants.filter(p => eliminatedAtWeek(p.id) === null).length;
   const outCount = data.participants.length - aliveCount;
 
+  const aliveParticipants = data.participants.filter(p => eliminatedAtWeek(p.id) === null);
+  const teamAvailability = TEAMS.map(([abbr, full]) => {
+    const availableCount = aliveParticipants.filter(p => !usedTeams(p.id, viewWeek - 1).has(abbr)).length;
+    const pct = aliveParticipants.length ? Math.round((availableCount / aliveParticipants.length) * 100) : 0;
+    return { abbr, full, availableCount, pct };
+  }).sort((a, b) => b.pct - a.pct || a.abbr.localeCompare(b.abbr));
+
   const persist = (next) => {
     setData(next);
     skipNextPoll.current = true;
@@ -312,6 +321,17 @@ export default function App() {
     if (myId && pid === myId) return true;
     return isPickLocked(week, team);
   };
+
+  const weekLocked = isPickLocked(viewWeek, undefined);
+  const picksThisWeek = data.participants
+    .map(p => data.picks[viewWeek]?.[p.id]?.team)
+    .filter(Boolean);
+  const totalPicksThisWeek = picksThisWeek.length;
+  const pickDistribution = Object.entries(
+    picksThisWeek.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {})
+  )
+    .map(([abbr, count]) => ({ abbr, count, pct: totalPicksThisWeek ? Math.round((count / totalPicksThisWeek) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count || a.abbr.localeCompare(b.abbr));
 
   const syncScores = async (week) => {
     setSyncing(true);
@@ -588,6 +608,38 @@ export default function App() {
               )}
             </div>
 
+            {/* Team availability */}
+            <div>
+              <button
+                onClick={() => setShowAvailability(s => !s)}
+                className="font-head uppercase text-sm tracking-widest mb-3 flex items-center gap-2"
+                style={{ color: '#8A9A90' }}
+              >
+                <Users size={14} /> Team Availability {showAvailability ? '▾' : '▸'}
+              </button>
+              {showAvailability && (
+                <>
+                  <div className="font-mono text-xs mb-2" style={{ color: '#5C6862' }}>
+                    Share of alive entrants ({aliveParticipants.length}) who haven't used each team through week {Math.max(1, viewWeek - 1)}.
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {teamAvailability.map(t => (
+                      <div key={t.abbr} className="rounded px-2.5 py-2" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                        <div className="flex items-center justify-between font-mono text-xs mb-1">
+                          <span className="font-head" style={{ color: '#F0EDE4' }}>{t.abbr}</span>
+                          <span style={{ color: t.pct >= 50 ? '#7FCB98' : t.pct > 0 ? '#E8A23D' : '#E28A82' }}>{t.pct}%</span>
+                        </div>
+                        <div className="h-1.5 rounded overflow-hidden" style={{ background: '#0F1614' }}>
+                          <div style={{ width: `${t.pct}%`, height: '100%', background: t.pct >= 50 ? '#3D9B5C' : t.pct > 0 ? '#E8A23D' : '#C1443A' }} />
+                        </div>
+                        <div className="font-mono text-[10px] mt-1" style={{ color: '#5C6862' }}>{t.availableCount}/{aliveParticipants.length} alive</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* This week's picks */}
             <div>
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -742,6 +794,36 @@ export default function App() {
               </div>
             </div>
 
+            {/* Pick distribution */}
+            <div>
+              <div className="font-head uppercase text-sm tracking-widest mb-3" style={{ color: '#8A9A90' }}>
+                Week {viewWeek} Pick Distribution
+              </div>
+              {!weekLocked ? (
+                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
+                  Unlocks once this week's picks lock, so nobody can see the crowd before choosing.
+                </div>
+              ) : totalPicksThisWeek === 0 ? (
+                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
+                  No picks were made this week.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {pickDistribution.map(t => (
+                    <div key={t.abbr} className="flex items-center gap-3">
+                      <div className="w-12 shrink-0 font-head text-xs" style={{ color: '#F0EDE4' }}>{t.abbr}</div>
+                      <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                        <div style={{ width: `${t.pct}%`, height: '100%', background: '#3D9B5C' }} />
+                      </div>
+                      <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
+                        {t.pct}% ({t.count})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Elimination chain */}
             <div>
               <div className="font-head uppercase text-sm tracking-widest mb-3" style={{ color: '#8A9A90' }}>
@@ -754,10 +836,14 @@ export default function App() {
                   return (
                     <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
                       <div className="flex items-center gap-3 mb-1.5">
-                        <div className="w-24 shrink-0 font-head text-sm truncate flex items-center gap-1.5">
+                        <button
+                          onClick={() => setExpandedId(id => id === p.id ? null : p.id)}
+                          className="w-24 shrink-0 font-head text-sm truncate flex items-center gap-1.5 text-left"
+                        >
                           {elimWeek !== null ? <Skull size={12} color="#C1443A" /> : <Trophy size={12} color="#3D9B5C" />}
                           {p.name}
-                        </div>
+                          <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
+                        </button>
                         <div className="font-mono text-xs" style={{ color: '#5C6862' }}>{wins}-{elimWeek ? 1 : 0}</div>
                       </div>
                       <div className="flex gap-1 overflow-x-auto pb-1">
@@ -781,6 +867,32 @@ export default function App() {
                           );
                         })}
                       </div>
+                      {expandedId === p.id && (
+                        <div className="mt-2 pt-2 grid gap-1" style={{ borderTop: '1px solid #2A3830' }}>
+                          {WEEKS.map(w => {
+                            const pk = data.picks[w]?.[p.id];
+                            const shown = isRevealed(w, p.id, pk?.team);
+                            const isElimHere = elimWeek === w;
+                            let valueText = '— no pick —';
+                            let valueColor = '#5C6862';
+                            if (pk?.team) {
+                              if (!shown) {
+                                valueText = 'Hidden until kickoff';
+                              } else {
+                                const resultLabel = pk.result === 'win' ? 'Win' : pk.result === 'loss' ? 'Loss' : 'Pending';
+                                valueText = `${pk.team} — ${TEAM_MAP[pk.team] || pk.team} (${resultLabel})`;
+                                valueColor = isElimHere ? '#E28A82' : pk.result === 'win' ? '#7FCB98' : '#8A9A90';
+                              }
+                            }
+                            return (
+                              <div key={w} className="flex items-center justify-between font-mono text-xs">
+                                <span style={{ color: '#5C6862' }}>Week {w}</span>
+                                <span style={{ color: valueColor }}>{valueText}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

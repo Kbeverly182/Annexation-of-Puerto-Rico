@@ -130,17 +130,30 @@ export default function App() {
       if (!res.ok) throw new Error('bad response');
       const json = await res.json();
       const teamKickoff = {};
+      const matchups = {};
       const kickoffTimes = [];
       (json.events || []).forEach(ev => {
         const comp = ev.competitions?.[0];
         const dateStr = comp?.date || ev.date;
         if (!dateStr) return;
         const d = new Date(dateStr);
-        (comp.competitors || []).forEach(c => {
+        const competitors = comp.competitors || [];
+        competitors.forEach(c => {
           const rawAbbr = c.team?.abbreviation;
           const abbr = ESPN_ABBR_FIX[rawAbbr] || rawAbbr;
           if (abbr) teamKickoff[abbr] = dateStr;
         });
+        if (competitors.length === 2) {
+          const recordOf = (c) => (c.records || []).find(r => r.type === 'total')?.summary
+            || (c.records || [])[0]?.summary || '0-0';
+          const [a, b] = competitors;
+          const abbrA = ESPN_ABBR_FIX[a.team?.abbreviation] || a.team?.abbreviation;
+          const abbrB = ESPN_ABBR_FIX[b.team?.abbreviation] || b.team?.abbreviation;
+          const recA = recordOf(a);
+          const recB = recordOf(b);
+          if (abbrA) matchups[abbrA] = { opponent: abbrB, home: a.homeAway === 'home', record: recA, oppRecord: recB };
+          if (abbrB) matchups[abbrB] = { opponent: abbrA, home: b.homeAway === 'home', record: recB, oppRecord: recA };
+        }
         const etHour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(d));
         kickoffTimes.push({ date: d, etHour });
       });
@@ -148,9 +161,9 @@ export default function App() {
       const massThreshold = windowGames.length
         ? windowGames[0].date.toISOString()
         : (kickoffTimes.length ? kickoffTimes.sort((a, b) => a.date - b.date)[0].date.toISOString() : null);
-      setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff, massThreshold } }));
+      setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff, matchups, massThreshold } }));
     } catch (e) {
-      setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff: {}, massThreshold: null, error: true } }));
+      setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff: {}, matchups: {}, massThreshold: null, error: true } }));
     }
   }, [seasonYear]);
 
@@ -644,11 +657,17 @@ export default function App() {
                             style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4', opacity: locked ? 0.7 : 1 }}
                           >
                             <option value="">— pick a team —</option>
-                            {TEAMS.map(([abbr, full]) => (
-                              <option key={abbr} value={abbr} disabled={used.has(abbr)}>
-                                {abbr} — {full}{used.has(abbr) ? ' (used)' : ''}
-                              </option>
-                            ))}
+                            {TEAMS.map(([abbr, full]) => {
+                              const m = schedule[viewWeek]?.matchups?.[abbr];
+                              const label = m
+                                ? `${abbr} (${m.record}) ${m.home ? 'vs' : '@'} ${m.opponent} (${m.oppRecord})`
+                                : `${abbr} — ${full}`;
+                              return (
+                                <option key={abbr} value={abbr} disabled={used.has(abbr)}>
+                                  {label}{used.has(abbr) ? ' (used)' : ''}
+                                </option>
+                              );
+                            })}
                           </select>
                           {locked && (
                             <span className="font-mono text-[10px] uppercase flex items-center gap-1" style={{ color: '#5C6862' }}>

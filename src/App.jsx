@@ -131,6 +131,7 @@ export default function App() {
       const json = await res.json();
       const teamKickoff = {};
       const matchups = {};
+      const games = [];
       const kickoffTimes = [];
       (json.events || []).forEach(ev => {
         const comp = ev.competitions?.[0];
@@ -153,15 +154,26 @@ export default function App() {
           const recB = recordOf(b);
           if (abbrA) matchups[abbrA] = { opponent: abbrB, home: a.homeAway === 'home', record: recA, oppRecord: recB };
           if (abbrB) matchups[abbrB] = { opponent: abbrA, home: b.homeAway === 'home', record: recB, oppRecord: recA };
+          const away = a.homeAway === 'home' ? b : a;
+          const home = a.homeAway === 'home' ? a : b;
+          const awayAbbr = ESPN_ABBR_FIX[away.team?.abbreviation] || away.team?.abbreviation;
+          const homeAbbr = ESPN_ABBR_FIX[home.team?.abbreviation] || home.team?.abbreviation;
+          games.push({
+            id: ev.id || `${awayAbbr}-${homeAbbr}`,
+            kickoff: dateStr,
+            away: { abbr: awayAbbr, record: recordOf(away) },
+            home: { abbr: homeAbbr, record: recordOf(home) },
+          });
         }
         const etHour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(d));
         kickoffTimes.push({ date: d, etHour });
       });
+      games.sort((x, y) => new Date(x.kickoff) - new Date(y.kickoff));
       const windowGames = kickoffTimes.filter(k => k.etHour >= 12).sort((a, b) => a.date - b.date);
       const massThreshold = windowGames.length
         ? windowGames[0].date.toISOString()
         : (kickoffTimes.length ? kickoffTimes.sort((a, b) => a.date - b.date)[0].date.toISOString() : null);
-      setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff, matchups, massThreshold } }));
+      setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff, matchups, games, massThreshold } }));
     } catch (e) {
       setSchedule(prev => ({ ...prev, [week]: { loading: false, loaded: true, teamKickoff: {}, matchups: {}, massThreshold: null, error: true } }));
     }
@@ -648,53 +660,77 @@ export default function App() {
                           {scheduleReady ? 'Hidden until kickoff' : 'Checking kickoff time…'}
                         </div>
                       ) : (
-                        <>
-                          <select
-                            value={pick?.team || ''}
-                            onChange={e => setPick(viewWeek, p.id, e.target.value)}
-                            disabled={locked}
-                            className="px-2 py-1.5 rounded font-mono text-sm flex-1 min-w-[140px]"
-                            style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4', opacity: locked ? 0.7 : 1 }}
-                          >
-                            <option value="">— pick a team —</option>
-                            {TEAMS.map(([abbr, full]) => {
-                              const m = schedule[viewWeek]?.matchups?.[abbr];
-                              const label = m
-                                ? `${abbr} (${m.record}) ${m.home ? 'vs' : '@'} ${m.opponent} (${m.oppRecord})`
-                                : `${abbr} — ${full}`;
+                        <div className="flex-1 w-full flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-2">
+                            {(schedule[viewWeek]?.games || []).map(g => {
+                              const awaySelected = pick?.team === g.away.abbr;
+                              const homeSelected = pick?.team === g.home.abbr;
+                              const awayUsed = used.has(g.away.abbr);
+                              const homeUsed = used.has(g.home.abbr);
                               return (
-                                <option key={abbr} value={abbr} disabled={used.has(abbr)}>
-                                  {label}{used.has(abbr) ? ' (used)' : ''}
-                                </option>
+                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830' }}>
+                                  <button
+                                    onClick={() => setPick(viewWeek, p.id, g.away.abbr)}
+                                    disabled={locked || awayUsed}
+                                    className="px-2.5 py-1.5 text-center"
+                                    style={{
+                                      background: awaySelected ? '#3D9B5C' : '#0F1614',
+                                      color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
+                                      cursor: (locked || awayUsed) ? 'not-allowed' : 'pointer',
+                                    }}
+                                  >
+                                    <div className="font-head text-xs">{g.away.abbr}</div>
+                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                                  </button>
+                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#17211D' }}>@</div>
+                                  <button
+                                    onClick={() => setPick(viewWeek, p.id, g.home.abbr)}
+                                    disabled={locked || homeUsed}
+                                    className="px-2.5 py-1.5 text-center"
+                                    style={{
+                                      background: homeSelected ? '#3D9B5C' : '#0F1614',
+                                      color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
+                                      cursor: (locked || homeUsed) ? 'not-allowed' : 'pointer',
+                                    }}
+                                  >
+                                    <div className="font-head text-xs">{g.home.abbr}</div>
+                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                                  </button>
+                                </div>
                               );
                             })}
-                          </select>
-                          {locked && (
-                            <span className="font-mono text-[10px] uppercase flex items-center gap-1" style={{ color: '#5C6862' }}>
-                              <Lock size={10} /> Locked
-                            </span>
-                          )}
-                          <div className="flex gap-1 shrink-0">
-                            {['win', 'pending', 'loss'].map(r => (
-                              <button
-                                key={r}
-                                onClick={() => setResult(viewWeek, p.id, r)}
-                                title={r}
-                                className="w-8 h-8 rounded flex items-center justify-center"
-                                style={{
-                                  background: (pick?.result || 'pending') === r
-                                    ? (r === 'win' ? '#3D9B5C' : r === 'loss' ? '#C1443A' : '#E8A23D')
-                                    : '#1F2B25',
-                                  border: '1px solid #2A3830',
-                                }}
-                              >
-                                {r === 'win' && <Check size={14} color={(pick?.result) === 'win' ? '#0F1614' : '#5C6862'} />}
-                                {r === 'loss' && <X size={14} color={(pick?.result) === 'loss' ? '#0F1614' : '#5C6862'} />}
-                                {r === 'pending' && <Minus size={14} color={(pick?.result || 'pending') === 'pending' ? '#0F1614' : '#5C6862'} />}
-                              </button>
-                            ))}
+                            {!schedule[viewWeek]?.loaded && (
+                              <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Loading matchups…</div>
+                            )}
                           </div>
-                        </>
+                          <div className="flex items-center gap-2">
+                            {locked && (
+                              <span className="font-mono text-[10px] uppercase flex items-center gap-1" style={{ color: '#5C6862' }}>
+                                <Lock size={10} /> Locked
+                              </span>
+                            )}
+                            <div className="flex gap-1 shrink-0 ml-auto">
+                              {['win', 'pending', 'loss'].map(r => (
+                                <button
+                                  key={r}
+                                  onClick={() => setResult(viewWeek, p.id, r)}
+                                  title={r}
+                                  className="w-8 h-8 rounded flex items-center justify-center"
+                                  style={{
+                                    background: (pick?.result || 'pending') === r
+                                      ? (r === 'win' ? '#3D9B5C' : r === 'loss' ? '#C1443A' : '#E8A23D')
+                                      : '#1F2B25',
+                                    border: '1px solid #2A3830',
+                                  }}
+                                >
+                                  {r === 'win' && <Check size={14} color={(pick?.result) === 'win' ? '#0F1614' : '#5C6862'} />}
+                                  {r === 'loss' && <X size={14} color={(pick?.result) === 'loss' ? '#0F1614' : '#5C6862'} />}
+                                  {r === 'pending' && <Minus size={14} color={(pick?.result || 'pending') === 'pending' ? '#0F1614' : '#5C6862'} />}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       )}
 
                       <button onClick={() => removeParticipant(p.id)} className="ml-auto shrink-0 p-1 rounded" style={{ color: '#5C6862' }}>

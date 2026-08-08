@@ -368,8 +368,15 @@ export default function LineupPool() {
     }
     if (cat.includes('kick')) {
       const fgMade = pickStat(stats, ['FG', 'FGM']);
+      const longFg = pickStat(stats, ['LONG']);
       const xpMade = pickStat(stats, ['XP', 'PAT']);
-      return { points: fgMade * 3 + xpMade * 1, approximate: true };
+      // Distance/10 per made FG, minimum 3.0. The box score only gives the longest FG made,
+      // not each individual kick's distance — accurate for a single made FG, an approximation
+      // (applying the longest kick's value to every make) when more than one FG was made.
+      const perFgPoints = longFg > 0 ? Math.max(longFg / 10, 3.0) : 3.0;
+      const fgPoints = fgMade * perFgPoints;
+      const xpPoints = xpMade * 1;
+      return { points: fgPoints + xpPoints, approximate: fgMade > 1 };
     }
     return { points: 0, approximate: false };
   };
@@ -679,7 +686,7 @@ export default function LineupPool() {
                   <div key={p.id} className="rounded px-4 py-3" style={{ background: '#17211D', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830' }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-head text-sm">{p.name}</div>
-                      <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Season: {total} pts</div>
+                      <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Season: {total.toFixed(1)} pts</div>
                     </div>
                     {!revealed ? (
                       <div className="flex items-center gap-1.5 font-mono text-xs uppercase" style={{ color: '#5C6862' }}>
@@ -900,7 +907,7 @@ export default function LineupPool() {
                   <div key={p.id} className="flex items-center gap-3 rounded px-3 py-2" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
                     <div className="font-mono text-xs w-6" style={{ color: '#5C6862' }}>{i + 1}</div>
                     <div className="font-head text-sm flex-1">{p.name}</div>
-                    <div className="font-mono text-sm" style={{ color: '#8A9A90' }}>{p.total} pts</div>
+                    <div className="font-mono text-sm" style={{ color: '#8A9A90' }}>{p.total.toFixed(1)} pts</div>
                   </div>
                 ))}
               </div>

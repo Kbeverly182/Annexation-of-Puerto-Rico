@@ -48,6 +48,7 @@ export default function ConfidencePool() {
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [dragInfo, setDragInfo] = useState(null); // { pid, index }
   const saveTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
@@ -244,7 +245,6 @@ export default function ConfidencePool() {
     persist(next);
   };
 
-  const [dragInfo, setDragInfo] = useState(null); // { pid, index }
   const handleDragStart = (pid, index) => setDragInfo({ pid, index });
   const handleDropOn = (pid, index) => {
     if (!dragInfo || dragInfo.pid !== pid || dragInfo.index === index) { setDragInfo(null); return; }

@@ -218,7 +218,13 @@ export default function SurvivorPool() {
   };
   const resetPin = (id) => {
     if (resetConfirmId !== id) { setResetConfirmId(id); return; }
-    persist({ ...data, participants: data.participants.map(p => p.id === id ? { ...p, pin: null } : p) });
+    const resetterName = myId ? data.participants.find(x => x.id === myId)?.name : null;
+    persist({
+      ...data,
+      participants: data.participants.map(p => p.id === id
+        ? { ...p, pin: null, lastPinReset: { byName: resetterName || 'an unclaimed device', at: new Date().toISOString() } }
+        : p),
+    });
     setResetConfirmId(null);
   };
 
@@ -390,6 +396,14 @@ export default function SurvivorPool() {
                     >
                       {resetConfirmId === p.id ? 'Confirm reset?' : 'Reset PIN'}
                     </button>
+                  )}
+                  {p.lastPinReset && (
+                    <span
+                      title={new Date(p.lastPinReset.at).toLocaleString()}
+                      style={{ color: '#5C6862', fontSize: '9px' }}
+                    >
+                      (reset by {p.lastPinReset.byName}, {new Date(p.lastPinReset.at).toLocaleDateString()})
+                    </span>
                   )}
                 </div>
               ))}

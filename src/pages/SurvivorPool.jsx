@@ -31,7 +31,9 @@ export default function SurvivorPool() {
   const [showAvailability, setShowAvailability] = useState(false);
   const [pickConfirm, setPickConfirm] = useState(null); // { week, pid, team, participantName, prevTeam }
   const [now, setNow] = useState(Date.now());
+  const [justSaved, setJustSaved] = useState(false);
   const saveTimer = useRef(null);
+  const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
 
@@ -126,6 +128,9 @@ export default function SurvivorPool() {
       try {
         await apiSavePool(POOL_KEY, next);
         setSaveError(false);
+        setJustSaved(true);
+        if (savedTimer.current) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => setJustSaved(false), 1500);
       } catch (e) {
         setSaveError(true);
       }
@@ -823,6 +828,13 @@ export default function SurvivorPool() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Saved indicator */}
+      {justSaved && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: '#17211D', border: '1px solid #3D9B5C', color: '#7FCB98' }}>
+          <Check size={12} /> Saved
         </div>
       )}
     </div>

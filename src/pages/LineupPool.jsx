@@ -49,6 +49,7 @@ export default function LineupPool() {
   const [statsDebug, setStatsDebug] = useState(null);
   const [statsDebugLoading, setStatsDebugLoading] = useState(false);
   const [statsDebugFilter, setStatsDebugFilter] = useState('');
+  const [statsApplySummary, setStatsApplySummary] = useState(null);
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
@@ -313,11 +314,88 @@ export default function LineupPool() {
         }
       }
       setStatsDebug(results);
+      applyTestScoresToLineup(results);
     } catch (e) {
       setStatsDebug([{ gameId: '—', matchup: 'Lookup failed', ok: false, error: String(e) }]);
     } finally {
       setStatsDebugLoading(false);
     }
+  };
+
+  // Pulls the first numeric value found under any of several candidate label names —
+  // a defensive guess since ESPN's exact label strings for this endpoint aren't confirmed yet.
+  const pickStat = (stats, keys) => {
+    for (const k of keys) {
+      if (stats[k] != null) {
+        const n = parseFloat(String(stats[k]).replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(n)) return n;
+      }
+    }
+    return 0;
+  };
+
+  // PPR scoring per the pool's rules doc. Kicking is a known-approximate area: aggregate
+  // box score stats don't include per-kick distance, so field goals use a flat estimate
+  // until we can pull play-by-play data — flagged clearly wherever it shows up.
+  const computeFantasyPoints = (category, stats) => {
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('pass')) {
+      const yds = pickStat(stats, ['YDS', 'PASS YDS', 'PASSING YARDS']);
+      const td = pickStat(stats, ['TD', 'PASS TD']);
+      const int = pickStat(stats, ['INT', 'INTERCEPTIONS']);
+      return { points: yds / 25 + td * 6 + int * -2, approximate: false };
+    }
+    if (cat.includes('rush')) {
+      const yds = pickStat(stats, ['YDS', 'RUSH YDS']);
+      const td = pickStat(stats, ['TD', 'RUSH TD']);
+      return { points: yds / 10 + td * 6, approximate: false };
+    }
+    if (cat.includes('receiv')) {
+      const rec = pickStat(stats, ['REC', 'RECEPTIONS']);
+      const yds = pickStat(stats, ['YDS', 'REC YDS']);
+      const td = pickStat(stats, ['TD', 'REC TD']);
+      return { points: rec * 1 + yds / 10 + td * 6, approximate: false };
+    }
+    if (cat.includes('fumbl')) {
+      const lost = pickStat(stats, ['LOST', 'FUM LOST']);
+      return { points: lost * -2, approximate: false };
+    }
+    if (cat.includes('kick')) {
+      const fgMade = pickStat(stats, ['FG', 'FGM']);
+      const xpMade = pickStat(stats, ['XP', 'PAT']);
+      return { points: fgMade * 3 + xpMade * 1, approximate: true };
+    }
+    return { points: 0, approximate: false };
+  };
+
+  // Applies computed points to whatever the currently-viewed week's rostered players match in
+  // the fetched stats. Non-destructive to anyone not found — existing manual entries are untouched
+  // unless a real match is found for that exact player.
+  const applyTestScoresToLineup = (results) => {
+    const allPlayerRows = results.flatMap(r => r.players || []);
+    if (!allPlayerRows.length) return;
+    const totalsByPlayerId = {};
+    const anyApprox = {};
+    allPlayerRows.forEach(row => {
+      if (!row.playerId) return;
+      const { points, approximate } = computeFantasyPoints(row.category, row.stats);
+      totalsByPlayerId[row.playerId] = (totalsByPlayerId[row.playerId] || 0) + points;
+      if (approximate) anyApprox[row.playerId] = true;
+    });
+
+    let matched = 0;
+    const next = { ...data, playerScores: { ...data.playerScores } };
+    next.playerScores[viewWeek] = { ...(next.playerScores[viewWeek] || {}) };
+    pickedThisWeek.forEach((info, key) => {
+      if (totalsByPlayerId[key] != null) {
+        next.playerScores[viewWeek][key] = Math.round(totalsByPlayerId[key] * 10) / 10;
+        matched++;
+      }
+    });
+    if (matched > 0) {
+      persist(next);
+    }
+    setStatsApplySummary({ matched, total: pickedThisWeek.size, hasApprox: pickedThisWeek.size > 0 && [...pickedThisWeek.keys()].some(k => anyApprox[k]) });
   };
 
   return (
@@ -632,7 +710,7 @@ export default function LineupPool() {
                 Auto-Stats Test (beta)
               </div>
               <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
-                Diagnostic only — fetches raw player stats for this week's games from ESPN and shows exactly what comes back. Doesn't fill in scores yet.
+                Fetches player stats from the most recent completed game, computes PPR points, and applies them to whichever of this week's rostered players it can match — safe to re-run, and manual overrides below still work.
               </div>
               <button
                 onClick={testPlayerStatsSync}
@@ -642,6 +720,14 @@ export default function LineupPool() {
               >
                 {statsDebugLoading ? 'Searching for a completed game…' : 'Test fetch against the most recent completed game'}
               </button>
+              {statsApplySummary && (
+                <div className="mt-2 font-mono text-xs" style={{ color: statsApplySummary.matched > 0 ? '#7FCB98' : '#E28A82' }}>
+                  {statsApplySummary.matched > 0
+                    ? `Applied points to ${statsApplySummary.matched} of ${statsApplySummary.total} rostered players this week.`
+                    : `No rostered players this week matched anyone in that game's box score.`}
+                  {statsApplySummary.hasApprox && ' (Kicker points are a rough estimate — no per-kick distance data available yet.)'}
+                </div>
+              )}
               {statsDebug && (
                 <div className="mt-3 space-y-2">
                   {statsDebug.some(r => r.players?.length > 0) && (

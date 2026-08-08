@@ -327,7 +327,13 @@ export default function LineupPool() {
   const pickStat = (stats, keys) => {
     for (const k of keys) {
       if (stats[k] != null) {
-        const n = parseFloat(String(stats[k]).replace(/[^0-9.\-]/g, ''));
+        const raw = String(stats[k]);
+        // "made/attempted" style stats (kicking, completions) — take the first number, not both digits mashed together.
+        if (raw.includes('/')) {
+          const made = parseFloat(raw.split('/')[0]);
+          if (!isNaN(made)) return made;
+        }
+        const n = parseFloat(raw.replace(/[^0-9.\-]/g, ''));
         if (!isNaN(n)) return n;
       }
     }
@@ -368,12 +374,47 @@ export default function LineupPool() {
     return { points: 0, approximate: false };
   };
 
+  // Standard ESPN D/ST points-allowed scale.
+  const pointsAllowedScore = (pa) => {
+    if (pa === 0) return 10;
+    if (pa <= 6) return 7;
+    if (pa <= 13) return 4;
+    if (pa <= 20) return 1;
+    if (pa <= 27) return 0;
+    if (pa <= 34) return -1;
+    return -4;
+  };
+
+  // D/ST scoring: points-allowed is reliable (comes straight from the final score), the
+  // sacks/turnovers/TD component is best-effort since we don't yet know ESPN's exact team-stat
+  // label names — contributes 0 for anything it can't find rather than guessing wrong.
+  const computeDstPoints = (teamAbbr, gameResult) => {
+    const myScore = gameResult.scores?.find(s => s.abbr === teamAbbr);
+    const oppScore = gameResult.scores?.find(s => s.abbr !== teamAbbr);
+    let points = 0;
+    let approximate = false;
+    if (oppScore?.score != null) {
+      points += pointsAllowedScore(oppScore.score);
+    } else {
+      approximate = true;
+    }
+    const teamStats = gameResult.teams?.find(t => t.abbr === teamAbbr)?.stats || {};
+    const sacks = pickStat(teamStats, ['sacksYardsLost', 'sacks', 'Sacks', 'totalSacks']);
+    const ints = pickStat(teamStats, ['interceptions', 'Interceptions', 'defensiveInterceptions']);
+    const fumRec = pickStat(teamStats, ['fumblesRecovered', 'FumblesRecovered']);
+    if (sacks || ints || fumRec) {
+      points += sacks * 1 + ints * 2 + fumRec * 2;
+    } else {
+      approximate = true; // couldn't find these fields — likely under-counting
+    }
+    return { points, approximate };
+  };
+
   // Applies computed points to whatever the currently-viewed week's rostered players match in
   // the fetched stats. Non-destructive to anyone not found — existing manual entries are untouched
   // unless a real match is found for that exact player.
   const applyTestScoresToLineup = (results) => {
     const allPlayerRows = results.flatMap(r => r.players || []);
-    if (!allPlayerRows.length) return;
     const totalsByPlayerId = {};
     const anyApprox = {};
     allPlayerRows.forEach(row => {
@@ -382,20 +423,50 @@ export default function LineupPool() {
       totalsByPlayerId[row.playerId] = (totalsByPlayerId[row.playerId] || 0) + points;
       if (approximate) anyApprox[row.playerId] = true;
     });
+    // Name index, used only to detect an ID mismatch when a direct ID match fails —
+    // if we find the same name under a different ID, that pinpoints the actual bug.
+    const rowsByName = {};
+    allPlayerRows.forEach(row => {
+      if (!row.name) return;
+      const k = row.name.toLowerCase();
+      (rowsByName[k] = rowsByName[k] || []).push(row);
+    });
+    // D/ST: any team that actually appears in one of the fetched games' final scores.
+    results.forEach(r => {
+      (r.scores || []).forEach(s => {
+        if (s.abbr) {
+          const { points, approximate } = computeDstPoints(s.abbr, r);
+          totalsByPlayerId[s.abbr] = points;
+          if (approximate) anyApprox[s.abbr] = true;
+        }
+      });
+    });
 
     let matched = 0;
+    const details = [];
     const next = { ...data, playerScores: { ...data.playerScores } };
     next.playerScores[viewWeek] = { ...(next.playerScores[viewWeek] || {}) };
     pickedThisWeek.forEach((info, key) => {
-      if (totalsByPlayerId[key] != null) {
-        next.playerScores[viewWeek][key] = Math.round(totalsByPlayerId[key] * 10) / 10;
+      const directHit = totalsByPlayerId[key];
+      if (directHit != null) {
+        next.playerScores[viewWeek][key] = Math.round(directHit * 10) / 10;
         matched++;
+        details.push({ label: info.label, status: 'matched', points: Math.round(directHit * 10) / 10, key });
+        return;
+      }
+      // No direct ID match — check if the same name exists under a different ID.
+      const nameGuess = (info.label || '').split(' (')[0].toLowerCase();
+      const nameHit = rowsByName[nameGuess];
+      if (nameHit?.length) {
+        details.push({ label: info.label, status: 'id-mismatch', key, foundId: nameHit[0].playerId });
+      } else {
+        details.push({ label: info.label, status: 'no-data', key });
       }
     });
     if (matched > 0) {
       persist(next);
     }
-    setStatsApplySummary({ matched, total: pickedThisWeek.size, hasApprox: pickedThisWeek.size > 0 && [...pickedThisWeek.keys()].some(k => anyApprox[k]) });
+    setStatsApplySummary({ matched, total: pickedThisWeek.size, details, hasApprox: pickedThisWeek.size > 0 && [...pickedThisWeek.keys()].some(k => anyApprox[k]) });
   };
 
   return (
@@ -726,6 +797,17 @@ export default function LineupPool() {
                     ? `Applied points to ${statsApplySummary.matched} of ${statsApplySummary.total} rostered players this week.`
                     : `No rostered players this week matched anyone in that game's box score.`}
                   {statsApplySummary.hasApprox && ' (Kicker points are a rough estimate — no per-kick distance data available yet.)'}
+                  {statsApplySummary.details?.length > 0 && (
+                    <div className="mt-1.5 space-y-0.5">
+                      {statsApplySummary.details.map((d, i) => (
+                        <div key={i} style={{ color: d.status === 'matched' ? '#7FCB98' : d.status === 'id-mismatch' ? '#E8A23D' : '#5C6862' }}>
+                          {d.status === 'matched' && `✓ ${d.label}: +${d.points} pts (id ${d.key})`}
+                          {d.status === 'id-mismatch' && `⚠ ${d.label}: found by name under a different id (roster id ${d.key}, box score id ${d.foundId})`}
+                          {d.status === 'no-data' && `– ${d.label}: not found in this game's box score (id ${d.key})`}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {statsDebug && (
@@ -796,6 +878,14 @@ export default function LineupPool() {
                       />
                     </div>
                   ))}
+                  <div className="flex items-center gap-2 font-mono text-xs rounded px-2.5 py-1.5 mt-2" style={{ background: '#1F2B25', border: '1px solid #8A9A90' }}>
+                    <span className="flex-1 font-head uppercase" style={{ color: '#8A9A90' }}>Total</span>
+                    <span className="w-16 text-right" style={{ color: '#F0EDE4' }}>
+                      {Array.from(pickedThisWeek.keys())
+                        .reduce((sum, key) => sum + (data.playerScores?.[viewWeek]?.[key] || 0), 0)
+                        .toFixed(1)}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

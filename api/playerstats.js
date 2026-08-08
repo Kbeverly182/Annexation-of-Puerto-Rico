@@ -78,12 +78,43 @@ export default async function handler(req, res) {
     // fall through — players stays [], raw JSON below still lets us diagnose the real shape
   }
 
+  // Team-level stats (sacks, interceptions, fumble recoveries, etc.) — needed for D/ST scoring,
+  // which lives separately from individual player stats. Shape: boxscore.teams: [ { team: {abbreviation}, statistics: [ { name/label, displayValue } ] } ]
+  const teams = [];
+  try {
+    const teamStatBlocks = json?.boxscore?.teams || [];
+    teamStatBlocks.forEach(tb => {
+      const abbr = tb.team?.abbreviation || null;
+      const statMap = {};
+      (tb.statistics || []).forEach(s => {
+        const key = s.name || s.label || s.abbreviation || '';
+        if (key) statMap[key] = s.displayValue ?? s.value;
+      });
+      teams.push({ abbr, stats: statMap });
+    });
+  } catch (e) {
+    // fall through — teams stays []
+  }
+
+  // Final scores per team, for D/ST points-allowed scoring.
+  const scores = [];
+  try {
+    const competitors = json?.header?.competitions?.[0]?.competitors || [];
+    competitors.forEach(c => {
+      scores.push({ abbr: c.team?.abbreviation || null, score: c.score != null ? Number(c.score) : null, homeAway: c.homeAway || null });
+    });
+  } catch (e) {
+    // fall through — scores stays []
+  }
+
   return res.status(200).json({
     ok: true,
     gameId,
     upstreamStatus,
     playersParsed: players.length,
     players,
+    teams,
+    scores,
     // Only include the raw payload when parsing found nothing, so we can see the real shape —
     // keeps the response small on the (hopefully common) success path.
     raw: players.length === 0 ? json : undefined,

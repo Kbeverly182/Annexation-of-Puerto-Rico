@@ -499,7 +499,6 @@ export default function LineupPool() {
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
                               .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
-                              .slice(0, 40)
                               .map(r => ({ value: r.id, label: `${r.name} (${r.team})` }));
                           return (
                             <div key={s.key} className="flex items-center gap-2 font-mono text-xs">

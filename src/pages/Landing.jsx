@@ -20,10 +20,9 @@ const POOLS = [
   {
     to: '/lineup',
     icon: Users,
-    title: 'Lineup Pick\'em',
+    title: 'Where\'s The Beef? - Lineup Pick\'em',
     desc: 'Build a weekly fantasy lineup, no repeat players all season.',
     color: '#5C6862',
-    comingSoon: true,
   },
 ];
 

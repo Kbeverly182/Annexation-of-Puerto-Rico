@@ -10,7 +10,27 @@ const POOL_KEY = 'confidence-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-confidence';
 const POLL_MS = 15000;
 
-const emptyData = () => ({ name: 'Confidence Pool', participants: [], picks: {}, results: {}, currentWeek: 1 });
+const emptyData = () => ({ name: 'Confidence Pool', participants: [], picks: {}, results: {}, mnfActual: {}, currentWeek: 1 });
+
+// Missed picks (game closed, no winner selected) are pulled out of the natural drag order and
+// reinserted near the middle of that week's confidence range — not the top (too harsh for a
+// simple forgotten early-week pick) and not the bottom (too lenient a penalty).
+function repositionMissed(order, winners, isClosedFn) {
+  const n = order.length;
+  if (!n) return order;
+  const kept = [];
+  const missed = [];
+  order.forEach(gid => {
+    const hasPick = !!(winners && winners[gid]);
+    if (!hasPick && isClosedFn(gid)) missed.push(gid);
+    else kept.push(gid);
+  });
+  if (!missed.length) return order;
+  const result = [...kept];
+  const insertAt = Math.max(0, Math.floor((n - missed.length) / 2));
+  result.splice(insertAt, 0, ...missed);
+  return result;
+}
 
 export default function ConfidencePool() {
   const [data, setData] = useState(null);
@@ -149,49 +169,106 @@ export default function ConfidencePool() {
     setResetConfirmId(null);
   };
 
-  const isPickLocked = (week, team) => {
-    const lockTime = lockTimeForPick(week, team);
-    return lockTime !== null && now >= lockTime;
-  };
-  const weekLocked = isPickLocked(viewWeek, undefined);
-  const isRevealed = (pid) => {
-    if (myId && pid === myId) return true;
-    return weekLocked;
-  };
-
   const games = schedule[viewWeek]?.games || [];
   const maxConfidence = games.length;
 
-  const setGamePick = (week, pid, gameId, field, value) => {
+  // Same lock rule as Survivor: early games (Thu/int'l/Sat) lock at their own kickoff;
+  // every Sunday-1pm-or-later game, including Sunday night and Monday night, locks together
+  // once the early Sunday window starts.
+  const isGameLocked = (g) => {
+    const lockTime = lockTimeForPick(viewWeek, g.away.abbr); // same value for either side of the game
+    return lockTime !== null && now >= lockTime;
+  };
+  const isMassLocked = () => {
+    const lockTime = lockTimeForPick(viewWeek, undefined);
+    return lockTime !== null && now >= lockTime;
+  };
+  const isGameRevealed = (pid, g) => {
+    if (myId && pid === myId) return true;
+    return isGameLocked(g);
+  };
+  const isTiebreakerRevealed = (pid) => {
+    if (myId && pid === myId) return true;
+    return isMassLocked();
+  };
+
+  // Returns this participant's confidence order for the week, normalized to include
+  // every current game (any new/missing games get appended at the bottom).
+  const getOrder = (pid) => {
+    const stored = data.picks[viewWeek]?.[pid]?.order || [];
+    const validIds = games.map(g => g.id);
+    const filtered = stored.filter(id => validIds.includes(id));
+    const missing = validIds.filter(id => !filtered.includes(id));
+    return [...filtered, ...missing];
+  };
+
+  // Display order = raw stored order, with any closed-but-unpicked games pulled to the middle.
+  const closedCheckForWeek = (w) => (gid) => !!data.results?.[w]?.[gid]?.completed;
+  const getDisplayOrder = (pid) => {
+    const raw = getOrder(pid);
+    const winners = data.picks[viewWeek]?.[pid]?.winners || {};
+    const closedCheck = (gid) => {
+      const g = games.find(x => x.id === gid);
+      if (g && isGameLocked(g)) return true;
+      return closedCheckForWeek(viewWeek)(gid);
+    };
+    return repositionMissed(raw, winners, closedCheck);
+  };
+
+  const setWinner = (week, pid, gameId, abbr) => {
     const next = { ...data, picks: { ...data.picks } };
     next.picks[week] = { ...(next.picks[week] || {}) };
-    next.picks[week][pid] = { ...(next.picks[week][pid] || {}) };
-    const prev = next.picks[week][pid][gameId] || {};
-    next.picks[week][pid][gameId] = { ...prev, [field]: value };
+    const prevEntry = next.picks[week][pid] || {};
+    const winners = { ...(prevEntry.winners || {}), [gameId]: abbr };
+    const order = (prevEntry.order && prevEntry.order.length) ? prevEntry.order : getOrder(pid);
+    next.picks[week][pid] = { ...prevEntry, winners, order };
     persist(next);
   };
 
-  const usedConfidence = (pid, week, excludeGameId) => {
-    const wk = data.picks[week]?.[pid] || {};
-    const used = new Set();
-    Object.entries(wk).forEach(([gid, pk]) => {
-      if (gid !== excludeGameId && pk?.confidence) used.add(pk.confidence);
-    });
-    return used;
+  const setTiebreaker = (week, pid, value) => {
+    const next = { ...data, picks: { ...data.picks } };
+    next.picks[week] = { ...(next.picks[week] || {}) };
+    const prevEntry = next.picks[week][pid] || {};
+    next.picks[week][pid] = { ...prevEntry, tiebreaker: value };
+    persist(next);
+  };
+
+  const reorder = (week, pid, displayOrder, fromIndex, toIndex) => {
+    const arr = [...displayOrder];
+    const [moved] = arr.splice(fromIndex, 1);
+    arr.splice(toIndex, 0, moved);
+    const next = { ...data, picks: { ...data.picks } };
+    next.picks[week] = { ...(next.picks[week] || {}) };
+    const prevEntry = next.picks[week][pid] || {};
+    next.picks[week][pid] = { ...prevEntry, order: arr };
+    persist(next);
+  };
+
+  const [dragInfo, setDragInfo] = useState(null); // { pid, index }
+  const handleDragStart = (pid, index) => setDragInfo({ pid, index });
+  const handleDropOn = (pid, index) => {
+    if (!dragInfo || dragInfo.pid !== pid || dragInfo.index === index) { setDragInfo(null); return; }
+    const displayOrder = getDisplayOrder(pid);
+    reorder(viewWeek, pid, displayOrder, dragInfo.index, index);
+    setDragInfo(null);
   };
 
   const syncResults = async (week) => {
     setSyncing(true);
     setSyncMsg('');
     try {
-      const { gameResults, completedGames } = await fetchWeekResults(week, seasonYear);
+      const { gameResults, completedGames, mnfTotal } = await fetchWeekResults(week, seasonYear);
       if (completedGames === 0) {
         setSyncMsg(`No finished games yet for week ${week} — try again after kickoff.`);
         return;
       }
-      const next = { ...data, results: { ...data.results, [week]: { ...(data.results?.[week] || {}), ...gameResults } } };
+      const next = {
+        ...data,
+        results: { ...data.results, [week]: { ...(data.results?.[week] || {}), ...gameResults } },
+        mnfActual: mnfTotal != null ? { ...(data.mnfActual || {}), [week]: mnfTotal } : (data.mnfActual || {}),
+      };
       persist(next);
-      setSyncMsg(`Synced ${completedGames} finished game${completedGames === 1 ? '' : 's'} for week ${week}.`);
+      setSyncMsg(`Synced ${completedGames} finished game${completedGames === 1 ? '' : 's'} for week ${week}${mnfTotal != null ? ` — MNF total: ${mnfTotal}` : ''}.`);
     } catch (e) {
       setSyncMsg('Could not reach the ESPN score feed.');
     } finally {
@@ -199,20 +276,43 @@ export default function ConfidencePool() {
     }
   };
 
-  // Season point total for a participant
-  const seasonTotal = (pid) => {
+  // Points a participant earned in a given week: missed picks are repositioned to the
+  // middle before scoring, exactly as in the live display, using synced results as the
+  // "is this game decided" signal (works for any past week, not just the one being viewed).
+  const weeklyPoints = (pid, w) => {
+    const entry = data.picks[w]?.[pid];
+    if (!entry?.order?.length) return 0;
+    const weekResults = data.results?.[w] || {};
+    const effOrder = repositionMissed(entry.order, entry.winners || {}, closedCheckForWeek(w));
+    const n = effOrder.length;
     let total = 0;
-    for (const w of WEEKS) {
-      const weekPicks = data.picks[w]?.[pid] || {};
-      const weekResults = data.results?.[w] || {};
-      Object.entries(weekPicks).forEach(([gid, pk]) => {
-        const res = weekResults[gid];
-        if (res?.completed && pk?.winner && pk?.confidence) {
-          if (res.winnerAbbr === pk.winner) total += pk.confidence;
-        }
-      });
-    }
+    effOrder.forEach((gid, idx) => {
+      const winner = entry.winners?.[gid];
+      const res = weekResults[gid];
+      if (res?.completed && winner && res.winnerAbbr === winner) total += (n - idx);
+    });
     return total;
+  };
+
+  const seasonTotal = (pid) => WEEKS.reduce((sum, w) => sum + weeklyPoints(pid, w), 0);
+
+  const numTopSpots = Math.max(1, Math.ceil(data.participants.length / 12));
+
+  const weeklyLeaderboard = (w) => {
+    const actualMnf = data.mnfActual?.[w] ?? null;
+    const rows = data.participants.map(p => ({
+      ...p,
+      points: weeklyPoints(p.id, w),
+      guess: data.picks[w]?.[p.id]?.tiebreaker ?? null,
+    }));
+    rows.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (actualMnf == null) return 0;
+      const da = a.guess == null ? Infinity : Math.abs(a.guess - actualMnf);
+      const db = b.guess == null ? Infinity : Math.abs(b.guess - actualMnf);
+      return da - db;
+    });
+    return rows;
   };
 
   const leaderboard = [...data.participants]
@@ -432,77 +532,145 @@ export default function ConfidencePool() {
             <div className="space-y-4">
               {data.participants.map(p => {
                 const isMe = myId === p.id;
-                const revealed = isRevealed(p.id);
-                const weekPicks = data.picks[viewWeek]?.[p.id] || {};
+                const weekEntry = data.picks[viewWeek]?.[p.id] || {};
+                const winners = weekEntry.winners || {};
+                const order = getDisplayOrder(p.id);
                 const total = seasonTotal(p.id);
+                const tiebreakerRevealed = isTiebreakerRevealed(p.id);
                 return (
                   <div key={p.id} className="rounded px-4 py-3" style={{ background: '#17211D', border: isMe ? '1px solid #E8A23D88' : '1px solid #2A3830' }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-head text-sm">{p.name}</div>
                       <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Season: {total} pts</div>
                     </div>
-                    {!revealed ? (
-                      <div className="flex items-center gap-1.5 font-mono text-xs uppercase" style={{ color: '#5C6862' }}>
-                        <Lock size={12} /> Hidden until the week locks
-                      </div>
-                    ) : games.length === 0 ? (
+                    {games.length === 0 ? (
                       <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Loading matchups…</div>
                     ) : (
-                      <div className="space-y-1.5">
-                        {games.map(g => {
-                          const pick = weekPicks[g.id] || {};
-                          const gameLocked = isPickLocked(viewWeek, undefined) || isPickLocked(viewWeek, g.away.abbr) || isPickLocked(viewWeek, g.home.abbr);
-                          const used = usedConfidence(p.id, viewWeek, g.id);
-                          const result = data.results?.[viewWeek]?.[g.id];
-                          const correct = result?.completed && pick.winner && pick.confidence && result.winnerAbbr === pick.winner;
-                          const wrong = result?.completed && pick.winner && pick.confidence && result.winnerAbbr !== pick.winner;
-                          return (
-                            <div key={g.id} className="flex items-center gap-2 flex-wrap font-mono text-xs">
-                              <button
-                                onClick={() => setGamePick(viewWeek, p.id, g.id, 'winner', g.away.abbr)}
-                                disabled={gameLocked}
-                                className="px-2 py-1 rounded"
-                                style={{
-                                  background: pick.winner === g.away.abbr ? '#E8A23D' : '#0F1614',
-                                  color: pick.winner === g.away.abbr ? '#0F1614' : '#F0EDE4',
-                                  border: '1px solid #2A3830',
-                                }}
-                              >
-                                {g.away.abbr}
-                              </button>
-                              <span style={{ color: '#5C6862' }}>@</span>
-                              <button
-                                onClick={() => setGamePick(viewWeek, p.id, g.id, 'winner', g.home.abbr)}
-                                disabled={gameLocked}
-                                className="px-2 py-1 rounded"
-                                style={{
-                                  background: pick.winner === g.home.abbr ? '#E8A23D' : '#0F1614',
-                                  color: pick.winner === g.home.abbr ? '#0F1614' : '#F0EDE4',
-                                  border: '1px solid #2A3830',
-                                }}
-                              >
-                                {g.home.abbr}
-                              </button>
-                              <select
-                                value={pick.confidence || ''}
-                                onChange={e => setGamePick(viewWeek, p.id, g.id, 'confidence', Number(e.target.value))}
-                                disabled={gameLocked}
-                                className="px-1.5 py-1 rounded"
-                                style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
-                              >
-                                <option value="">pts</option>
-                                {Array.from({ length: maxConfidence }, (_, i) => i + 1).map(n => (
-                                  <option key={n} value={n} disabled={used.has(n)}>{n}</option>
-                                ))}
-                              </select>
-                              {correct && <span style={{ color: '#7FCB98' }}>✓ +{pick.confidence}</span>}
-                              {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}
-                            </div>
-                          );
-                        })}
+                      <div className="space-y-4">
+                        {/* Step 1: pick a winner in each matchup */}
+                        <div>
+                          <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>1. Pick a winner in each matchup</div>
+                          <div className="flex flex-wrap gap-2">
+                            {games.map(g => {
+                              const gLocked = isGameLocked(g);
+                              const gRevealed = isGameRevealed(p.id, g);
+                              if (!gRevealed) {
+                                return (
+                                  <div key={g.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase" style={{ border: '1px solid #2A3830', color: '#5C6862' }}>
+                                    <Lock size={10} /> Hidden
+                                  </div>
+                                );
+                              }
+                              const winner = winners[g.id];
+                              const awaySelected = winner === g.away.abbr;
+                              const homeSelected = winner === g.home.abbr;
+                              return (
+                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830' }}>
+                                  <button
+                                    onClick={() => setWinner(viewWeek, p.id, g.id, g.away.abbr)}
+                                    disabled={gLocked}
+                                    className="px-2.5 py-1.5 text-center font-mono text-xs"
+                                    style={{
+                                      background: awaySelected ? '#E8A23D' : '#0F1614',
+                                      color: awaySelected ? '#0F1614' : '#F0EDE4',
+                                      cursor: gLocked ? 'not-allowed' : 'pointer',
+                                    }}
+                                  >
+                                    {g.away.abbr}
+                                  </button>
+                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#17211D' }}>@</div>
+                                  <button
+                                    onClick={() => setWinner(viewWeek, p.id, g.id, g.home.abbr)}
+                                    disabled={gLocked}
+                                    className="px-2.5 py-1.5 text-center font-mono text-xs"
+                                    style={{
+                                      background: homeSelected ? '#E8A23D' : '#0F1614',
+                                      color: homeSelected ? '#0F1614' : '#F0EDE4',
+                                      cursor: gLocked ? 'not-allowed' : 'pointer',
+                                    }}
+                                  >
+                                    {g.home.abbr}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Step 2: drag to rank confidence, most confident on top */}
+                        <div>
+                          <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>
+                            2. Drag to rank — most confident on top
+                          </div>
+                          <div className="space-y-1">
+                            {order.map((gid, idx) => {
+                              const g = games.find(gm => gm.id === gid);
+                              if (!g) return null;
+                              const gLocked = isGameLocked(g);
+                              const gRevealed = isGameRevealed(p.id, g);
+                              const confidence = order.length - idx;
+                              if (!gRevealed) {
+                                return (
+                                  <div key={gid} className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#5C6862' }}>
+                                    <Lock size={12} /> Hidden until kickoff
+                                  </div>
+                                );
+                              }
+                              const winner = winners[gid];
+                              const result = data.results?.[viewWeek]?.[gid];
+                              const missed = gLocked && !winner;
+                              const correct = result?.completed && winner && result.winnerAbbr === winner;
+                              const wrong = result?.completed && ((winner && result.winnerAbbr !== winner) || (!winner && gLocked));
+                              return (
+                                <div
+                                  key={gid}
+                                  draggable={!gLocked}
+                                  onDragStart={() => handleDragStart(p.id, idx)}
+                                  onDragOver={e => e.preventDefault()}
+                                  onDrop={() => handleDropOn(p.id, idx)}
+                                  className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs"
+                                  style={{
+                                    background: '#0F1614',
+                                    border: '1px solid #2A3830',
+                                    cursor: gLocked ? 'default' : 'grab',
+                                  }}
+                                >
+                                  <span className="w-6 text-center font-head" style={{ color: '#E8A23D' }}>{confidence}</span>
+                                  <span style={{ color: '#8A9A90' }}>{g.away.abbr} @ {g.home.abbr}</span>
+                                  <span className="ml-auto" style={{ color: winner ? '#F0EDE4' : '#5C6862' }}>
+                                    {missed ? 'Missed pick' : winner ? `Pick: ${winner}` : 'No pick yet'}
+                                  </span>
+                                  {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
+                                  {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}
+                                  {!gLocked && <span style={{ color: '#3A4A42' }}>⠿</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Tiebreaker */}
+                        <div className="flex items-center gap-2 font-mono text-xs">
+                          <span style={{ color: '#5C6862' }}>MNF tiebreaker (combined final score):</span>
+                          {tiebreakerRevealed ? (
+                            <input
+                              type="number"
+                              value={weekEntry.tiebreaker ?? ''}
+                              onChange={e => setTiebreaker(viewWeek, p.id, e.target.value === '' ? null : Number(e.target.value))}
+                              disabled={isMassLocked()}
+                              className="w-20 px-2 py-1 rounded"
+                              style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                            />
+                          ) : (
+                            <span className="flex items-center gap-1" style={{ color: '#5C6862' }}><Lock size={10} /> Hidden until kickoff</span>
+                          )}
+                          {data.mnfActual?.[viewWeek] != null && (
+                            <span style={{ color: '#8A9A90' }}>(actual: {data.mnfActual[viewWeek]})</span>
+                          )}
+                        </div>
                       </div>
                     )}
-                    <button onClick={() => removeParticipant(p.id)} className="mt-2 font-mono text-[10px] underline" style={{ color: '#5C6862' }}>
+                    <button onClick={() => removeParticipant(p.id)} className="mt-3 font-mono text-[10px] underline" style={{ color: '#5C6862' }}>
                       Remove entrant
                     </button>
                   </div>
@@ -510,15 +678,46 @@ export default function ConfidencePool() {
               })}
             </div>
 
-            {/* Leaderboard */}
+            {/* Weekly winners */}
             <div>
-              <div className="font-head uppercase text-sm tracking-widest mb-3 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+                <Trophy size={14} /> Week {viewWeek} Winners
+              </div>
+              <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
+                Top {numTopSpots} of {data.participants.length} entrants (1 spot per 12) — ties broken by closest MNF guess
+              </div>
+              <div className="space-y-1.5">
+                {weeklyLeaderboard(viewWeek).map((p, i) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 rounded px-3 py-2"
+                    style={{ background: '#17211D', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
+                  >
+                    <div className="font-mono text-xs w-6" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
+                    <div className="font-head text-sm flex-1">{p.name}</div>
+                    {p.guess != null && <div className="font-mono text-[10px]" style={{ color: '#5C6862' }}>guess: {p.guess}</div>}
+                    <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.points} pts</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Season leaderboard */}
+            <div>
+              <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 <Trophy size={14} /> Season Leaderboard
+              </div>
+              <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
+                Top {numTopSpots} of {data.participants.length} entrants — season tiebreaker not yet set
               </div>
               <div className="space-y-1.5">
                 {leaderboard.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded px-3 py-2" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
-                    <div className="font-mono text-xs w-6" style={{ color: '#5C6862' }}>{i + 1}</div>
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 rounded px-3 py-2"
+                    style={{ background: '#17211D', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
+                  >
+                    <div className="font-mono text-xs w-6" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                     <div className="font-head text-sm flex-1">{p.name}</div>
                     <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total} pts</div>
                   </div>

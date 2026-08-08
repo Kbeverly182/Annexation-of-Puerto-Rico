@@ -1,11 +1,20 @@
 import { kv } from '@vercel/kv';
 
-const KEY = 'survivor-pool-v1';
+const ALLOWED_KEYS = new Set(['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1']);
+
+function resolveKey(req) {
+  const key = req.query?.key;
+  if (typeof key === 'string' && ALLOWED_KEYS.has(key)) return key;
+  // Backward compatibility: no key = original survivor pool
+  return 'survivor-pool-v1';
+}
 
 export default async function handler(req, res) {
+  const key = resolveKey(req);
+
   if (req.method === 'GET') {
     try {
-      const data = await kv.get(KEY);
+      const data = await kv.get(key);
       return res.status(200).json({ data: data || null });
     } catch (e) {
       return res.status(500).json({ error: 'Failed to read pool data' });
@@ -18,7 +27,7 @@ export default async function handler(req, res) {
       if (!body || typeof body !== 'object') {
         return res.status(400).json({ error: 'Invalid pool data' });
       }
-      await kv.set(KEY, body);
+      await kv.set(key, body);
       return res.status(200).json({ ok: true });
     } catch (e) {
       return res.status(500).json({ error: 'Failed to save pool data' });

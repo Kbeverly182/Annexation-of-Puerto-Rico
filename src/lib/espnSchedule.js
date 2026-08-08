@@ -83,6 +83,8 @@ export function useEspnSchedule(week, seasonYear) {
 
 // Determine the winning team abbreviation (or 'TIE') for each completed game in a week.
 // Used by both Survivor (win/loss per pick) and Confidence (correct/incorrect per game) pools.
+// Also detects the week's final (latest-kickoff) game — used as the Monday Night tiebreaker —
+// and returns its combined score once that specific game is final.
 export async function fetchWeekResults(week, seasonYear) {
   const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&dates=${seasonYear}`;
   const res = await fetch(url);
@@ -91,11 +93,19 @@ export async function fetchWeekResults(week, seasonYear) {
   const results = {}; // teamAbbr -> 'win' | 'loss'
   const gameResults = {}; // gameId -> { winnerAbbr: string|null (null = tie), completed: bool }
   let completedGames = 0;
+  let latestGame = null; // { date, completed, total }
   (json.events || []).forEach(ev => {
     const comp = ev.competitions?.[0];
-    if (!comp?.status?.type?.completed) return;
-    completedGames++;
+    if (!comp) return;
+    const dateStr = comp.date || ev.date;
+    const d = dateStr ? new Date(dateStr) : null;
     const competitors = comp.competitors || [];
+    if (d && (!latestGame || d > latestGame.date) && competitors.length === 2) {
+      const total = competitors.reduce((sum, c) => sum + (Number(c.score) || 0), 0);
+      latestGame = { date: d, completed: !!comp.status?.type?.completed, total };
+    }
+    if (!comp.status?.type?.completed) return;
+    completedGames++;
     const isTie = competitors.length === 2 && Number(competitors[0].score) === Number(competitors[1].score);
     let winnerAbbr = null;
     competitors.forEach(c => {
@@ -107,5 +117,6 @@ export async function fetchWeekResults(week, seasonYear) {
     });
     gameResults[ev.id] = { winnerAbbr: isTie ? null : winnerAbbr, completed: true };
   });
-  return { results, gameResults, completedGames };
+  const mnf = latestGame && latestGame.completed ? latestGame.total : null;
+  return { results, gameResults, completedGames, mnfTotal: mnf };
 }

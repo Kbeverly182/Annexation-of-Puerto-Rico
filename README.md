@@ -1,10 +1,19 @@
-# NFL Survivor Pool
+# NFL Pools
 
-A shared survivor pool tracker: entrants pick one team to win each week, can't
-reuse a team, one loss and you're out. Picks stay hidden from other entrants
-until kickoff (individual games lock/reveal at their own kickoff time; the
-whole week locks/reveals once the early Sunday window starts). Scores can
-sync automatically from ESPN's public scoreboard feed.
+A shared dashboard for multiple NFL pools — currently Survivor and Confidence,
+with a Lineup Pick'em pool planned. Each pool has its own entrants, its own
+data, and its own PIN-protected identity, but they all share one deployment
+and one database.
+
+## Structure
+
+- `src/pages/Landing.jsx` — dashboard linking to each pool
+- `src/pages/SurvivorPool.jsx` — pick one team to win each week, no repeats, one loss and you're out
+- `src/pages/ConfidencePool.jsx` — rank every game 1 to N by confidence, cumulative season points
+- `src/lib/` — shared code used by every pool: NFL team list, the ESPN schedule/results fetcher, PIN hashing, and the storage API helper
+- `api/pool.js` — one serverless function that reads/writes any pool's data, keyed by a `?key=` query param, backed by Vercel KV
+
+Routing uses `HashRouter` (URLs look like `yoursite.vercel.app/#/survivor`) specifically so no extra Vercel routing configuration is needed — it works out of the box on a static deploy.
 
 ## 1. Local setup
 

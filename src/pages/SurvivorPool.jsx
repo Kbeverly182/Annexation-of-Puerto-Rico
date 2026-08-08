@@ -29,6 +29,7 @@ export default function SurvivorPool() {
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [showAvailability, setShowAvailability] = useState(false);
+  const [pickConfirm, setPickConfirm] = useState(null); // { week, pid, team, participantName, prevTeam }
   const [now, setNow] = useState(Date.now());
   const saveTimer = useRef(null);
   const skipNextPoll = useRef(false);
@@ -148,6 +149,15 @@ export default function SurvivorPool() {
     const prev = next.picks[week][pid] || {};
     next.picks[week][pid] = { team, result: prev.result || 'pending' };
     persist(next);
+  };
+  const requestPick = (week, pid, team, participantName, prevTeam) => {
+    if (prevTeam === team) return;
+    setPickConfirm({ week, pid, team, participantName, prevTeam });
+  };
+  const confirmPickNow = () => {
+    if (!pickConfirm) return;
+    setPick(pickConfirm.week, pickConfirm.pid, pickConfirm.team);
+    setPickConfirm(null);
   };
   const setResult = (week, pid, result) => {
     const next = { ...data, picks: { ...data.picks } };
@@ -601,7 +611,7 @@ export default function SurvivorPool() {
                               return (
                                 <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830' }}>
                                   <button
-                                    onClick={() => setPick(viewWeek, p.id, g.away.abbr)}
+                                    onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, pick?.team)}
                                     disabled={locked || awayUsed}
                                     className="px-2.5 py-1.5 text-center"
                                     style={{
@@ -615,7 +625,7 @@ export default function SurvivorPool() {
                                   </button>
                                   <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#17211D' }}>@</div>
                                   <button
-                                    onClick={() => setPick(viewWeek, p.id, g.home.abbr)}
+                                    onClick={() => requestPick(viewWeek, p.id, g.home.abbr, p.name, pick?.team)}
                                     disabled={locked || homeUsed}
                                     className="px-2.5 py-1.5 text-center"
                                     style={{
@@ -640,7 +650,8 @@ export default function SurvivorPool() {
                                 <Lock size={10} /> Locked
                               </span>
                             )}
-                            <div className="flex gap-1 shrink-0 ml-auto">
+                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                              <span className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Result:</span>
                               {['win', 'pending', 'loss'].map(r => (
                                 <button
                                   key={r}
@@ -780,6 +791,40 @@ export default function SurvivorPool() {
           </>
         )}
       </div>
+
+      {/* Pick confirmation modal */}
+      {pickConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+            <div className="font-head text-sm uppercase tracking-wide mb-2" style={{ color: '#8A9A90' }}>
+              Confirm pick
+            </div>
+            <div className="font-mono text-sm mb-4" style={{ color: '#F0EDE4' }}>
+              {pickConfirm.prevTeam ? (
+                <>Change <span style={{ color: '#E8A23D' }}>{pickConfirm.participantName}</span>'s week {pickConfirm.week} pick from <b>{pickConfirm.prevTeam}</b> to <b>{pickConfirm.team}</b>?</>
+              ) : (
+                <>Save <span style={{ color: '#E8A23D' }}>{pickConfirm.participantName}</span>'s week {pickConfirm.week} pick as <b>{pickConfirm.team}</b>?</>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPickConfirm(null)}
+                className="px-3 py-1.5 rounded font-head text-xs uppercase"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#8A9A90' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPickNow}
+                className="px-3 py-1.5 rounded font-head text-xs uppercase"
+                style={{ background: '#3D9B5C', color: '#0F1614' }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

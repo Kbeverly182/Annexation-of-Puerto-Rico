@@ -48,6 +48,7 @@ export default function LineupPool() {
   const [openCombo, setOpenCombo] = useState(null); // which slot's suggestion list is open
   const [statsDebug, setStatsDebug] = useState(null);
   const [statsDebugLoading, setStatsDebugLoading] = useState(false);
+  const [statsDebugFilter, setStatsDebugFilter] = useState('');
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
@@ -643,18 +644,42 @@ export default function LineupPool() {
               </button>
               {statsDebug && (
                 <div className="mt-3 space-y-2">
-                  {statsDebug.map(r => (
-                    <div key={r.gameId} className="rounded px-2.5 py-2 font-mono text-[10px]" style={{ background: '#0F1614', border: '1px solid #2A3830' }}>
-                      <div className="mb-1" style={{ color: r.ok ? '#7FCB98' : '#E28A82' }}>
-                        {r.matchup} — {r.ok ? `parsed ${r.playersParsed} player stat rows` : `error: ${r.error}`}
+                  {statsDebug.some(r => r.players?.length > 0) && (
+                    <input
+                      value={statsDebugFilter}
+                      onChange={e => setStatsDebugFilter(e.target.value)}
+                      placeholder="Search parsed players by name…"
+                      className="w-full px-2 py-1.5 rounded font-mono text-xs mb-2"
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                    />
+                  )}
+                  {statsDebug.map(r => {
+                    const filtered = (r.players || []).filter(
+                      p => !statsDebugFilter || (p.name || '').toLowerCase().includes(statsDebugFilter.toLowerCase())
+                    );
+                    return (
+                      <div key={r.gameId} className="rounded px-2.5 py-2 font-mono text-[10px]" style={{ background: '#0F1614', border: '1px solid #2A3830' }}>
+                        <div className="mb-1" style={{ color: r.ok ? '#7FCB98' : '#E28A82' }}>
+                          {r.matchup} — {r.ok ? `parsed ${r.playersParsed} player stat rows` : `error: ${r.error}`}
+                        </div>
+                        {filtered.length > 0 && (
+                          <div className="max-h-64 overflow-y-auto space-y-1">
+                            {filtered.map((p, i) => (
+                              <div key={i} className="px-2 py-1 rounded" style={{ background: '#17211D' }}>
+                                <div style={{ color: '#F0EDE4' }}>{p.name} <span style={{ color: '#5C6862' }}>({p.team} — {p.category})</span></div>
+                                <div style={{ color: '#8A9A90' }}>{JSON.stringify(p.stats)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {r.raw && (
+                          <pre className="overflow-x-auto whitespace-pre-wrap" style={{ color: '#5C6862', maxHeight: '150px', overflowY: 'auto' }}>
+                            {JSON.stringify(r.raw, null, 1).slice(0, 2000)}
+                          </pre>
+                        )}
                       </div>
-                      {r.raw && (
-                        <pre className="overflow-x-auto whitespace-pre-wrap" style={{ color: '#5C6862', maxHeight: '150px', overflowY: 'auto' }}>
-                          {JSON.stringify(r.raw, null, 1).slice(0, 2000)}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

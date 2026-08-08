@@ -11,32 +11,47 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'gameId query param is required' });
   }
 
-  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${encodeURIComponent(gameId)}`;
+  const commonHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.espn.com/',
+    'Origin': 'https://www.espn.com',
+  };
+
+  const candidateUrls = [
+    `https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${encodeURIComponent(gameId)}`,
+    `https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/summary?region=us&lang=en&contentorigin=espn&event=${encodeURIComponent(gameId)}`,
+  ];
 
   let upstreamStatus = null;
   let json = null;
-  try {
-    const r = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; nfl-pool-app/1.0)',
-        'Accept': 'application/json',
-      },
-    });
-    upstreamStatus = r.status;
-    if (!r.ok) {
-      const text = await r.text().catch(() => '');
-      return res.status(200).json({
-        ok: false,
-        gameId,
-        upstreamStatus,
-        error: `ESPN summary endpoint returned ${r.status}`,
-        bodyPreview: text.slice(0, 500),
-        players: [],
-      });
+  let lastError = null;
+  const attempts = [];
+  for (const url of candidateUrls) {
+    try {
+      const r = await fetch(url, { headers: commonHeaders });
+      attempts.push({ url, status: r.status });
+      if (r.ok) {
+        upstreamStatus = r.status;
+        json = await r.json();
+        break;
+      }
+      lastError = `${r.status}`;
+    } catch (e) {
+      attempts.push({ url, error: String(e) });
+      lastError = String(e);
     }
-    json = await r.json();
-  } catch (e) {
-    return res.status(200).json({ ok: false, gameId, upstreamStatus, error: String(e), players: [] });
+  }
+
+  if (!json) {
+    return res.status(200).json({
+      ok: false,
+      gameId,
+      error: `All ESPN endpoints failed (last: ${lastError})`,
+      attempts,
+      players: [],
+    });
   }
 
   // Best-effort parse of the documented boxscore.players[] shape:

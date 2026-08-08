@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft } from 'lucide-react';
-import { TEAMS, TEAM_MAP, WEEKS } from '../lib/teams';
+import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
@@ -94,7 +94,7 @@ export default function SurvivorPool() {
   }
 
   const eliminatedAtWeek = (pid) => {
-    for (const w of WEEKS) {
+    for (const w of weeksForSeason(viewWeek)) {
       const p = data.picks[w]?.[pid];
       if (p && p.result === 'loss') return w;
     }
@@ -102,7 +102,7 @@ export default function SurvivorPool() {
   };
   const usedTeams = (pid, uptoWeek) => {
     const used = new Set();
-    for (const w of WEEKS) {
+    for (const w of weeksForSeason(viewWeek)) {
       if (w > uptoWeek) continue;
       const p = data.picks[w]?.[pid];
       if (p && p.team) used.add(p.team);
@@ -114,6 +114,9 @@ export default function SurvivorPool() {
   const outCount = data.participants.length - aliveCount;
 
   const aliveParticipants = data.participants.filter(p => eliminatedAtWeek(p.id) === null);
+  const seasonWeeksForView = weeksForSeason(viewWeek);
+  const viewWeekIdx = seasonWeeksForView.indexOf(viewWeek);
+  const prevWeekInSeason = viewWeekIdx > 0 ? seasonWeeksForView[viewWeekIdx - 1] : viewWeek;
   const teamAvailability = TEAMS.map(([abbr, full]) => {
     const availableCount = aliveParticipants.filter(p => !usedTeams(p.id, viewWeek - 1).has(abbr)).length;
     const pct = aliveParticipants.length ? Math.round((availableCount / aliveParticipants.length) * 100) : 0;
@@ -148,7 +151,7 @@ export default function SurvivorPool() {
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
-    for (const w of WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
+    for (const w of ALL_WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
     persist(next);
   };
   const setPick = (week, pid, team) => {
@@ -331,7 +334,11 @@ export default function SurvivorPool() {
           <div className="text-right shrink-0">
             <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#8A9A90' }}>Current Week</div>
             <div className="font-display text-3xl leading-none" style={{ color: '#E8A23D', letterSpacing: '1px' }}>
-              {String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span>
+              {isPreseasonWeek(data.currentWeek) ? (
+                <>PRE {data.currentWeek - 100}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 3</span></>
+              ) : (
+                <>{String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span></>
+              )}
             </div>
           </div>
         </div>
@@ -488,15 +495,19 @@ export default function SurvivorPool() {
             {/* Week tabs */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <button onClick={() => setViewWeek(w => Math.max(1, w - 1))} className="p-1 rounded" style={{ color: '#8A9A90' }}>
+                <button
+                  onClick={() => setViewWeek(w => ALL_WEEKS[Math.max(0, ALL_WEEKS.indexOf(w) - 1)])}
+                  className="p-1 rounded"
+                  style={{ color: '#8A9A90' }}
+                >
                   <ChevronLeft size={18} />
                 </button>
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  {WEEKS.map(w => (
+                  {ALL_WEEKS.map(w => (
                     <button
                       key={w}
                       onClick={() => setViewWeek(w)}
-                      className="shrink-0 w-9 h-9 rounded font-mono text-sm flex items-center justify-center"
+                      className="shrink-0 h-9 px-2.5 rounded font-mono text-sm flex items-center justify-center whitespace-nowrap"
                       style={{
                         background: w === viewWeek ? '#E8A23D' : '#1F2B25',
                         color: w === viewWeek ? '#0F1614' : '#8A9A90',
@@ -504,11 +515,15 @@ export default function SurvivorPool() {
                         fontWeight: w === viewWeek ? 700 : 400,
                       }}
                     >
-                      {w}
+                      {weekLabel(w)}
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setViewWeek(w => Math.min(18, w + 1))} className="p-1 rounded" style={{ color: '#8A9A90' }}>
+                <button
+                  onClick={() => setViewWeek(w => ALL_WEEKS[Math.min(ALL_WEEKS.length - 1, ALL_WEEKS.indexOf(w) + 1)])}
+                  className="p-1 rounded"
+                  style={{ color: '#8A9A90' }}
+                >
                   <ChevronRight size={18} />
                 </button>
               </div>
@@ -531,7 +546,7 @@ export default function SurvivorPool() {
               {showAvailability && (
                 <>
                   <div className="font-mono text-xs mb-2" style={{ color: '#5C6862' }}>
-                    Share of alive entrants ({aliveParticipants.length}) who haven't used each team through week {Math.max(1, viewWeek - 1)}.
+                    Share of alive entrants ({aliveParticipants.length}) who haven't used each team through week {weekLabel(prevWeekInSeason)}.
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {teamAvailability.map(t => (
@@ -744,7 +759,7 @@ export default function SurvivorPool() {
               <div className="space-y-2">
                 {data.participants.map(p => {
                   const elimWeek = eliminatedAtWeek(p.id);
-                  const wins = WEEKS.filter(w => data.picks[w]?.[p.id]?.result === 'win').length;
+                  const wins = weeksForSeason(viewWeek).filter(w => data.picks[w]?.[p.id]?.result === 'win').length;
                   return (
                     <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
                       <div className="flex items-center gap-3 mb-1.5">
@@ -759,7 +774,7 @@ export default function SurvivorPool() {
                         <div className="font-mono text-xs" style={{ color: '#5C6862' }}>{wins}-{elimWeek ? 1 : 0}</div>
                       </div>
                       <div className="flex gap-1 overflow-x-auto pb-1">
-                        {WEEKS.map(w => {
+                        {weeksForSeason(viewWeek).map(w => {
                           const pk = data.picks[w]?.[p.id];
                           const isElimHere = elimWeek === w;
                           const grey = elimWeek !== null && w > elimWeek;
@@ -770,7 +785,7 @@ export default function SurvivorPool() {
                           return (
                             <div
                               key={w}
-                              title={shown ? `Week ${w}${pk?.team ? ': ' + TEAM_MAP[pk.team] : ''}` : `Week ${w}: hidden until kickoff`}
+                              title={shown ? `Week ${weekLabel(w)}${pk?.team ? ': ' + TEAM_MAP[pk.team] : ''}` : `Week ${weekLabel(w)}: hidden until kickoff`}
                               className="shrink-0 w-9 h-9 rounded font-mono text-[10px] flex items-center justify-center"
                               style={{ background: bg, border: `1px solid ${border}`, color: txt, opacity: grey ? 0.3 : 1 }}
                             >
@@ -781,7 +796,7 @@ export default function SurvivorPool() {
                       </div>
                       {expandedId === p.id && (
                         <div className="mt-2 pt-2 grid gap-1" style={{ borderTop: '1px solid #2A3830' }}>
-                          {WEEKS.map(w => {
+                          {weeksForSeason(viewWeek).map(w => {
                             const pk = data.picks[w]?.[p.id];
                             const shown = isRevealed(w, p.id, pk?.team);
                             const isElimHere = elimWeek === w;
@@ -798,7 +813,7 @@ export default function SurvivorPool() {
                             }
                             return (
                               <div key={w} className="flex items-center justify-between font-mono text-xs">
-                                <span style={{ color: '#5C6862' }}>Week {w}</span>
+                                <span style={{ color: '#5C6862' }}>Week {weekLabel(w)}</span>
                                 <span style={{ color: valueColor }}>{valueText}</span>
                               </div>
                             );

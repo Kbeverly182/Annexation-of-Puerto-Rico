@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle } from 'lucide-react';
-import { TEAMS, TEAM_MAP, WEEKS } from '../lib/teams';
+import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek, toEspnWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule } from '../lib/espnSchedule';
@@ -131,7 +131,7 @@ export default function LineupPool() {
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
-    for (const w of WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
+    for (const w of ALL_WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
     persist(next);
   };
   const setCurrentWeek = (w) => persist({ ...data, currentWeek: w });
@@ -210,7 +210,7 @@ export default function LineupPool() {
 
   const usedByParticipant = (pid, excludeWeek, excludeSlotKey) => {
     const used = new Set();
-    for (const w of WEEKS) {
+    for (const w of weeksForSeason(excludeWeek)) {
       const weekPicks = data.picks[w]?.[pid];
       if (!weekPicks) continue;
       SLOTS.forEach(s => {
@@ -274,12 +274,15 @@ export default function LineupPool() {
     setStatsDebugLoading(true);
     setStatsDebug(null);
     try {
-      // Test against whatever's actually been played — preseason first (that's what exists
-      // right now), falling back to the pool's regular-season week once real games exist there.
+      // Check whatever week is currently being viewed first (decoding it properly, since it
+      // may itself be a preseason week now), then fall back to scanning all preseason weeks —
+      // that's what's actually being played right now.
+      const viewedEspn = toEspnWeek(viewWeek);
       const candidates = [
+        { label: `Week ${weekLabel(viewWeek)}`, seasontype: viewedEspn.seasontype, week: viewedEspn.week },
         { label: 'Preseason Week 1', seasontype: 1, week: 1 },
         { label: 'Preseason Week 2', seasontype: 1, week: 2 },
-        { label: `Regular Season Week ${viewWeek}`, seasontype: 2, week: viewWeek },
+        { label: 'Preseason Week 3', seasontype: 1, week: 3 },
       ];
       let completedGames = [];
       let sourceLabel = '';
@@ -295,7 +298,7 @@ export default function LineupPool() {
       }
 
       if (completedGames.length === 0) {
-        setStatsDebug([{ gameId: '—', matchup: 'No completed games found yet', ok: false, error: 'Checked preseason weeks 1-2 and this pool\'s current week — none have finished. Try again once a game has actually been played.' }]);
+        setStatsDebug([{ gameId: '—', matchup: 'No completed games found yet', ok: false, error: 'Checked this week and preseason weeks 1-3 — none have finished. Try again once a game has actually been played.' }]);
         return;
       }
 
@@ -521,7 +524,11 @@ export default function LineupPool() {
           <div className="text-right shrink-0">
             <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#8A9A90' }}>Current Week</div>
             <div className="font-display text-3xl leading-none" style={{ color: '#8A9A90', letterSpacing: '1px' }}>
-              {String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span>
+              {isPreseasonWeek(data.currentWeek) ? (
+                <>PRE {data.currentWeek - 100}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 3</span></>
+              ) : (
+                <>{String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span></>
+              )}
             </div>
           </div>
         </div>
@@ -636,13 +643,17 @@ export default function LineupPool() {
             {/* Week tabs */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <button onClick={() => setViewWeek(w => Math.max(1, w - 1))} className="p-1 rounded" style={{ color: '#8A9A90' }}><ChevronLeft size={18} /></button>
+                <button
+                  onClick={() => setViewWeek(w => ALL_WEEKS[Math.max(0, ALL_WEEKS.indexOf(w) - 1)])}
+                  className="p-1 rounded"
+                  style={{ color: '#8A9A90' }}
+                ><ChevronLeft size={18} /></button>
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  {WEEKS.map(w => (
+                  {ALL_WEEKS.map(w => (
                     <button
                       key={w}
                       onClick={() => setViewWeek(w)}
-                      className="shrink-0 w-9 h-9 rounded font-mono text-sm flex items-center justify-center"
+                      className="shrink-0 h-9 px-2.5 rounded font-mono text-sm flex items-center justify-center whitespace-nowrap"
                       style={{
                         background: w === viewWeek ? '#8A9A90' : '#1F2B25',
                         color: w === viewWeek ? '#0F1614' : '#8A9A90',
@@ -650,15 +661,19 @@ export default function LineupPool() {
                         fontWeight: w === viewWeek ? 700 : 400,
                       }}
                     >
-                      {w}
+                      {weekLabel(w)}
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setViewWeek(w => Math.min(18, w + 1))} className="p-1 rounded" style={{ color: '#8A9A90' }}><ChevronRight size={18} /></button>
+                <button
+                  onClick={() => setViewWeek(w => ALL_WEEKS[Math.min(ALL_WEEKS.length - 1, ALL_WEEKS.indexOf(w) + 1)])}
+                  className="p-1 rounded"
+                  style={{ color: '#8A9A90' }}
+                ><ChevronRight size={18} /></button>
               </div>
               {viewWeek !== data.currentWeek && (
                 <button onClick={() => setCurrentWeek(viewWeek)} className="font-mono text-xs underline" style={{ color: '#8A9A90' }}>
-                  Set week {viewWeek} as current week
+                  Set week {weekLabel(viewWeek)} as current week
                 </button>
               )}
               {rostersLoading && (
@@ -862,7 +877,7 @@ export default function LineupPool() {
             {/* Score entry */}
             <div>
               <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
-                Week {viewWeek} Scores
+                Week {weekLabel(viewWeek)} Scores
               </div>
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
                 Enter each rostered player's fantasy points once their game is final. Points apply automatically to everyone who started them.

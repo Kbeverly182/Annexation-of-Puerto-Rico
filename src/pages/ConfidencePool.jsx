@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check } from 'lucide-react';
-import { WEEKS } from '../lib/teams';
+import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
@@ -130,7 +130,7 @@ export default function ConfidencePool() {
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
-    for (const w of WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
+    for (const w of ALL_WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
     persist(next);
   };
   const setCurrentWeek = (w) => persist({ ...data, currentWeek: w });
@@ -378,7 +378,11 @@ export default function ConfidencePool() {
           <div className="text-right shrink-0">
             <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#8A9A90' }}>Current Week</div>
             <div className="font-display text-3xl leading-none" style={{ color: '#E8A23D', letterSpacing: '1px' }}>
-              {String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span>
+              {isPreseasonWeek(data.currentWeek) ? (
+                <>PRE {data.currentWeek - 100}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 3</span></>
+              ) : (
+                <>{String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span></>
+              )}
             </div>
           </div>
         </div>
@@ -496,13 +500,17 @@ export default function ConfidencePool() {
             {/* Week tabs */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <button onClick={() => setViewWeek(w => Math.max(1, w - 1))} className="p-1 rounded" style={{ color: '#8A9A90' }}><ChevronLeft size={18} /></button>
+                <button
+                  onClick={() => setViewWeek(w => ALL_WEEKS[Math.max(0, ALL_WEEKS.indexOf(w) - 1)])}
+                  className="p-1 rounded"
+                  style={{ color: '#8A9A90' }}
+                ><ChevronLeft size={18} /></button>
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  {WEEKS.map(w => (
+                  {ALL_WEEKS.map(w => (
                     <button
                       key={w}
                       onClick={() => setViewWeek(w)}
-                      className="shrink-0 w-9 h-9 rounded font-mono text-sm flex items-center justify-center"
+                      className="shrink-0 h-9 px-2.5 rounded font-mono text-sm flex items-center justify-center whitespace-nowrap"
                       style={{
                         background: w === viewWeek ? '#E8A23D' : '#1F2B25',
                         color: w === viewWeek ? '#0F1614' : '#8A9A90',
@@ -510,15 +518,19 @@ export default function ConfidencePool() {
                         fontWeight: w === viewWeek ? 700 : 400,
                       }}
                     >
-                      {w}
+                      {weekLabel(w)}
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setViewWeek(w => Math.min(18, w + 1))} className="p-1 rounded" style={{ color: '#8A9A90' }}><ChevronRight size={18} /></button>
+                <button
+                  onClick={() => setViewWeek(w => ALL_WEEKS[Math.min(ALL_WEEKS.length - 1, ALL_WEEKS.indexOf(w) + 1)])}
+                  className="p-1 rounded"
+                  style={{ color: '#8A9A90' }}
+                ><ChevronRight size={18} /></button>
               </div>
               {viewWeek !== data.currentWeek && (
                 <button onClick={() => setCurrentWeek(viewWeek)} className="font-mono text-xs underline" style={{ color: '#E8A23D' }}>
-                  Set week {viewWeek} as current week
+                  Set week {weekLabel(viewWeek)} as current week
                 </button>
               )}
             </div>
@@ -526,7 +538,7 @@ export default function ConfidencePool() {
             {/* Sync + status */}
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="font-head uppercase text-sm tracking-widest" style={{ color: '#8A9A90' }}>
-                Week {viewWeek} — {games.length} games, {maxConfidence} pts max
+                Week {weekLabel(viewWeek)} — {games.length} games, {maxConfidence} pts max
               </div>
               <div className="flex items-center gap-2">
                 <label className="font-mono text-xs flex items-center gap-1" style={{ color: '#5C6862' }}>
@@ -540,7 +552,7 @@ export default function ConfidencePool() {
                   style={{ background: '#1F2B25', border: '1px solid #E8A23D', color: '#E8A23D', opacity: syncing ? 0.6 : 1 }}
                 >
                   <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-                  {syncing ? 'Syncing…' : `Sync week ${viewWeek} results`}
+                  {syncing ? 'Syncing…' : `Sync week ${weekLabel(viewWeek)} results`}
                 </button>
               </div>
             </div>
@@ -703,7 +715,7 @@ export default function ConfidencePool() {
             {/* Weekly winners */}
             <div>
               <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
-                <Trophy size={14} /> Week {viewWeek} Winners
+                <Trophy size={14} /> Week {weekLabel(viewWeek)} Winners
               </div>
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
                 Top {numTopSpots} of {data.participants.length} entrants (1 spot per 12) — ties broken by closest MNF guess

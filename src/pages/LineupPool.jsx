@@ -50,7 +50,7 @@ export default function LineupPool() {
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
-  const { rosters, loading: rostersLoading, missingTeams, retry: retryRosters } = useNflRosters();
+  const { rosters, loading: rostersLoading, progress: rostersProgress, missingTeams, retry: retryRosters } = useNflRosters();
 
   useEffect(() => {
     (async () => {
@@ -453,7 +453,7 @@ export default function LineupPool() {
               )}
               {rostersLoading && (
                 <div className="font-mono text-xs mt-2 flex items-center gap-1.5" style={{ color: '#5C6862' }}>
-                  <Loader2 size={10} className="animate-spin" /> Loading player rosters (32 teams)…
+                  <Loader2 size={10} className="animate-spin" /> Loading player rosters ({rostersProgress.loaded}/{rostersProgress.total} teams)…
                 </div>
               )}
               {!rostersLoading && missingTeams.length > 0 && (

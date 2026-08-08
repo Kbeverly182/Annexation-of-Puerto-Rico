@@ -271,19 +271,52 @@ export default function LineupPool() {
   const testPlayerStatsSync = async () => {
     setStatsDebugLoading(true);
     setStatsDebug(null);
-    const weekGames = schedule[viewWeek]?.games || [];
-    const results = [];
-    for (const g of weekGames) {
-      try {
-        const res = await fetch(`/api/playerstats?gameId=${g.id}`);
+    try {
+      // Test against whatever's actually been played — preseason first (that's what exists
+      // right now), falling back to the pool's regular-season week once real games exist there.
+      const candidates = [
+        { label: 'Preseason Week 1', seasontype: 1, week: 1 },
+        { label: 'Preseason Week 2', seasontype: 1, week: 2 },
+        { label: `Regular Season Week ${viewWeek}`, seasontype: 2, week: viewWeek },
+      ];
+      let completedGames = [];
+      let sourceLabel = '';
+      for (const c of candidates) {
+        const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=${c.seasontype}&week=${c.week}&dates=${seasonYear}`);
         const json = await res.json();
-        results.push({ gameId: g.id, matchup: `${g.away.abbr} @ ${g.home.abbr}`, ...json });
-      } catch (e) {
-        results.push({ gameId: g.id, matchup: `${g.away.abbr} @ ${g.home.abbr}`, ok: false, error: String(e) });
+        const found = (json.events || []).filter(ev => ev.competitions?.[0]?.status?.type?.completed);
+        if (found.length > 0) {
+          completedGames = found;
+          sourceLabel = c.label;
+          break;
+        }
       }
+
+      if (completedGames.length === 0) {
+        setStatsDebug([{ gameId: '—', matchup: 'No completed games found yet', ok: false, error: 'Checked preseason weeks 1-2 and this pool\'s current week — none have finished. Try again once a game has actually been played.' }]);
+        return;
+      }
+
+      const results = [];
+      for (const ev of completedGames.slice(0, 3)) {
+        const comp = ev.competitions[0];
+        const away = comp.competitors.find(c => c.homeAway === 'away');
+        const home = comp.competitors.find(c => c.homeAway === 'home');
+        const matchup = `${sourceLabel}: ${away?.team?.abbreviation} @ ${home?.team?.abbreviation}`;
+        try {
+          const res = await fetch(`/api/playerstats?gameId=${ev.id}`);
+          const json = await res.json();
+          results.push({ gameId: ev.id, matchup, ...json });
+        } catch (e) {
+          results.push({ gameId: ev.id, matchup, ok: false, error: String(e) });
+        }
+      }
+      setStatsDebug(results);
+    } catch (e) {
+      setStatsDebug([{ gameId: '—', matchup: 'Lookup failed', ok: false, error: String(e) }]);
+    } finally {
+      setStatsDebugLoading(false);
     }
-    setStatsDebug(results);
-    setStatsDebugLoading(false);
   };
 
   return (
@@ -602,11 +635,11 @@ export default function LineupPool() {
               </div>
               <button
                 onClick={testPlayerStatsSync}
-                disabled={statsDebugLoading || games.length === 0}
+                disabled={statsDebugLoading}
                 className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
                 style={{ background: '#1F2B25', border: '1px solid #8A9A90', color: '#8A9A90', opacity: statsDebugLoading ? 0.6 : 1 }}
               >
-                {statsDebugLoading ? 'Fetching…' : `Test fetch for week ${viewWeek}'s games`}
+                {statsDebugLoading ? 'Searching for a completed game…' : 'Test fetch against the most recent completed game'}
               </button>
               {statsDebug && (
                 <div className="mt-3 space-y-2">

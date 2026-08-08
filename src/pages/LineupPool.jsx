@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -24,6 +24,11 @@ const SLOTS = [
 
 const emptyData = () => ({ name: "Where's The Beef? - Lineup Pick'em", participants: [], picks: {}, playerScores: {}, currentWeek: 1 });
 
+const lastNameOf = (fullName) => {
+  const parts = (fullName || '').trim().split(/\s+/);
+  return (parts[parts.length - 1] || '').toLowerCase();
+};
+
 export default function LineupPool() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,11 +45,12 @@ export default function LineupPool() {
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [playerSearch, setPlayerSearch] = useState({}); // { `${pid}-${slotKey}`: searchText }
+  const [openCombo, setOpenCombo] = useState(null); // which slot's suggestion list is open
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
-  const { rosters, loading: rostersLoading } = useNflRosters();
+  const { rosters, loading: rostersLoading, missingTeams, retry: retryRosters } = useNflRosters();
 
   useEffect(() => {
     (async () => {
@@ -450,6 +456,13 @@ export default function LineupPool() {
                   <Loader2 size={10} className="animate-spin" /> Loading player rosters (32 teams)…
                 </div>
               )}
+              {!rostersLoading && missingTeams.length > 0 && (
+                <div className="font-mono text-xs mt-2 flex items-center gap-2 flex-wrap" style={{ color: '#E28A82' }}>
+                  <AlertTriangle size={12} />
+                  Couldn't load rosters for: {missingTeams.join(', ')} — those players won't show up in search yet.
+                  <button onClick={retryRosters} className="underline" style={{ color: '#E8A23D' }}>Retry</button>
+                </div>
+              )}
             </div>
 
             {/* Lineups */}
@@ -481,9 +494,11 @@ export default function LineupPool() {
                             ? TEAMS
                               .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr))
                               .map(([abbr]) => ({ value: abbr, label: `${abbr} — ${TEAM_MAP[abbr]}` }))
+                              .sort((a, b) => a.label.localeCompare(b.label))
                             : rosters
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
+                              .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
                               .slice(0, 40)
                               .map(r => ({ value: r.id, label: `${r.name} (${r.team})` }));
                           return (
@@ -493,32 +508,57 @@ export default function LineupPool() {
                                 <span className="flex-1 flex items-center gap-1.5" style={{ color: '#F0EDE4' }}>
                                   <Lock size={10} color="#5C6862" /> {value ? playerLabel(value, s.position) : '— no pick —'}
                                 </span>
+                              ) : s.position === 'DST' ? (
+                                <select
+                                  value={value || ''}
+                                  onChange={e => setSlot(viewWeek, p.id, s.key, e.target.value || undefined)}
+                                  className="flex-1 px-1.5 py-1 rounded min-w-[140px]"
+                                  style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                                >
+                                  <option value="">— pick a D/ST —</option>
+                                  {options.map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                  ))}
+                                </select>
                               ) : (
-                                <>
-                                  {s.position !== 'DST' && (
-                                    <input
-                                      value={searchText}
-                                      onChange={e => setPlayerSearch(ps => ({ ...ps, [searchKey]: e.target.value }))}
-                                      placeholder="search…"
-                                      className="w-24 px-1.5 py-1 rounded"
-                                      style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
-                                    />
-                                  )}
-                                  <select
-                                    value={value || ''}
-                                    onChange={e => setSlot(viewWeek, p.id, s.key, e.target.value || undefined)}
-                                    className="flex-1 px-1.5 py-1 rounded min-w-[140px]"
+                                <div className="relative flex-1">
+                                  <input
+                                    value={openCombo === searchKey ? searchText : (value ? playerLabel(value, s.position) : '')}
+                                    onFocus={() => setOpenCombo(searchKey)}
+                                    onChange={e => setPlayerSearch(ps => ({ ...ps, [searchKey]: e.target.value }))}
+                                    onBlur={() => setTimeout(() => setOpenCombo(c => (c === searchKey ? null : c)), 150)}
+                                    placeholder={`search ${s.label}…`}
+                                    className="w-full px-1.5 py-1 rounded"
                                     style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
-                                  >
-                                    <option value="">— pick a {s.label} —</option>
-                                    {value && !options.some(o => o.value === value) && (
-                                      <option value={value}>{playerLabel(value, s.position)} (current)</option>
-                                    )}
-                                    {options.map(o => (
-                                      <option key={o.value} value={o.value}>{o.label}</option>
-                                    ))}
-                                  </select>
-                                </>
+                                  />
+                                  {openCombo === searchKey && (
+                                    <div
+                                      className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded"
+                                      style={{ background: '#0F1614', border: '1px solid #2A3830' }}
+                                    >
+                                      {options.length === 0 ? (
+                                        <div className="px-2 py-1.5" style={{ color: '#5C6862' }}>No matches</div>
+                                      ) : (
+                                        options.map(o => (
+                                          <button
+                                            key={o.value}
+                                            type="button"
+                                            onMouseDown={e => e.preventDefault()}
+                                            onClick={() => {
+                                              setSlot(viewWeek, p.id, s.key, o.value);
+                                              setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
+                                              setOpenCombo(null);
+                                            }}
+                                            className="w-full text-left px-2 py-1.5"
+                                            style={{ color: '#F0EDE4' }}
+                                          >
+                                            {o.label}
+                                          </button>
+                                        ))
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );

@@ -11,57 +11,80 @@ const TEAM_IDS = {
 const RELEVANT_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K', 'PK']);
 const normalizePosition = (abbr) => (abbr === 'PK' ? 'K' : abbr);
 
-let cachedRosters = null; // module-level cache — roster list doesn't change within a session
+let cachedRosters = null;
+let cachedMissing = [];
+
+async function fetchTeamRoster(teamId, abbr) {
+  try {
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${teamId}/roster`);
+    if (!res.ok) return null; // signals failure, distinct from a genuinely empty roster
+    const json = await res.json();
+    const players = [];
+    (json.athletes || []).forEach(group => {
+      (group.items || []).forEach(a => {
+        const rawPos = a.position?.abbreviation;
+        if (!RELEVANT_POSITIONS.has(rawPos)) return;
+        players.push({
+          id: a.id,
+          name: a.fullName || a.displayName,
+          position: normalizePosition(rawPos),
+          team: abbr,
+        });
+      });
+    });
+    return players;
+  } catch (e) {
+    return null;
+  }
+}
 
 export function useNflRosters() {
   const [rosters, setRosters] = useState(cachedRosters);
   const [loading, setLoading] = useState(!cachedRosters);
-  const [error, setError] = useState(false);
+  const [missingTeams, setMissingTeams] = useState(cachedMissing);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
-    if (cachedRosters) { setRosters(cachedRosters); setLoading(false); return; }
+    if (cachedRosters && reloadTick === 0) {
+      setRosters(cachedRosters);
+      setMissingTeams(cachedMissing);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLoading(true);
     (async () => {
-      try {
-        const results = await Promise.all(
-          TEAMS.map(async ([abbr]) => {
-            const teamId = TEAM_IDS[abbr];
-            if (!teamId) return [];
-            try {
-              const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${teamId}/roster`);
-              if (!res.ok) return [];
-              const json = await res.json();
-              const players = [];
-              (json.athletes || []).forEach(group => {
-                (group.items || []).forEach(a => {
-                  const posAbbr = normalizePosition(a.position?.abbreviation);
-                  if (!RELEVANT_POSITIONS.has(a.position?.abbreviation)) return;
-                  players.push({
-                    id: a.id,
-                    name: a.fullName || a.displayName,
-                    position: posAbbr,
-                    team: abbr,
-                    active: a.status?.type === 'active' || a.status?.name === 'Active',
-                  });
-                });
-              });
-              return players;
-            } catch (e) {
-              return [];
-            }
-          })
-        );
-        const flat = results.flat();
-        cachedRosters = flat;
-        if (!cancelled) { setRosters(flat); setLoading(false); }
-      } catch (e) {
-        if (!cancelled) { setError(true); setLoading(false); }
+      const entries = TEAMS.map(([abbr]) => ({ abbr, teamId: TEAM_IDS[abbr] })).filter(e => e.teamId);
+      let results = await Promise.all(entries.map(e => fetchTeamRoster(e.teamId, e.abbr)));
+
+      // A handful of teams commonly fail when all 32 requests fire at once (rate limiting) —
+      // retry just the failures once, staggered slightly, before giving up on them.
+      const failedIdx = results.map((r, i) => (r === null ? i : -1)).filter(i => i >= 0);
+      if (failedIdx.length) {
+        const retried = [];
+        for (const idx of failedIdx) {
+          retried.push(await fetchTeamRoster(entries[idx].teamId, entries[idx].abbr));
+          await new Promise(r => setTimeout(r, 150));
+        }
+        failedIdx.forEach((idx, k) => { results[idx] = retried[k]; });
+      }
+
+      const stillMissing = entries.filter((e, i) => results[i] === null).map(e => e.abbr);
+      const flat = results.filter(Boolean).flat();
+      cachedRosters = flat;
+      cachedMissing = stillMissing;
+      if (!cancelled) {
+        setRosters(flat);
+        setMissingTeams(stillMissing);
+        setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadTick]);
 
-  return { rosters: rosters || [], loading, error };
+  const retry = () => setReloadTick(t => t + 1);
+
+  return { rosters: rosters || [], loading, missingTeams, retry };
 }
 
 export { TEAM_IDS };

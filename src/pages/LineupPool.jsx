@@ -46,6 +46,8 @@ export default function LineupPool() {
   const [now, setNow] = useState(Date.now());
   const [playerSearch, setPlayerSearch] = useState({}); // { `${pid}-${slotKey}`: searchText }
   const [openCombo, setOpenCombo] = useState(null); // which slot's suggestion list is open
+  const [statsDebug, setStatsDebug] = useState(null);
+  const [statsDebugLoading, setStatsDebugLoading] = useState(false);
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
@@ -265,6 +267,24 @@ export default function LineupPool() {
       }
     });
   });
+
+  const testPlayerStatsSync = async () => {
+    setStatsDebugLoading(true);
+    setStatsDebug(null);
+    const weekGames = schedule[viewWeek]?.games || [];
+    const results = [];
+    for (const g of weekGames) {
+      try {
+        const res = await fetch(`/api/playerstats?gameId=${g.id}`);
+        const json = await res.json();
+        results.push({ gameId: g.id, matchup: `${g.away.abbr} @ ${g.home.abbr}`, ...json });
+      } catch (e) {
+        results.push({ gameId: g.id, matchup: `${g.away.abbr} @ ${g.home.abbr}`, ok: false, error: String(e) });
+      }
+    }
+    setStatsDebug(results);
+    setStatsDebugLoading(false);
+  };
 
   return (
     <div style={{ background: '#0F1614', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
@@ -570,6 +590,40 @@ export default function LineupPool() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Diagnostic: test auto-stats fetch */}
+            <div className="rounded px-4 py-3" style={{ background: '#17211D', border: '1px dashed #5C6862' }}>
+              <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+                Auto-Stats Test (beta)
+              </div>
+              <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
+                Diagnostic only — fetches raw player stats for this week's games from ESPN and shows exactly what comes back. Doesn't fill in scores yet.
+              </div>
+              <button
+                onClick={testPlayerStatsSync}
+                disabled={statsDebugLoading || games.length === 0}
+                className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
+                style={{ background: '#1F2B25', border: '1px solid #8A9A90', color: '#8A9A90', opacity: statsDebugLoading ? 0.6 : 1 }}
+              >
+                {statsDebugLoading ? 'Fetching…' : `Test fetch for week ${viewWeek}'s games`}
+              </button>
+              {statsDebug && (
+                <div className="mt-3 space-y-2">
+                  {statsDebug.map(r => (
+                    <div key={r.gameId} className="rounded px-2.5 py-2 font-mono text-[10px]" style={{ background: '#0F1614', border: '1px solid #2A3830' }}>
+                      <div className="mb-1" style={{ color: r.ok ? '#7FCB98' : '#E28A82' }}>
+                        {r.matchup} — {r.ok ? `parsed ${r.playersParsed} player stat rows` : `error: ${r.error}`}
+                      </div>
+                      {r.raw && (
+                        <pre className="overflow-x-auto whitespace-pre-wrap" style={{ color: '#5C6862', maxHeight: '150px', overflowY: 'auto' }}>
+                          {JSON.stringify(r.raw, null, 1).slice(0, 2000)}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Score entry */}

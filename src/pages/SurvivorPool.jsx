@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
-import { apiGetPool, apiSavePool } from '../lib/api';
+import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
 
 const POOL_KEY = 'survivor-pool-v1';
@@ -126,7 +126,10 @@ export default function SurvivorPool() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        await apiSavePool(POOL_KEY, next);
+        const remote = await apiGetPool(POOL_KEY).catch(() => null);
+        const merged = mergePoolData(next, remote);
+        await apiSavePool(POOL_KEY, merged);
+        setData(merged);
         setSaveError(false);
         setJustSaved(true);
         if (savedTimer.current) clearTimeout(savedTimer.current);

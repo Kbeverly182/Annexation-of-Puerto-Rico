@@ -14,3 +14,35 @@ export async function apiSavePool(key, data) {
   if (!res.ok) throw new Error('failed to save pool');
   return res.json();
 }
+
+// Two people can each be holding a slightly different local snapshot of the pool and save
+// around the same time. Without merging, whoever saves last would silently overwrite anything
+// the other person just added (e.g. a brand new entrant). This does a best-effort merge right
+// before writing: participants are unioned by id (nobody's entry gets dropped), and picks/results
+// are merged per-week so untouched weeks/entrants from the other snapshot survive.
+export function mergePoolData(local, remote) {
+  if (!remote) return local;
+  if (!local) return remote;
+
+  const byId = new Map();
+  (remote.participants || []).forEach(p => byId.set(p.id, p));
+  (local.participants || []).forEach(p => byId.set(p.id, p)); // local wins on same-id conflicts
+  const participants = Array.from(byId.values());
+
+  const mergeNested = (localObj = {}, remoteObj = {}) => {
+    const keys = new Set([...Object.keys(remoteObj || {}), ...Object.keys(localObj || {})]);
+    const out = {};
+    keys.forEach(k => {
+      out[k] = { ...(remoteObj?.[k] || {}), ...(localObj?.[k] || {}) };
+    });
+    return out;
+  };
+
+  return {
+    ...remote,
+    ...local,
+    participants,
+    picks: mergeNested(local.picks, remote.picks),
+    results: mergeNested(local.results, remote.results),
+  };
+}

@@ -338,6 +338,7 @@ export default function ConfidencePool() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+        .rounded { border-radius: 10px !important; }
         button { transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease; }
         button:active { transform: scale(0.97); }
         input, select { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
@@ -376,7 +377,7 @@ export default function ConfidencePool() {
             ) : (
               <button
                 onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
-                className="font-head text-xl sm:text-2xl tracking-wide flex items-center gap-2 min-w-0 text-left" style={{ letterSpacing: "0.02em" }}
+                className="font-head text-2xl sm:text-3xl tracking-wide flex items-center gap-2 min-w-0 text-left" style={{ letterSpacing: "0.02em" }}
               >
                 <span className="truncate uppercase">{data.name}</span>
               </button>
@@ -414,7 +415,7 @@ export default function ConfidencePool() {
               onKeyDown={e => e.key === 'Enter' && addParticipant()}
               placeholder="Add a name…"
               className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-              style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
+              style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
             />
             <button
               onClick={addParticipant}
@@ -427,7 +428,7 @@ export default function ConfidencePool() {
           {data.participants.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {data.participants.map(p => (
-                <div key={p.id} className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}>
+                <div key={p.id} className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                   {p.pin ? <Lock size={10} color="#E8A23D" /> : <Lock size={10} color="#3A4A42" />}
                   {p.name}
                   {p.pin && (
@@ -458,13 +459,13 @@ export default function ConfidencePool() {
             {/* Identity banner */}
             {myIdLoaded && (
               myId && data.participants.some(p => p.id === myId) ? (
-                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}>
+                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                   <UserCircle size={14} color="#E8A23D" />
                   You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
                   <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
                 </div>
               ) : claimPrompt ? (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
+                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                   <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
                     {claimPrompt.mode === 'set'
                       ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span>.</>
@@ -480,7 +481,7 @@ export default function ConfidencePool() {
                       onKeyDown={e => e.key === 'Enter' && submitClaim()}
                       placeholder="••••"
                       className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
                     />
                     <button onClick={submitClaim} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#E8A23D', color: '#0F1614' }}>
                       {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
@@ -490,11 +491,11 @@ export default function ConfidencePool() {
                   {claimPrompt.error && <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{claimPrompt.error}</div>}
                 </div>
               ) : (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
+                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                   <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>Which entrant are you?</div>
                   <div className="flex flex-wrap gap-1.5">
                     {data.participants.map(p => (
-                      <button key={p.id} onClick={() => handleNameTap(p)} className="px-2.5 py-1 rounded font-head text-xs uppercase flex items-center gap-1" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}>
+                      <button key={p.id} onClick={() => handleNameTap(p)} className="px-2.5 py-1 rounded font-head text-xs uppercase flex items-center gap-1" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}>
                         {p.pin && <Lock size={10} color="#E8A23D" />}
                         {p.name}
                       </button>
@@ -550,7 +551,7 @@ export default function ConfidencePool() {
               <div className="flex items-center gap-2">
                 <label className="font-mono text-xs flex items-center gap-1" style={{ color: '#5C6862' }}>
                   Season
-                  <input type="number" value={seasonYear} onChange={e => setSeasonYear(Number(e.target.value))} className="w-16 px-1.5 py-1 rounded font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }} />
+                  <input type="number" value={seasonYear} onChange={e => setSeasonYear(Number(e.target.value))} className="w-16 px-1.5 py-1 rounded font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }} />
                 </label>
                 <button
                   onClick={() => syncResults(viewWeek)}
@@ -579,7 +580,7 @@ export default function ConfidencePool() {
                 const total = seasonTotal(p.id);
                 const tiebreakerRevealed = isTiebreakerRevealed(p.id);
                 return (
-                  <div key={p.id} className="rounded px-4 py-3" style={{ background: '#17211D', border: isMe ? '1px solid #E8A23D88' : '1px solid #2A3830' }}>
+                  <div key={p.id} className="rounded px-4 py-3" style={{ background: '#1C2823', border: isMe ? '1px solid #E8A23D88' : '1px solid #2A3830' }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-head text-sm">{p.name}</div>
                       <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Season: {total} pts</div>
@@ -597,7 +598,7 @@ export default function ConfidencePool() {
                               const gRevealed = isGameRevealed(p.id, g);
                               if (!gRevealed) {
                                 return (
-                                  <div key={g.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase" style={{ border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#5C6862' }}>
+                                  <div key={g.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#5C6862' }}>
                                     <Lock size={10} /> Hidden
                                   </div>
                                 );
@@ -606,7 +607,7 @@ export default function ConfidencePool() {
                               const awaySelected = winner === g.away.abbr;
                               const homeSelected = winner === g.home.abbr;
                               return (
-                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
+                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                                   <button
                                     onClick={() => setWinner(viewWeek, p.id, g.id, g.away.abbr)}
                                     disabled={gLocked}
@@ -619,7 +620,7 @@ export default function ConfidencePool() {
                                   >
                                     {g.away.abbr}
                                   </button>
-                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#17211D' }}>@</div>
+                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
                                   <button
                                     onClick={() => setWinner(viewWeek, p.id, g.id, g.home.abbr)}
                                     disabled={gLocked}
@@ -652,7 +653,7 @@ export default function ConfidencePool() {
                               const confidence = order.length - idx;
                               if (!gRevealed) {
                                 return (
-                                  <div key={gid} className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#5C6862' }}>
+                                  <div key={gid} className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#5C6862' }}>
                                     <Lock size={12} /> Hidden until kickoff
                                   </div>
                                 );
@@ -672,7 +673,7 @@ export default function ConfidencePool() {
                                   className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs"
                                   style={{
                                     background: '#0F1614',
-                                    border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+                                    border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
                                     cursor: gLocked ? 'default' : 'grab',
                                   }}
                                 >
@@ -700,7 +701,7 @@ export default function ConfidencePool() {
                               onChange={e => setTiebreaker(viewWeek, p.id, e.target.value === '' ? null : Number(e.target.value))}
                               disabled={isMassLocked()}
                               className="w-20 px-2 py-1 rounded"
-                              style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
+                              style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
                             />
                           ) : (
                             <span className="flex items-center gap-1" style={{ color: '#5C6862' }}><Lock size={10} /> Hidden until kickoff</span>
@@ -732,7 +733,7 @@ export default function ConfidencePool() {
                   <div
                     key={p.id}
                     className="flex items-center gap-3 rounded px-3 py-2"
-                    style={{ background: '#17211D', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
+                    style={{ background: '#1C2823', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
                   >
                     <div className="font-mono text-xs w-6" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                     <div className="font-head text-sm flex-1">{p.name}</div>
@@ -756,7 +757,7 @@ export default function ConfidencePool() {
                   <div
                     key={p.id}
                     className="flex items-center gap-3 rounded px-3 py-2"
-                    style={{ background: '#17211D', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
+                    style={{ background: '#1C2823', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
                   >
                     <div className="font-mono text-xs w-6" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                     <div className="font-head text-sm flex-1">{p.name}</div>
@@ -771,7 +772,7 @@ export default function ConfidencePool() {
 
       {/* Saved indicator */}
       {justSaved && (
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: '#17211D', border: '1px solid #3D9B5C', color: '#7FCB98' }}>
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: '#1C2823', border: '1px solid #3D9B5C', color: '#7FCB98' }}>
           <Check size={12} /> Saved
         </div>
       )}

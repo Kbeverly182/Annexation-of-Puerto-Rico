@@ -346,7 +346,8 @@ export default function ConfidencePool() {
       `}</style>
 
       <div style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)', borderBottom: '1px solid #2A3830' }} className="px-5 py-5 sm:px-8">
-        <div className="max-w-5xl mx-auto mb-3">
+        <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
+          <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>

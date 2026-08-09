@@ -301,7 +301,8 @@ export default function SurvivorPool() {
 
       {/* Scoreboard header */}
       <div style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)', borderBottom: '1px solid #2A3830' }} className="px-5 py-5 sm:px-8">
-        <div className="max-w-5xl mx-auto mb-3">
+        <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
+          <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
@@ -687,24 +688,21 @@ export default function SurvivorPool() {
                                 <Lock size={10} /> Locked
                               </span>
                             )}
-                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                              <span className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Result:</span>
-                              {['win', 'pending', 'loss'].map(r => (
+                            <div className="flex items-center gap-1 shrink-0 ml-auto">
+                              <span className="font-mono text-[9px] uppercase" style={{ color: '#3A4A42' }}>Override:</span>
+                              {['win', 'loss'].map(r => (
                                 <button
                                   key={r}
-                                  onClick={() => setResult(viewWeek, p.id, r)}
-                                  title={r}
-                                  className="w-8 h-8 rounded flex items-center justify-center"
+                                  onClick={() => setResult(viewWeek, p.id, pick?.result === r ? 'pending' : r)}
+                                  title={r === 'win' ? 'Mark as won' : 'Mark as lost'}
+                                  className="w-6 h-6 rounded flex items-center justify-center"
                                   style={{
-                                    background: (pick?.result || 'pending') === r
-                                      ? (r === 'win' ? '#3D9B5C' : r === 'loss' ? '#C1443A' : '#E8A23D')
-                                      : '#1F2B25',
+                                    background: pick?.result === r ? (r === 'win' ? '#3D9B5C' : '#C1443A') : '#1F2B25',
                                     border: '1px solid #2A3830',
                                   }}
                                 >
-                                  {r === 'win' && <Check size={14} color={(pick?.result) === 'win' ? '#0F1614' : '#5C6862'} />}
-                                  {r === 'loss' && <X size={14} color={(pick?.result) === 'loss' ? '#0F1614' : '#5C6862'} />}
-                                  {r === 'pending' && <Minus size={14} color={(pick?.result || 'pending') === 'pending' ? '#0F1614' : '#5C6862'} />}
+                                  {r === 'win' && <Check size={12} color={pick?.result === 'win' ? '#0F1614' : '#3A4A42'} />}
+                                  {r === 'loss' && <X size={12} color={pick?.result === 'loss' ? '#0F1614' : '#3A4A42'} />}
                                 </button>
                               ))}
                             </div>

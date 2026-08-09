@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, Skull, ListOrdered, Users } from 'lucide-react';
+import { Skull, ListOrdered, Users } from 'lucide-react';
 
 const POOLS = [
   {
     to: '/survivor',
     icon: Skull,
-    title: 'Survivor Pool',
+    title: 'The Annexation of Puerto Rico',
+    type: 'NFL Survivor Pool',
     desc: 'Pick one team to win each week. Lose once and you\'re out.',
     color: '#3D9B5C',
   },
@@ -14,13 +15,15 @@ const POOLS = [
     to: '/confidence',
     icon: ListOrdered,
     title: 'Confidence Pool',
+    type: 'NFL Confidence Pool',
     desc: 'Pick every game, rank your confidence 1 to N, cumulative points all season.',
     color: '#E8A23D',
   },
   {
     to: '/lineup',
     icon: Users,
-    title: 'Where\'s The Beef? - Lineup Pick\'em',
+    title: 'Where\'s the Beef',
+    type: 'Fantasy One-and-Done Pool',
     desc: 'Build a weekly fantasy lineup, no repeat players all season.',
     color: '#5C6862',
   },
@@ -37,12 +40,15 @@ export default function Landing() {
       `}</style>
 
       <div style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)', borderBottom: '1px solid #2A3830' }} className="px-5 py-8 sm:px-8">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center" style={{ background: '#3D9B5C22', border: '2px solid #3D9B5C' }}>
-            <Trophy size={20} color="#3D9B5C" />
-          </div>
+        <div className="max-w-3xl mx-auto flex items-center gap-4">
+          <img
+            src="/logo.webp"
+            alt="Grade A Beef Pools"
+            className="shrink-0 w-16 h-16 rounded-lg object-cover"
+            style={{ border: '2px solid #3D9B5C' }}
+          />
           <div>
-            <div className="font-display text-2xl uppercase tracking-wide">My NFL Pools</div>
+            <div className="font-display text-2xl uppercase tracking-wide">Grade A Beef Pools</div>
             <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Pick your pool below</div>
           </div>
         </div>
@@ -77,6 +83,7 @@ export default function Landing() {
                     </span>
                   )}
                 </div>
+                <div className="font-mono text-[10px] uppercase tracking-wide mb-0.5" style={{ color: pool.color }}>{pool.type}</div>
                 <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>{pool.desc}</div>
               </div>
             </Wrapper>

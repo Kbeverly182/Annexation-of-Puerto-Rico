@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle } from 'lucide-react';
-import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek, toEspnWeek } from '../lib/teams';
+import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
-import { useEspnSchedule } from '../lib/espnSchedule';
+import { useEspnSchedule, buildScoreboardUrl } from '../lib/espnSchedule';
 import { useNflRosters } from '../lib/rosters';
 
 const POOL_KEY = 'lineup-pool-v1';
@@ -274,25 +274,19 @@ export default function LineupPool() {
     setStatsDebugLoading(true);
     setStatsDebug(null);
     try {
-      // Check whatever week is currently being viewed first (decoding it properly, since it
-      // may itself be a preseason week now), then fall back to scanning all preseason weeks —
+      // Check whatever week is currently being viewed first, then fall back to scanning our
+      // three defined preseason weeks (by exact date, not ESPN's own mismatched week numbers) —
       // that's what's actually being played right now.
-      const viewedEspn = toEspnWeek(viewWeek);
-      const candidates = [
-        { label: `Week ${weekLabel(viewWeek)}`, seasontype: viewedEspn.seasontype, week: viewedEspn.week },
-        { label: 'Preseason Week 1', seasontype: 1, week: 1 },
-        { label: 'Preseason Week 2', seasontype: 1, week: 2 },
-        { label: 'Preseason Week 3', seasontype: 1, week: 3 },
-      ];
+      const candidateWeeks = [viewWeek, 101, 102, 103].filter((w, i, arr) => arr.indexOf(w) === i);
       let completedGames = [];
       let sourceLabel = '';
-      for (const c of candidates) {
-        const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=${c.seasontype}&week=${c.week}&dates=${seasonYear}`);
+      for (const w of candidateWeeks) {
+        const res = await fetch(buildScoreboardUrl(w, seasonYear));
         const json = await res.json();
         const found = (json.events || []).filter(ev => ev.competitions?.[0]?.status?.type?.completed);
         if (found.length > 0) {
           completedGames = found;
-          sourceLabel = c.label;
+          sourceLabel = `Week ${weekLabel(w)}`;
           break;
         }
       }

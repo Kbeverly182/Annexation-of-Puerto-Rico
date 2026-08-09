@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ESPN_ABBR_FIX, toEspnWeek } from './teams';
 
+export function buildScoreboardUrl(week, seasonYear) {
+  const decoded = toEspnWeek(week);
+  if (decoded.dateRange) {
+    return `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=1000&dates=${decoded.dateRange}&seasontype=${decoded.seasontype}`;
+  }
+  return `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${decoded.week}&seasontype=${decoded.seasontype}&dates=${seasonYear}`;
+}
+
 export function useEspnSchedule(week, seasonYear) {
   const [schedule, setSchedule] = useState({});
 
@@ -12,8 +20,7 @@ export function useEspnSchedule(week, seasonYear) {
       return { ...prev, [wk]: { loading: true } };
     });
     try {
-      const { seasontype, week: espnWeek } = toEspnWeek(wk);
-      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${espnWeek}&seasontype=${seasontype}&dates=${seasonYear}`;
+      const url = buildScoreboardUrl(wk, seasonYear);
       const res = await fetch(url);
       if (!res.ok) throw new Error('bad response');
       const json = await res.json();
@@ -87,8 +94,7 @@ export function useEspnSchedule(week, seasonYear) {
 // Also detects the week's final (latest-kickoff) game — used as the Monday Night tiebreaker —
 // and returns its combined score once that specific game is final.
 export async function fetchWeekResults(week, seasonYear) {
-  const { seasontype, week: espnWeek } = toEspnWeek(week);
-  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${espnWeek}&seasontype=${seasontype}&dates=${seasonYear}`;
+  const url = buildScoreboardUrl(week, seasonYear);
   const res = await fetch(url);
   if (!res.ok) throw new Error('bad response');
   const json = await res.json();

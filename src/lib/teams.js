@@ -14,9 +14,24 @@ export const PRESEASON_WEEKS = [101, 102, 103]; // encoded so they never collide
 export const ALL_WEEKS = [...PRESEASON_WEEKS, ...WEEKS];
 export const ESPN_ABBR_FIX = { WSH: 'WAS', JAC: 'JAX' };
 
+// ESPN's own preseason week numbering doesn't line up with these dates (its "week 1" includes
+// the Hall of Fame Game, which is well before the 13th) — so preseason weeks are defined here by
+// exact calendar date range instead, matching what was explicitly agreed on for this beta test.
+export const PRESEASON_DATE_RANGES = {
+  101: { start: '20260813', end: '20260819' }, // Preseason Week 1
+  102: { start: '20260820', end: '20260826' }, // Preseason Week 2
+  103: { start: '20260827', end: '20260908' }, // Preseason Week 3
+};
+
 // Converts our internal (possibly preseason-encoded) week number into what ESPN's API expects.
+// Regular season weeks use ESPN's own week/seasontype params; preseason weeks use an explicit
+// date range instead, since ESPN's preseason week numbers don't match the dates being used here.
 export function toEspnWeek(week) {
-  return week > 100 ? { seasontype: 1, week: week - 100 } : { seasontype: 2, week };
+  if (week > 100) {
+    const range = PRESEASON_DATE_RANGES[week];
+    return { seasontype: 1, dateRange: range ? `${range.start}-${range.end}` : null };
+  }
+  return { seasontype: 2, week };
 }
 
 export function isPreseasonWeek(week) {

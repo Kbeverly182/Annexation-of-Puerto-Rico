@@ -474,9 +474,15 @@ export default function LineupPool() {
   };
 
   return (
-    <div style={{ background: '#0F1614', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+        button { transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease; }
+        button:active { transform: scale(0.97); }
+        input, select { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        input:focus, select:focus { outline: none; border-color: #8A9A9088 !important; box-shadow: 0 0 0 3px #8A9A9022; }
+
         .font-display { font-family: 'Anton', sans-serif; }
         .font-head { font-family: 'Oswald', sans-serif; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
@@ -485,7 +491,7 @@ export default function LineupPool() {
         select { color-scheme: dark; }
       `}</style>
 
-      <div style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)', borderBottom: '1px solid #2A3830' }} className="px-5 py-5 sm:px-8">
+      <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #8A9A9033', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
           <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
@@ -510,7 +516,7 @@ export default function LineupPool() {
             ) : (
               <button
                 onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
-                className="font-head text-lg sm:text-xl tracking-wide flex items-center gap-2 min-w-0 text-left"
+                className="font-head text-lg sm:text-xl tracking-wide flex items-center gap-2 min-w-0 text-left" style={{ letterSpacing: "0.02em" }}
               >
                 <span className="truncate uppercase">{data.name}</span>
               </button>
@@ -518,7 +524,7 @@ export default function LineupPool() {
           </div>
           <div className="text-right shrink-0">
             <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#8A9A90' }}>Current Week</div>
-            <div className="font-display text-3xl leading-none" style={{ color: '#8A9A90', letterSpacing: '1px' }}>
+            <div className="font-display text-3xl leading-none" style={{ color: '#8A9A90', letterSpacing: '1px', textShadow: '0 0 24px #8A9A9055' }}>
               {isPreseasonWeek(data.currentWeek) ? (
                 <>PRE {data.currentWeek - 100}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 3</span></>
               ) : (
@@ -538,7 +544,7 @@ export default function LineupPool() {
 
         {/* Add participant */}
         <div>
-          <div className="font-head uppercase text-sm tracking-widest mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+          <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
             <Users size={14} /> Entrants
           </div>
           <div className="flex gap-2 mb-2">
@@ -548,7 +554,7 @@ export default function LineupPool() {
               onKeyDown={e => e.key === 'Enter' && addParticipant()}
               placeholder="Add a name…"
               className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-              style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#F0EDE4' }}
+              style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
             />
             <button
               onClick={addParticipant}
@@ -561,7 +567,7 @@ export default function LineupPool() {
           {data.participants.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {data.participants.map(p => (
-                <div key={p.id} className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs" style={{ background: '#17211D', border: '1px solid #2A3830', color: '#8A9A90' }}>
+                <div key={p.id} className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}>
                   {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                   {p.name}
                   {p.pin && (
@@ -589,13 +595,13 @@ export default function LineupPool() {
             {/* Identity banner */}
             {myIdLoaded && (
               myId && data.participants.some(p => p.id === myId) ? (
-                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#8A9A90' }}>
+                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}>
                   <UserCircle size={14} color="#7FCB98" />
                   You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
                   <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
                 </div>
               ) : claimPrompt ? (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830' }}>
+                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                   <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
                     {claimPrompt.mode === 'set'
                       ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span>.</>
@@ -611,7 +617,7 @@ export default function LineupPool() {
                       onKeyDown={e => e.key === 'Enter' && submitClaim()}
                       placeholder="••••"
                       className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                     />
                     <button onClick={submitClaim} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#8A9A90', color: '#0F1614' }}>
                       {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
@@ -621,11 +627,11 @@ export default function LineupPool() {
                   {claimPrompt.error && <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{claimPrompt.error}</div>}
                 </div>
               ) : (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830' }}>
+                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                   <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>Which entrant are you?</div>
                   <div className="flex flex-wrap gap-1.5">
                     {data.participants.map(p => (
-                      <button key={p.id} onClick={() => handleNameTap(p)} className="px-2.5 py-1 rounded font-head text-xs uppercase flex items-center gap-1" style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}>
+                      <button key={p.id} onClick={() => handleNameTap(p)} className="px-2.5 py-1 rounded font-head text-xs uppercase flex items-center gap-1" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}>
                         {p.pin && <Lock size={10} color="#7FCB98" />}
                         {p.name}
                       </button>
@@ -732,7 +738,7 @@ export default function LineupPool() {
                                   value={value || ''}
                                   onChange={e => setSlot(viewWeek, p.id, s.key, e.target.value || undefined)}
                                   className="flex-1 px-1.5 py-1 rounded min-w-[140px]"
-                                  style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                                  style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                                 >
                                   <option value="">— pick a D/ST —</option>
                                   {options.map(o => (
@@ -748,12 +754,12 @@ export default function LineupPool() {
                                     onBlur={() => setTimeout(() => setOpenCombo(c => (c === searchKey ? null : c)), 150)}
                                     placeholder={`search ${s.label}…`}
                                     className="w-full px-1.5 py-1 rounded"
-                                    style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                                   />
                                   {openCombo === searchKey && (
                                     <div
                                       className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded"
-                                      style={{ background: '#0F1614', border: '1px solid #2A3830' }}
+                                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}
                                     >
                                       {options.length === 0 ? (
                                         <div className="px-2 py-1.5" style={{ color: '#5C6862' }}>No matches</div>
@@ -794,7 +800,7 @@ export default function LineupPool() {
 
             {/* Diagnostic: test auto-stats fetch */}
             <div className="rounded px-4 py-3" style={{ background: '#17211D', border: '1px dashed #5C6862' }}>
-              <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 Auto-Stats Test (beta)
               </div>
               <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
@@ -835,7 +841,7 @@ export default function LineupPool() {
                       onChange={e => setStatsDebugFilter(e.target.value)}
                       placeholder="Search parsed players by name…"
                       className="w-full px-2 py-1.5 rounded font-mono text-xs mb-2"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                     />
                   )}
                   {statsDebug.map(r => {
@@ -843,7 +849,7 @@ export default function LineupPool() {
                       p => !statsDebugFilter || (p.name || '').toLowerCase().includes(statsDebugFilter.toLowerCase())
                     );
                     return (
-                      <div key={r.gameId} className="rounded px-2.5 py-2 font-mono text-[10px]" style={{ background: '#0F1614', border: '1px solid #2A3830' }}>
+                      <div key={r.gameId} className="rounded px-2.5 py-2 font-mono text-[10px]" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                         <div className="mb-1" style={{ color: r.ok ? '#7FCB98' : '#E28A82' }}>
                           {r.matchup} — {r.ok ? `parsed ${r.playersParsed} player stat rows` : `error: ${r.error}`}
                         </div>
@@ -871,7 +877,7 @@ export default function LineupPool() {
 
             {/* Score entry */}
             <div>
-              <div className="font-head uppercase text-sm tracking-widest mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 Week {weekLabel(viewWeek)} Scores
               </div>
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
@@ -882,7 +888,7 @@ export default function LineupPool() {
               ) : (
                 <div className="space-y-1.5">
                   {Array.from(pickedThisWeek.entries()).map(([key, info]) => (
-                    <div key={key} className="flex items-center gap-2 font-mono text-xs rounded px-2.5 py-1.5" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                    <div key={key} className="flex items-center gap-2 font-mono text-xs rounded px-2.5 py-1.5" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                       <span className="w-8 shrink-0" style={{ color: '#5C6862' }}>{info.position}</span>
                       <span className="flex-1" style={{ color: '#F0EDE4' }}>{info.label}</span>
                       <input
@@ -891,7 +897,7 @@ export default function LineupPool() {
                         onChange={e => setPlayerScore(viewWeek, key, e.target.value)}
                         placeholder="pts"
                         className="w-16 px-1.5 py-1 rounded text-right"
-                        style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
+                        style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}
                       />
                     </div>
                   ))}
@@ -909,12 +915,12 @@ export default function LineupPool() {
 
             {/* Leaderboard */}
             <div>
-              <div className="font-head uppercase text-sm tracking-widest mb-3 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 <Trophy size={14} /> Season Leaderboard
               </div>
               <div className="space-y-1.5">
                 {leaderboard.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded px-3 py-2" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                  <div key={p.id} className="flex items-center gap-3 rounded px-3 py-2" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                     <div className="font-mono text-xs w-6" style={{ color: '#5C6862' }}>{i + 1}</div>
                     <div className="font-head text-sm flex-1">{p.name}</div>
                     <div className="font-mono text-sm" style={{ color: '#8A9A90' }}>{p.total.toFixed(1)} pts</div>

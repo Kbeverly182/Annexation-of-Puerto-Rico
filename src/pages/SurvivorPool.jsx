@@ -282,9 +282,15 @@ export default function SurvivorPool() {
   };
 
   return (
-    <div style={{ background: '#0F1614', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+        button { transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease; }
+        button:active { transform: scale(0.97); }
+        input, select { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        input:focus, select:focus { outline: none; border-color: #3D9B5C88 !important; box-shadow: 0 0 0 3px #3D9B5C22; }
+
         .font-display { font-family: 'Anton', sans-serif; }
         .font-head { font-family: 'Oswald', sans-serif; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
@@ -300,7 +306,7 @@ export default function SurvivorPool() {
       `}</style>
 
       {/* Scoreboard header */}
-      <div style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)', borderBottom: '1px solid #2A3830' }} className="px-5 py-5 sm:px-8">
+      <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #3D9B5C33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
           <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
@@ -325,7 +331,7 @@ export default function SurvivorPool() {
             ) : (
               <button
                 onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
-                className="font-head text-xl sm:text-2xl tracking-wide flex items-center gap-2 min-w-0 text-left"
+                className="font-head text-xl sm:text-2xl tracking-wide flex items-center gap-2 min-w-0 text-left" style={{ letterSpacing: "0.02em" }}
               >
                 <span className="truncate uppercase">{data.name}</span>
                 <Pencil size={14} color="#8A9A90" className="shrink-0" />
@@ -334,7 +340,7 @@ export default function SurvivorPool() {
           </div>
           <div className="text-right shrink-0">
             <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#8A9A90' }}>Current Week</div>
-            <div className="font-display text-3xl leading-none" style={{ color: '#E8A23D', letterSpacing: '1px' }}>
+            <div className="font-display text-3xl leading-none" style={{ color: '#E8A23D', letterSpacing: '1px', textShadow: '0 0 24px #3D9B5C55' }}>
               {isPreseasonWeek(data.currentWeek) ? (
                 <>PRE {data.currentWeek - 100}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 3</span></>
               ) : (
@@ -351,7 +357,7 @@ export default function SurvivorPool() {
           <div className="px-3 py-1.5 rounded" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
             Out {outCount}
           </div>
-          <div className="px-3 py-1.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#8A9A90' }}>
+          <div className="px-3 py-1.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}>
             Entrants {data.participants.length}
           </div>
           {saveError && (
@@ -366,7 +372,7 @@ export default function SurvivorPool() {
 
         {/* Add participant */}
         <div>
-          <div className="font-head uppercase text-sm tracking-widest mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+          <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
             <Users size={14} /> Entrants
           </div>
           <div className="flex gap-2 mb-2">
@@ -376,7 +382,7 @@ export default function SurvivorPool() {
               onKeyDown={e => e.key === 'Enter' && addParticipant()}
               placeholder="Add a name…"
               className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-              style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#F0EDE4' }}
+              style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
             />
             <button
               onClick={addParticipant}
@@ -392,7 +398,7 @@ export default function SurvivorPool() {
                 <div
                   key={p.id}
                   className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs"
-                  style={{ background: '#17211D', border: '1px solid #2A3830', color: '#8A9A90' }}
+                  style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}
                 >
                   {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                   {p.name}
@@ -428,13 +434,13 @@ export default function SurvivorPool() {
             {/* Identity banner */}
             {myIdLoaded && (
               myId && data.participants.some(p => p.id === myId) ? (
-                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#8A9A90' }}>
+                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}>
                   <UserCircle size={14} color="#7FCB98" />
                   You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
                   <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
                 </div>
               ) : claimPrompt ? (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830' }}>
+                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                   <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
                     {claimPrompt.mode === 'set'
                       ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span> — you'll use it to switch back to this name later.</>
@@ -450,7 +456,7 @@ export default function SurvivorPool() {
                       onKeyDown={e => e.key === 'Enter' && submitClaim()}
                       placeholder="••••"
                       className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                     />
                     <button
                       onClick={submitClaim}
@@ -472,7 +478,7 @@ export default function SurvivorPool() {
                   )}
                 </div>
               ) : (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830' }}>
+                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                   <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
                     Which entrant are you? This keeps your picks hidden from others until kickoff.
                   </div>
@@ -482,7 +488,7 @@ export default function SurvivorPool() {
                         key={p.id}
                         onClick={() => handleNameTap(p)}
                         className="px-2.5 py-1 rounded font-head text-xs uppercase flex items-center gap-1"
-                        style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                        style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                       >
                         {p.pin && <Lock size={10} color="#7FCB98" />}
                         {p.name}
@@ -539,7 +545,7 @@ export default function SurvivorPool() {
             <div>
               <button
                 onClick={() => setShowAvailability(s => !s)}
-                className="font-head uppercase text-sm tracking-widest mb-3 flex items-center gap-2"
+                className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2"
                 style={{ color: '#8A9A90' }}
               >
                 <Users size={14} /> Team Availability {showAvailability ? '▾' : '▸'}
@@ -551,7 +557,7 @@ export default function SurvivorPool() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {teamAvailability.map(t => (
-                      <div key={t.abbr} className="rounded px-2.5 py-2" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                      <div key={t.abbr} className="rounded px-2.5 py-2" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                         <div className="flex items-center justify-between font-mono text-xs mb-1">
                           <span className="font-head" style={{ color: '#F0EDE4' }}>{t.abbr}</span>
                           <span style={{ color: t.pct >= 50 ? '#7FCB98' : t.pct > 0 ? '#E8A23D' : '#E28A82' }}>{t.pct}%</span>
@@ -570,7 +576,7 @@ export default function SurvivorPool() {
             {/* This week's picks */}
             <div>
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                <div className="font-head uppercase text-sm tracking-widest" style={{ color: '#8A9A90' }}>
+                <div className="font-head uppercase text-sm tracking-[0.2em]" style={{ color: '#8A9A90' }}>
                   Week {viewWeek} picks
                 </div>
                 <div className="flex items-center gap-2">
@@ -581,7 +587,7 @@ export default function SurvivorPool() {
                       value={seasonYear}
                       onChange={e => setSeasonYear(Number(e.target.value))}
                       className="w-16 px-1.5 py-1 rounded font-mono text-xs"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#F0EDE4' }}
                     />
                   </label>
                   <button
@@ -647,7 +653,7 @@ export default function SurvivorPool() {
                               const awayUsed = used.has(g.away.abbr);
                               const homeUsed = used.has(g.home.abbr);
                               return (
-                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830' }}>
+                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                                   <button
                                     onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, pick?.team)}
                                     disabled={locked || awayUsed}
@@ -698,7 +704,7 @@ export default function SurvivorPool() {
                                   className="w-6 h-6 rounded flex items-center justify-center"
                                   style={{
                                     background: pick?.result === r ? (r === 'win' ? '#3D9B5C' : '#C1443A') : '#1F2B25',
-                                    border: '1px solid #2A3830',
+                                    border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
                                   }}
                                 >
                                   {r === 'win' && <Check size={12} color={pick?.result === 'win' ? '#0F1614' : '#3A4A42'} />}
@@ -721,7 +727,7 @@ export default function SurvivorPool() {
 
             {/* Pick distribution */}
             <div>
-              <div className="font-head uppercase text-sm tracking-widest mb-3" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
                 Week {viewWeek} Pick Distribution
               </div>
               {!weekLocked ? (
@@ -737,7 +743,7 @@ export default function SurvivorPool() {
                   {pickDistribution.map(t => (
                     <div key={t.abbr} className="flex items-center gap-3">
                       <div className="w-12 shrink-0 font-head text-xs" style={{ color: '#F0EDE4' }}>{t.abbr}</div>
-                      <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                      <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                         <div style={{ width: `${t.pct}%`, height: '100%', background: '#3D9B5C' }} />
                       </div>
                       <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
@@ -751,7 +757,7 @@ export default function SurvivorPool() {
 
             {/* Elimination chain */}
             <div>
-              <div className="font-head uppercase text-sm tracking-widest mb-3" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
                 Season chain
               </div>
               <div className="space-y-2">
@@ -759,7 +765,7 @@ export default function SurvivorPool() {
                   const elimWeek = eliminatedAtWeek(p.id);
                   const wins = weeksForSeason(viewWeek).filter(w => data.picks[w]?.[p.id]?.result === 'win').length;
                   return (
-                    <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+                    <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
                       <div className="flex items-center gap-3 mb-1.5">
                         <button
                           onClick={() => setExpandedId(id => id === p.id ? null : p.id)}
@@ -830,7 +836,7 @@ export default function SurvivorPool() {
       {/* Pick confirmation modal */}
       {pickConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
-          <div className="w-full max-w-sm rounded p-5" style={{ background: '#17211D', border: '1px solid #2A3830' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#17211D', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
             <div className="font-head text-sm uppercase tracking-wide mb-2" style={{ color: '#8A9A90' }}>
               Confirm pick
             </div>
@@ -845,7 +851,7 @@ export default function SurvivorPool() {
               <button
                 onClick={() => setPickConfirm(null)}
                 className="px-3 py-1.5 rounded font-head text-xs uppercase"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', color: '#8A9A90' }}
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: '0 3px 10px rgba(0,0,0,0.35)', color: '#8A9A90' }}
               >
                 Cancel
               </button>

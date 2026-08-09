@@ -31,7 +31,7 @@ const POOLS = [
 
 export default function Landing() {
   return (
-    <div style={{ background: '#0F1614', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif", position: 'relative', overflow: 'hidden' }}>
+    <div style={{ background: '#0F1614', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         .font-display { font-family: 'Anton', sans-serif; }
@@ -39,41 +39,13 @@ export default function Landing() {
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
       `}</style>
 
-      {/* Background watermark logo — faded and off to the side so it never competes with the pool cards */}
-      <img
-        src="/logo.webp"
-        alt=""
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          top: '50%',
-          right: '-8%',
-          transform: 'translateY(-50%)',
-          width: 'min(75vw, 640px)',
-          opacity: 0.1,
-          pointerEvents: 'none',
-          userSelect: 'none',
-          zIndex: 0,
-        }}
-      />
-
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ background: 'linear-gradient(180deg,#17211Dcc,#0F1614cc)', borderBottom: '1px solid #2A3830' }} className="px-5 py-8 sm:px-8">
-          <div className="max-w-3xl mx-auto flex items-center gap-4">
-            <img
-              src="/logo.webp"
-              alt="Grade A Beef Pools"
-              className="shrink-0 w-16 h-16 rounded-lg object-cover"
-              style={{ border: '2px solid #3D9B5C' }}
-            />
-            <div>
-              <div className="font-display text-2xl uppercase tracking-wide">Grade A Beef Pools</div>
-              <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Pick your pool below</div>
-            </div>
+      <div className="flex flex-col md:flex-row md:min-h-screen">
+        {/* Pools column */}
+        <div className="w-full md:w-96 shrink-0 px-5 sm:px-8 py-8 space-y-3 order-2 md:order-1" style={{ borderTop: '1px solid #2A3830' }}>
+          <div className="mb-5">
+            <div className="font-display text-xl uppercase tracking-wide">Grade A Beef Pools</div>
+            <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Pick your pool below</div>
           </div>
-        </div>
-
-        <div className="max-w-3xl mx-auto px-5 sm:px-8 py-8 space-y-3">
           {POOLS.map(pool => {
             const Icon = pool.icon;
             const Wrapper = pool.comingSoon ? 'div' : Link;
@@ -108,6 +80,16 @@ export default function Landing() {
               </Wrapper>
             );
           })}
+        </div>
+
+        {/* Logo — the focal visual */}
+        <div className="flex-1 flex items-center justify-center p-6 sm:p-10 order-1 md:order-2" style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)' }}>
+          <img
+            src="/logo.webp"
+            alt="Grade A Beef Pools"
+            className="w-full object-contain rounded-lg"
+            style={{ maxWidth: '520px', maxHeight: '80vh', border: '2px solid #3D9B5C' }}
+          />
         </div>
       </div>
     </div>

@@ -88,7 +88,7 @@ export default function Landing() {
             src="/logo.webp"
             alt="Grade A Beef Pools"
             className="w-full object-contain rounded-lg"
-            style={{ maxWidth: '520px', maxHeight: '80vh', border: '2px solid #3D9B5C' }}
+            style={{ maxWidth: '520px', maxHeight: '80vh' }}
           />
         </div>
       </div>

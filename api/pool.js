@@ -1,11 +1,10 @@
 import { kv } from '@vercel/kv';
 
-const ALLOWED_KEYS = new Set(['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1']);
+const ALLOWED_KEYS = new Set(['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1', 'admin-config']);
 
 function resolveKey(req) {
   const key = req.query?.key;
   if (typeof key === 'string' && ALLOWED_KEYS.has(key)) return key;
-  // Backward compatibility: no key = original survivor pool
   return 'survivor-pool-v1';
 }
 

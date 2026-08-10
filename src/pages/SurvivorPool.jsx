@@ -5,6 +5,7 @@ import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseas
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
+import { useAdminMode } from '../lib/admin';
 
 const POOL_KEY = 'survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-survivor';
@@ -27,6 +28,7 @@ export default function SurvivorPool() {
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [memberSearch, setMemberSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [showAvailability, setShowAvailability] = useState(false);
   const [pickConfirm, setPickConfirm] = useState(null); // { week, pid, team, participantName, prevTeam }
@@ -36,6 +38,10 @@ export default function SurvivorPool() {
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
+  // Pinned independently of viewWeek so these checks work no matter what week someone's looking at.
+  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(1, seasonYear);
+  const { lockTimeForPick: lockTimeForPickCurrentWeek } = useEspnSchedule(data?.currentWeek || 1, seasonYear);
+  const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
 
   // Initial load
   useEffect(() => {
@@ -93,10 +99,23 @@ export default function SurvivorPool() {
     );
   }
 
+  // A week counts as "over" once the commissioner has advanced past it, or — for the current
+  // week specifically — once its own 1pm-Sunday-style deadline has actually passed. Used to
+  // auto-eliminate anyone who never made a pick, same as a real missed-pick loss.
+  const isWeekDefinitivelyOver = (w) => {
+    if (w < data.currentWeek) return true;
+    if (w === data.currentWeek) {
+      const lockTime = lockTimeForPickCurrentWeek(w, undefined);
+      return lockTime !== null && now >= lockTime;
+    }
+    return false;
+  };
+
   const eliminatedAtWeek = (pid) => {
     for (const w of weeksForSeason(viewWeek)) {
       const p = data.picks[w]?.[pid];
       if (p && p.result === 'loss') return w;
+      if ((!p || !p.team) && isWeekDefinitivelyOver(w)) return w;
     }
     return null;
   };
@@ -123,14 +142,20 @@ export default function SurvivorPool() {
     return { abbr, full, availableCount, pct };
   }).sort((a, b) => b.pct - a.pct || a.abbr.localeCompare(b.abbr));
 
-  const persist = (next) => {
+  const persist = (next, removedIds = []) => {
     setData(next);
     skipNextPoll.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
         const remote = await apiGetPool(POOL_KEY).catch(() => null);
-        const merged = mergePoolData(next, remote);
+        let merged = mergePoolData(next, remote);
+        // The merge above unions participants from both copies to protect concurrent additions —
+        // but that can't distinguish "removed on purpose" from "exists on the server but not here
+        // yet," so it'll silently re-add anyone just deleted. Force those specific ids back out.
+        if (removedIds.length) {
+          merged = { ...merged, participants: merged.participants.filter(p => !removedIds.includes(p.id)) };
+        }
         await apiSavePool(POOL_KEY, merged);
         setData(merged);
         setSaveError(false);
@@ -143,7 +168,11 @@ export default function SurvivorPool() {
     }, 250);
   };
 
+  const week1JoinDeadline = lockTimeForPickWeek1(1, undefined);
+  const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
+
   const addParticipant = () => {
+    if (joinClosed) return;
     const name = newName.trim();
     if (!name) return;
     persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null }] });
@@ -152,7 +181,7 @@ export default function SurvivorPool() {
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
     for (const w of ALL_WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
-    persist(next);
+    persist(next, [id]);
   };
   const setPick = (week, pid, team) => {
     const next = { ...data, picks: { ...data.picks } };
@@ -232,10 +261,12 @@ export default function SurvivorPool() {
   };
 
   const isPickLocked = (week, team) => {
+    if (isAdmin) return false;
     const lockTime = lockTimeForPick(week, team);
     return lockTime !== null && now >= lockTime;
   };
   const isRevealed = (week, pid, team) => {
+    if (isAdmin) return true;
     if (myId && pid === myId) return true;
     return isPickLocked(week, team);
   };
@@ -313,6 +344,15 @@ export default function SurvivorPool() {
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
+          {isAdmin ? (
+            <button onClick={exitAdmin} className="ml-auto font-mono text-[10px] uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#E28A82' }}>
+              <Lock size={10} /> Admin mode — exit
+            </button>
+          ) : (
+            <button onClick={openAdminPrompt} className="ml-auto font-mono text-[10px] uppercase underline" style={{ color: '#5C6862' }}>
+              Admin
+            </button>
+          )}
         </div>
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
@@ -371,58 +411,163 @@ export default function SurvivorPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
-        {/* Add participant */}
+        {/* Entrants */}
         <div>
           <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
             <Users size={14} /> Entrants
           </div>
-          <div className="flex gap-2 mb-2">
-            <input
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addParticipant()}
-              placeholder="Add a name…"
-              className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-              style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-            />
-            <button
-              onClick={addParticipant}
-              className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
-              style={{ background: '#3D9B5C', color: '#0F1614' }}
-            >
-              <Plus size={16} /> Add
-            </button>
-          </div>
-          {data.participants.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {data.participants.map(p => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs"
-                  style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}
-                >
-                  {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
-                  {p.name}
-                  {p.pin && (
-                    <button
-                      onClick={() => resetPin(p.id)}
-                      className="underline"
-                      style={{ color: resetConfirmId === p.id ? '#E8A23D' : '#5C6862' }}
-                    >
-                      {resetConfirmId === p.id ? 'Confirm reset?' : 'Reset PIN'}
-                    </button>
-                  )}
-                  {p.lastPinReset && (
-                    <span
-                      title={new Date(p.lastPinReset.at).toLocaleString()}
-                      style={{ color: '#5C6862', fontSize: '9px' }}
-                    >
-                      (reset by {p.lastPinReset.byName}, {new Date(p.lastPinReset.at).toLocaleDateString()})
-                    </span>
-                  )}
-                </div>
-              ))}
+
+          <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
+          {joinClosed && !isAdmin ? (
+            <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+              Entries closed — Week 1 picks have locked, no new entrants can join this season.
             </div>
+          ) : (
+            <div className="flex gap-2 mb-4">
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                placeholder="Your name…"
+                className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              />
+              <button
+                onClick={addParticipant}
+                className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
+                style={{ background: '#3D9B5C', color: '#0F1614' }}
+              >
+                <Plus size={16} /> Entry
+              </button>
+            </div>
+          )}
+
+          {myIdLoaded && (
+            myId && data.participants.some(p => p.id === myId) ? (
+              <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
+                <UserCircle size={14} color="#7FCB98" />
+                You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
+              </div>
+            ) : claimPrompt ? (
+              <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
+                  {claimPrompt.mode === 'set'
+                    ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span> — you'll use it to switch back to this name later.</>
+                    : <>Enter the PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span>.</>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={claimPrompt.input}
+                    onChange={e => setClaimPrompt(c => ({ ...c, input: e.target.value.replace(/\D/g, '').slice(0, 4), error: '' }))}
+                    onKeyDown={e => e.key === 'Enter' && submitClaim()}
+                    placeholder="••••"
+                    className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
+                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                  />
+                  <button
+                    onClick={submitClaim}
+                    className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
+                    style={{ background: '#3D9B5C', color: '#0F1614' }}
+                  >
+                    {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
+                  </button>
+                  <button
+                    onClick={() => setClaimPrompt(null)}
+                    className="font-mono text-xs underline"
+                    style={{ color: '#5C6862' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {claimPrompt.error && (
+                  <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{claimPrompt.error}</div>
+                )}
+              </div>
+            ) : isAdmin ? (
+              <>
+                <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                {data.participants.length === 0 ? (
+                  <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No entrants yet.</div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {data.participants.map(p => (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs"
+                        style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}
+                      >
+                        <button onClick={() => handleNameTap(p)} className="flex items-center gap-1" style={{ color: '#F0EDE4' }}>
+                          {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
+                          {p.name}
+                        </button>
+                        {p.pin && (
+                          <button
+                            onClick={() => resetPin(p.id)}
+                            className="underline"
+                            style={{ color: resetConfirmId === p.id ? '#E8A23D' : '#5C6862' }}
+                          >
+                            {resetConfirmId === p.id ? 'Confirm reset?' : 'Reset PIN'}
+                          </button>
+                        )}
+                        {p.lastPinReset && (
+                          <span
+                            title={new Date(p.lastPinReset.at).toLocaleString()}
+                            style={{ color: '#5C6862', fontSize: '9px' }}
+                          >
+                            (reset by {p.lastPinReset.byName}, {new Date(p.lastPinReset.at).toLocaleDateString()})
+                          </span>
+                        )}
+                        <button onClick={() => removeParticipant(p.id)} title="Remove entrant" style={{ color: '#5C6862' }}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Returning member?</div>
+                <input
+                  value={memberSearch}
+                  onChange={e => setMemberSearch(e.target.value)}
+                  placeholder="Start typing your name…"
+                  className="w-full px-3 py-2 rounded outline-none font-head text-sm"
+                  style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                />
+                {memberSearch.trim() && (
+                  <div className="mt-2 space-y-1">
+                    {(() => {
+                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 8);
+                      if (matches.length === 0) {
+                        return <div className="font-mono text-xs px-1" style={{ color: '#5C6862' }}>No matches</div>;
+                      }
+                      return matches.map(p => (
+                        <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                          <button onClick={() => handleNameTap(p)} className="flex-1 text-left flex items-center gap-1.5 font-head text-sm" style={{ color: '#F0EDE4' }}>
+                            {p.pin && <Lock size={10} color="#7FCB98" />}
+                            {p.name}
+                          </button>
+                          {p.pin && (
+                            <button
+                              onClick={() => resetPin(p.id)}
+                              className="font-mono text-[10px] underline"
+                              style={{ color: resetConfirmId === p.id ? '#E8A23D' : '#5C6862' }}
+                            >
+                              {resetConfirmId === p.id ? 'Confirm reset?' : 'Reset PIN'}
+                            </button>
+                          )}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </>
+            )
           )}
         </div>
 
@@ -432,74 +577,6 @@ export default function SurvivorPool() {
           </div>
         ) : (
           <>
-            {/* Identity banner */}
-            {myIdLoaded && (
-              myId && data.participants.some(p => p.id === myId) ? (
-                <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
-                  <UserCircle size={14} color="#7FCB98" />
-                  You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
-                  <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
-                </div>
-              ) : claimPrompt ? (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                  <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
-                    {claimPrompt.mode === 'set'
-                      ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span> — you'll use it to switch back to this name later.</>
-                      : <>Enter the PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span>.</>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      autoFocus
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={claimPrompt.input}
-                      onChange={e => setClaimPrompt(c => ({ ...c, input: e.target.value.replace(/\D/g, '').slice(0, 4), error: '' }))}
-                      onKeyDown={e => e.key === 'Enter' && submitClaim()}
-                      placeholder="••••"
-                      className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-                    />
-                    <button
-                      onClick={submitClaim}
-                      className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
-                      style={{ background: '#3D9B5C', color: '#0F1614' }}
-                    >
-                      {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
-                    </button>
-                    <button
-                      onClick={() => setClaimPrompt(null)}
-                      className="font-mono text-xs underline"
-                      style={{ color: '#5C6862' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  {claimPrompt.error && (
-                    <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{claimPrompt.error}</div>
-                  )}
-                </div>
-              ) : (
-                <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                  <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
-                    Which entrant are you? This keeps your picks hidden from others until kickoff.
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {data.participants.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => handleNameTap(p)}
-                        className="px-2.5 py-1 rounded font-head text-xs uppercase flex items-center gap-1"
-                        style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-                      >
-                        {p.pin && <Lock size={10} color="#7FCB98" />}
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )
-            )}
-
             {/* Week tabs */}
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -651,8 +728,8 @@ export default function SurvivorPool() {
                             {(schedule[viewWeek]?.games || []).map(g => {
                               const awaySelected = pick?.team === g.away.abbr;
                               const homeSelected = pick?.team === g.home.abbr;
-                              const awayUsed = used.has(g.away.abbr);
-                              const homeUsed = used.has(g.home.abbr);
+                              const awayUsed = used.has(g.away.abbr) && !isAdmin;
+                              const homeUsed = used.has(g.home.abbr) && !isAdmin;
                               return (
                                 <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                                   <button
@@ -833,6 +910,40 @@ export default function SurvivorPool() {
           </>
         )}
       </div>
+
+      {/* Admin PIN modal */}
+      {adminPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
+            <div className="font-head text-sm uppercase tracking-wide mb-2" style={{ color: '#8A9A90' }}>
+              {adminPrompt.mode === 'set' ? 'Set the admin PIN' : 'Enter admin PIN'}
+            </div>
+            <div className="font-mono text-xs mb-3" style={{ color: '#5C6862' }}>
+              {adminPrompt.mode === 'set'
+                ? 'This PIN unlocks admin mode across all three pools — lets you edit any pick even after it locks. Set once, use everywhere.'
+                : 'One PIN works across Survivor, Confidence, and Lineup pools.'}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                inputMode="numeric"
+                maxLength={8}
+                value={adminPrompt.input}
+                onChange={e => setAdminPrompt(p => ({ ...p, input: e.target.value.replace(/\D/g, '').slice(0, 8), error: '' }))}
+                onKeyDown={e => e.key === 'Enter' && submitAdminPrompt()}
+                placeholder="••••"
+                className="w-24 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
+                style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+              />
+              <button onClick={submitAdminPrompt} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#3D9B5C', color: '#0F1614' }}>
+                {adminPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
+              </button>
+              <button onClick={() => setAdminPrompt(null)} className="font-mono text-xs underline" style={{ color: '#5C6862' }}>Cancel</button>
+            </div>
+            {adminPrompt.error && <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{adminPrompt.error}</div>}
+          </div>
+        </div>
+      )}
 
       {/* Pick confirmation modal */}
       {pickConfirm && (

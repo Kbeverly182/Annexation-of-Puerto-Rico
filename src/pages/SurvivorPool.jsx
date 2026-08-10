@@ -284,7 +284,7 @@ export default function SurvivorPool() {
   return (
     <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
         .rounded { border-radius: 10px !important; }
         button { transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease; }
@@ -293,7 +293,7 @@ export default function SurvivorPool() {
         input:focus, select:focus { outline: none; border-color: #3D9B5C88 !important; box-shadow: 0 0 0 3px #3D9B5C22; }
 
         .font-display { font-family: 'Anton', sans-serif; }
-        .font-head { font-family: 'Oswald', sans-serif; }
+        .font-head { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
         .perf-left { position: relative; }
         .perf-left::before {

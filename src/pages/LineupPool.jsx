@@ -44,6 +44,7 @@ export default function LineupPool() {
   const [myId, setMyId] = useState(null);
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -135,10 +136,14 @@ export default function LineupPool() {
 
   const addParticipant = () => {
     const name = newName.trim();
-    if (!name) return;
-    persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null, email: newEmail.trim() || null }] });
+    const email = newEmail.trim();
+    if (!name || !email) return;
+    const newP = { id: uid(), name, pin: null, email };
+    persist({ ...data, participants: [...data.participants, newP] });
     setNewName('');
     setNewEmail('');
+    setShowCreateForm(false);
+    setClaimPrompt({ participantId: newP.id, mode: 'set', input: '', error: '' });
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
@@ -587,32 +592,54 @@ export default function LineupPool() {
           </div>
 
           <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <input
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addParticipant()}
-              placeholder="Your name…"
-              className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-              style={{ minWidth: '140px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-            />
-            <input
-              type="email"
-              value={newEmail}
-              onChange={e => setNewEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addParticipant()}
-              placeholder="Email (optional, for reminders)…"
-              className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
-              style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-            />
+          {!showCreateForm ? (
             <button
-              onClick={addParticipant}
-              className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
+              onClick={() => setShowCreateForm(true)}
+              className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1 mb-4"
               style={{ background: '#8A9A90', color: '#0F1614' }}
             >
-              <Plus size={16} /> Entry
+              <Plus size={16} /> New Entry
             </button>
-          </div>
+          ) : (
+            <div className="flex gap-2 mb-1 flex-wrap">
+              <input
+                autoFocus
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                placeholder="Your name…"
+                className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
+                style={{ minWidth: '140px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              />
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                placeholder="Email…"
+                className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
+                style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              />
+              <button
+                onClick={addParticipant}
+                disabled={!newName.trim() || !newEmail.trim()}
+                className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
+                style={{ background: (!newName.trim() || !newEmail.trim()) ? '#1F2B25' : '#8A9A90', color: (!newName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
+              >
+                <Plus size={16} /> Create
+              </button>
+              <button
+                onClick={() => { setShowCreateForm(false); setNewName(''); setNewEmail(''); }}
+                className="px-3 rounded font-mono text-xs underline"
+                style={{ color: '#5C6862' }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {showCreateForm && (
+            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>Both fields are required.</div>
+          )}
 
           {myIdLoaded && (
             myId && data.participants.some(p => p.id === myId) ? (
@@ -689,6 +716,9 @@ export default function LineupPool() {
             ) : (
               <>
                 <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Returning member?</div>
+                <div className="font-mono text-[10px] mb-1.5" style={{ color: '#3A4A42' }}>
+                  Already have an entry? Search for your name here instead of creating a new one.
+                </div>
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}

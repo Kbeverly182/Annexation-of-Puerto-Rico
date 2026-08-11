@@ -28,6 +28,7 @@ export default function SurvivorPool() {
   const [myId, setMyId] = useState(null);
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
@@ -173,12 +174,16 @@ export default function SurvivorPool() {
   const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
 
   const addParticipant = () => {
-    if (joinClosed) return;
+    if (joinClosed && !isAdmin) return;
     const name = newName.trim();
-    if (!name) return;
-    persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null, email: newEmail.trim() || null }] });
+    const email = newEmail.trim();
+    if (!name || !email) return;
+    const newP = { id: uid(), name, pin: null, email };
+    persist({ ...data, participants: [...data.participants, newP] });
     setNewName('');
     setNewEmail('');
+    setShowCreateForm(false);
+    setClaimPrompt({ participantId: newP.id, mode: 'set', input: '', error: '' });
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
@@ -438,9 +443,18 @@ export default function SurvivorPool() {
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
               Entries closed — Week 1 picks have locked, no new entrants can join this season.
             </div>
+          ) : !showCreateForm ? (
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1 mb-4"
+              style={{ background: '#3D9B5C', color: '#0F1614' }}
+            >
+              <Plus size={16} /> New Entry
+            </button>
           ) : (
-            <div className="flex gap-2 mb-4 flex-wrap">
+            <div className="flex gap-2 mb-1 flex-wrap">
               <input
+                autoFocus
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
@@ -453,18 +467,29 @@ export default function SurvivorPool() {
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
-                placeholder="Email (optional, for reminders)…"
+                placeholder="Email…"
                 className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
                 style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
               />
               <button
                 onClick={addParticipant}
+                disabled={!newName.trim() || !newEmail.trim()}
                 className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
-                style={{ background: '#3D9B5C', color: '#0F1614' }}
+                style={{ background: (!newName.trim() || !newEmail.trim()) ? '#1F2B25' : '#3D9B5C', color: (!newName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
               >
-                <Plus size={16} /> Entry
+                <Plus size={16} /> Create
+              </button>
+              <button
+                onClick={() => { setShowCreateForm(false); setNewName(''); setNewEmail(''); }}
+                className="px-3 rounded font-mono text-xs underline"
+                style={{ color: '#5C6862' }}
+              >
+                Cancel
               </button>
             </div>
+          )}
+          {showCreateForm && (
+            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>Both fields are required.</div>
           )}
 
           {myIdLoaded && (
@@ -565,6 +590,9 @@ export default function SurvivorPool() {
             ) : (
               <>
                 <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Returning member?</div>
+                <div className="font-mono text-[10px] mb-1.5" style={{ color: '#3A4A42' }}>
+                  Already have an entry? Search for your name here instead of creating a new one.
+                </div>
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}

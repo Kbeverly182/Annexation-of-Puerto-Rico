@@ -731,7 +731,7 @@ export default function ConfidencePool() {
                                   onDragStart={() => handleDragStart(p.id, idx)}
                                   onDragOver={e => e.preventDefault()}
                                   onDrop={() => handleDropOn(p.id, idx)}
-                                  className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs"
+                                  className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs flex-wrap"
                                   style={{
                                     background: '#0F1614',
                                     border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
@@ -746,26 +746,40 @@ export default function ConfidencePool() {
                                   {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
                                   {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}
                                   {!gLocked && (
-                                    <div className="flex flex-col shrink-0" style={{ marginLeft: '2px' }}>
+                                    <div className="flex gap-1.5 shrink-0" style={{ marginLeft: '2px' }}>
                                       <button
                                         type="button"
                                         onClick={() => moveInDisplayOrder(p.id, idx, -1)}
                                         disabled={idx === 0}
                                         title="Move up"
-                                        className="flex items-center justify-center"
-                                        style={{ width: '18px', height: '14px', color: idx === 0 ? '#2A3830' : '#8A9A90', cursor: idx === 0 ? 'default' : 'pointer' }}
+                                        className="flex items-center justify-center rounded"
+                                        style={{
+                                          width: '38px',
+                                          height: '38px',
+                                          background: idx === 0 ? '#0F1614' : '#1F2B25',
+                                          border: `1px solid ${idx === 0 ? '#2A3830' : '#E8A23D66'}`,
+                                          color: idx === 0 ? '#2A3830' : '#E8A23D',
+                                          cursor: idx === 0 ? 'default' : 'pointer',
+                                        }}
                                       >
-                                        <ChevronUp size={13} />
+                                        <ChevronUp size={20} />
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => moveInDisplayOrder(p.id, idx, 1)}
                                         disabled={idx === order.length - 1}
                                         title="Move down"
-                                        className="flex items-center justify-center"
-                                        style={{ width: '18px', height: '14px', color: idx === order.length - 1 ? '#2A3830' : '#8A9A90', cursor: idx === order.length - 1 ? 'default' : 'pointer' }}
+                                        className="flex items-center justify-center rounded"
+                                        style={{
+                                          width: '38px',
+                                          height: '38px',
+                                          background: idx === order.length - 1 ? '#0F1614' : '#1F2B25',
+                                          border: `1px solid ${idx === order.length - 1 ? '#2A3830' : '#E8A23D66'}`,
+                                          color: idx === order.length - 1 ? '#2A3830' : '#E8A23D',
+                                          cursor: idx === order.length - 1 ? 'default' : 'pointer',
+                                        }}
                                       >
-                                        <ChevronDown size={13} />
+                                        <ChevronDown size={20} />
                                       </button>
                                     </div>
                                   )}

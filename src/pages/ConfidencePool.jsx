@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -39,6 +39,7 @@ export default function ConfidencePool() {
   const [saveError, setSaveError] = useState(false);
   const [viewWeek, setViewWeek] = useState(1);
   const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [seasonYear, setSeasonYear] = useState(defaultSeasonYear());
@@ -134,8 +135,9 @@ export default function ConfidencePool() {
   const addParticipant = () => {
     const name = newName.trim();
     if (!name) return;
-    persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null }] });
+    persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null, email: newEmail.trim() || null }] });
     setNewName('');
+    setNewEmail('');
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
@@ -191,6 +193,20 @@ export default function ConfidencePool() {
         : p),
     });
     setResetConfirmId(null);
+  };
+
+  const exportEmails = () => {
+    const rows = data.participants.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.email || ''}"`);
+    const csv = 'Name,Email\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(data.name || 'pool').replace(/[^a-z0-9]+/gi, '-')}-emails.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const games = schedule[viewWeek]?.games || [];
@@ -440,14 +456,23 @@ export default function ConfidencePool() {
           </div>
 
           <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4 flex-wrap">
             <input
               value={newName}
               onChange={e => setNewName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addParticipant()}
               placeholder="Your name…"
               className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-              style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              style={{ minWidth: '140px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+            />
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addParticipant()}
+              placeholder="Email (optional, for reminders)…"
+              className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
+              style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
             />
             <button
               onClick={addParticipant}
@@ -493,7 +518,14 @@ export default function ConfidencePool() {
               </div>
             ) : isAdmin ? (
               <>
-                <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                  {data.participants.some(p => p.email) && (
+                    <button onClick={exportEmails} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#E8A23D' }}>
+                      <Download size={10} /> Export emails (.csv)
+                    </button>
+                  )}
+                </div>
                 {data.participants.length === 0 ? (
                   <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No entrants yet.</div>
                 ) : (
@@ -504,6 +536,7 @@ export default function ConfidencePool() {
                           {p.pin ? <Lock size={10} color="#E8A23D" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}
                         </button>
+                        {p.email && <span style={{ color: '#5C6862', fontSize: '9px' }}>({p.email})</span>}
                         {p.pin && (
                           <button onClick={() => resetPin(p.id)} className="underline" style={{ color: resetConfirmId === p.id ? '#E8A23D' : '#5C6862' }}>
                             {resetConfirmId === p.id ? 'Confirm reset?' : 'Reset PIN'}
@@ -631,10 +664,12 @@ export default function ConfidencePool() {
               </div>
             )}
 
-            {/* Picks for viewing/editing */}
+            {/* Picks for viewing/editing — only your own card (or all, for admin); everyone else's
+                picks now live in the compact standings grid below instead of a full card each. */}
             <div className="space-y-4">
               {data.participants.map(p => {
                 const isMe = myId === p.id;
+                if (!isAdmin && !isMe) return null;
                 const weekEntry = data.picks[viewWeek]?.[p.id] || {};
                 const winners = weekEntry.winners || {};
                 const order = getDisplayOrder(p.id);
@@ -650,60 +685,10 @@ export default function ConfidencePool() {
                       <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Loading matchups…</div>
                     ) : (
                       <div className="space-y-4">
-                        {/* Step 1: pick a winner in each matchup */}
-                        <div>
-                          <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>1. Pick a winner in each matchup</div>
-                          <div className="flex flex-wrap gap-2">
-                            {games.map(g => {
-                              const gLocked = isGameLocked(g);
-                              const gRevealed = isGameRevealed(p.id, g);
-                              if (!gRevealed) {
-                                return (
-                                  <div key={g.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#5C6862' }}>
-                                    <Lock size={10} /> Hidden
-                                  </div>
-                                );
-                              }
-                              const winner = winners[g.id];
-                              const awaySelected = winner === g.away.abbr;
-                              const homeSelected = winner === g.home.abbr;
-                              return (
-                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                                  <button
-                                    onClick={() => setWinner(viewWeek, p.id, g.id, g.away.abbr)}
-                                    disabled={gLocked}
-                                    className="px-2.5 py-1.5 text-center font-mono text-xs"
-                                    style={{
-                                      background: awaySelected ? '#E8A23D' : '#0F1614',
-                                      color: awaySelected ? '#0F1614' : '#F0EDE4',
-                                      cursor: gLocked ? 'not-allowed' : 'pointer',
-                                    }}
-                                  >
-                                    {g.away.abbr}
-                                  </button>
-                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
-                                  <button
-                                    onClick={() => setWinner(viewWeek, p.id, g.id, g.home.abbr)}
-                                    disabled={gLocked}
-                                    className="px-2.5 py-1.5 text-center font-mono text-xs"
-                                    style={{
-                                      background: homeSelected ? '#E8A23D' : '#0F1614',
-                                      color: homeSelected ? '#0F1614' : '#F0EDE4',
-                                      cursor: gLocked ? 'not-allowed' : 'pointer',
-                                    }}
-                                  >
-                                    {g.home.abbr}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Step 2: rank confidence — drag on desktop, or tap the arrows on mobile */}
+                        {/* Pick a winner and rank your confidence — most confident on top */}
                         <div>
                           <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>
-                            2. Rank confidence — most confident on top
+                            Pick a winner in each matchup, then rank your confidence — most confident on top
                           </div>
                           <div className="space-y-1">
                             {order.map((gid, idx) => {
@@ -720,6 +705,8 @@ export default function ConfidencePool() {
                                 );
                               }
                               const winner = winners[gid];
+                              const awaySelected = winner === g.away.abbr;
+                              const homeSelected = winner === g.home.abbr;
                               const result = data.results?.[viewWeek]?.[gid];
                               const missed = gLocked && !winner;
                               const correct = result?.completed && winner && result.winnerAbbr === winner;
@@ -738,15 +725,39 @@ export default function ConfidencePool() {
                                     cursor: gLocked ? 'default' : 'grab',
                                   }}
                                 >
-                                  <span className="w-6 text-center font-head" style={{ color: '#E8A23D' }}>{confidence}</span>
-                                  <span style={{ color: '#8A9A90' }}>{g.away.abbr} @ {g.home.abbr}</span>
-                                  <span className="ml-auto" style={{ color: winner ? '#F0EDE4' : '#5C6862' }}>
-                                    {missed ? 'Missed pick' : winner ? `Pick: ${winner}` : 'No pick yet'}
-                                  </span>
+                                  <span className="w-6 text-center font-head shrink-0" style={{ color: '#E8A23D' }}>{confidence}</span>
+                                  <div className="flex items-stretch rounded overflow-hidden shrink-0" style={{ border: '1px solid #2A3830' }}>
+                                    <button
+                                      onClick={() => setWinner(viewWeek, p.id, gid, g.away.abbr)}
+                                      disabled={gLocked}
+                                      className="px-2.5 py-1.5 text-center font-mono text-xs"
+                                      style={{
+                                        background: awaySelected ? '#E8A23D' : '#1C2823',
+                                        color: awaySelected ? '#0F1614' : '#F0EDE4',
+                                        cursor: gLocked ? 'not-allowed' : 'pointer',
+                                      }}
+                                    >
+                                      {g.away.abbr}
+                                    </button>
+                                    <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
+                                    <button
+                                      onClick={() => setWinner(viewWeek, p.id, gid, g.home.abbr)}
+                                      disabled={gLocked}
+                                      className="px-2.5 py-1.5 text-center font-mono text-xs"
+                                      style={{
+                                        background: homeSelected ? '#E8A23D' : '#1C2823',
+                                        color: homeSelected ? '#0F1614' : '#F0EDE4',
+                                        cursor: gLocked ? 'not-allowed' : 'pointer',
+                                      }}
+                                    >
+                                      {g.home.abbr}
+                                    </button>
+                                  </div>
+                                  {missed && <span style={{ color: '#5C6862' }}>Missed pick</span>}
                                   {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
                                   {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}
                                   {!gLocked && (
-                                    <div className="flex gap-1.5 shrink-0" style={{ marginLeft: '2px' }}>
+                                    <div className="flex gap-1.5 shrink-0 ml-auto">
                                       <button
                                         type="button"
                                         onClick={() => moveInDisplayOrder(p.id, idx, -1)}
@@ -816,29 +827,69 @@ export default function ConfidencePool() {
                   </div>
                 );
               })}
+              {!isAdmin && !myId && (
+                <div className="font-mono text-xs px-3 py-2" style={{ color: '#5C6862' }}>
+                  Claim your name above (under "Returning member?") to make your picks.
+                </div>
+              )}
             </div>
 
-            {/* Weekly winners */}
+            {/* Weekly standings grid */}
             <div>
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
-                <Trophy size={14} /> Week {weekLabel(viewWeek)} Winners
+                <Trophy size={14} /> Week {weekLabel(viewWeek)} Standings
               </div>
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
-                Top {numTopSpots} of {data.participants.length} entrants (1 spot per 12) — ties broken by closest MNF guess
+                Top {numTopSpots} of {data.participants.length} entrants (1 spot per 12) — ties broken by closest MNF guess. Reorders automatically as results come in.
               </div>
               <div className="space-y-1.5">
-                {weeklyLeaderboard(viewWeek).map((p, i) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-3 rounded px-3 py-2"
-                    style={{ background: '#1C2823', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
-                  >
-                    <div className="font-mono text-xs w-6" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
-                    <div className="font-head text-sm flex-1">{p.name}</div>
-                    {p.guess != null && <div className="font-mono text-[10px]" style={{ color: '#5C6862' }}>guess: {p.guess}</div>}
-                    <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.points} pts</div>
-                  </div>
-                ))}
+                {weeklyLeaderboard(viewWeek).map((p, i) => {
+                  const weekEntry = data.picks[viewWeek]?.[p.id];
+                  const winners = weekEntry?.winners || {};
+                  const order = getDisplayOrder(p.id);
+                  const cells = order.map((gid, idx) => {
+                    const g = games.find(gm => gm.id === gid);
+                    if (!g) return null;
+                    const confidence = order.length - idx;
+                    const revealed = isGameRevealed(p.id, g);
+                    const winner = winners[gid];
+                    const result = data.results?.[viewWeek]?.[gid];
+                    const gLocked = isGameLocked(g);
+                    const missed = gLocked && !winner;
+                    const correct = result?.completed && winner && result.winnerAbbr === winner;
+                    const wrong = result?.completed && ((winner && result.winnerAbbr !== winner) || missed);
+                    return { gid, matchup: `${g.away.abbr} @ ${g.home.abbr}${winner ? ` — picked ${winner}` : ''}`, confidence, revealed, correct, wrong };
+                  }).filter(Boolean);
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 rounded px-2.5 py-2"
+                      style={{ background: '#1C2823', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
+                    >
+                      <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
+                      <div className="font-head text-xs w-20 sm:w-28 shrink-0 truncate">{p.name}</div>
+                      <div className="flex gap-1 flex-1 overflow-x-auto py-0.5">
+                        {cells.length === 0 && <span className="font-mono text-[10px]" style={{ color: '#3A4A42' }}>—</span>}
+                        {cells.map(c => (
+                          <div
+                            key={c.gid}
+                            title={c.revealed ? c.matchup : 'Hidden until kickoff'}
+                            className="shrink-0 w-6 h-6 rounded flex items-center justify-center font-mono text-[10px]"
+                            style={{
+                              background: !c.revealed ? '#0F1614' : c.correct ? '#3D9B5C33' : c.wrong ? '#C1443A33' : '#0F1614',
+                              border: `1px solid ${!c.revealed ? '#2A3830' : c.correct ? '#3D9B5C' : c.wrong ? '#C1443A' : '#2A3830'}`,
+                              color: !c.revealed ? '#3A4A42' : c.correct ? '#7FCB98' : c.wrong ? '#E28A82' : '#8A9A90',
+                            }}
+                          >
+                            {c.revealed ? c.confidence : '•'}
+                          </div>
+                        ))}
+                      </div>
+                      {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>guess: {p.guess}</div>}
+                      <div className="font-head text-sm w-12 text-right shrink-0" style={{ color: '#E8A23D' }}>{p.points}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

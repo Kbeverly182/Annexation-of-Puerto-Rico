@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft } from 'lucide-react';
+import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -19,6 +19,7 @@ export default function SurvivorPool() {
   const [saveError, setSaveError] = useState(false);
   const [viewWeek, setViewWeek] = useState(1);
   const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [seasonYear, setSeasonYear] = useState(defaultSeasonYear());
@@ -175,8 +176,9 @@ export default function SurvivorPool() {
     if (joinClosed) return;
     const name = newName.trim();
     if (!name) return;
-    persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null }] });
+    persist({ ...data, participants: [...data.participants, { id: uid(), name, pin: null, email: newEmail.trim() || null }] });
     setNewName('');
+    setNewEmail('');
   };
   const removeParticipant = (id) => {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
@@ -258,6 +260,20 @@ export default function SurvivorPool() {
         : p),
     });
     setResetConfirmId(null);
+  };
+
+  const exportEmails = () => {
+    const rows = data.participants.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.email || ''}"`);
+    const csv = 'Name,Email\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(data.name || 'pool').replace(/[^a-z0-9]+/gi, '-')}-emails.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const isPickLocked = (week, team) => {
@@ -423,14 +439,23 @@ export default function SurvivorPool() {
               Entries closed — Week 1 picks have locked, no new entrants can join this season.
             </div>
           ) : (
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 flex-wrap">
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
                 placeholder="Your name…"
                 className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                style={{ minWidth: '140px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              />
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                placeholder="Email (optional, for reminders)…"
+                className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
+                style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
               />
               <button
                 onClick={addParticipant}
@@ -489,7 +514,14 @@ export default function SurvivorPool() {
               </div>
             ) : isAdmin ? (
               <>
-                <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                  {data.participants.some(p => p.email) && (
+                    <button onClick={exportEmails} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#3D9B5C' }}>
+                      <Download size={10} /> Export emails (.csv)
+                    </button>
+                  )}
+                </div>
                 {data.participants.length === 0 ? (
                   <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No entrants yet.</div>
                 ) : (
@@ -504,6 +536,7 @@ export default function SurvivorPool() {
                           {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}
                         </button>
+                        {p.email && <span style={{ color: '#5C6862', fontSize: '9px' }}>({p.email})</span>}
                         {p.pin && (
                           <button
                             onClick={() => resetPin(p.id)}

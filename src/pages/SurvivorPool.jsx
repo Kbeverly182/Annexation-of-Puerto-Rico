@@ -438,7 +438,7 @@ export default function SurvivorPool() {
             <Users size={14} /> Entrants
           </div>
 
-          <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
+          <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
           {joinClosed && !isAdmin ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
               Entries closed — Week 1 picks have locked, no new entrants can join this season.
@@ -589,7 +589,7 @@ export default function SurvivorPool() {
               </>
             ) : (
               <>
-                <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Returning member?</div>
+                <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Returning member?</div>
                 <div className="font-mono text-[10px] mb-1.5" style={{ color: '#3A4A42' }}>
                   Already have an entry? Search for your name here instead of creating a new one.
                 </div>

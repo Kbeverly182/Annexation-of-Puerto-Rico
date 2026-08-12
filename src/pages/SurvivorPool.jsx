@@ -134,6 +134,17 @@ export default function SurvivorPool() {
   const aliveCount = data.participants.filter(p => eliminatedAtWeek(p.id) === null).length;
   const outCount = data.participants.length - aliveCount;
 
+  const lastNameOf = (name) => {
+    const parts = (name || '').trim().split(/\s+/);
+    return (parts[parts.length - 1] || '').toLowerCase();
+  };
+  const sortedParticipants = [...data.participants].sort((a, b) => {
+    const aOut = eliminatedAtWeek(a.id) !== null;
+    const bOut = eliminatedAtWeek(b.id) !== null;
+    if (aOut !== bOut) return aOut ? 1 : -1;
+    return lastNameOf(a.name).localeCompare(lastNameOf(b.name));
+  });
+
   const aliveParticipants = data.participants.filter(p => eliminatedAtWeek(p.id) === null);
   const seasonWeeksForView = weeksForSeason(viewWeek);
   const viewWeekIdx = seasonWeeksForView.indexOf(viewWeek);
@@ -717,158 +728,6 @@ export default function SurvivorPool() {
               )}
             </div>
 
-            {/* This week's picks */}
-            <div>
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                <div className="font-head uppercase text-sm tracking-[0.2em]" style={{ color: '#8A9A90' }}>
-                  Week {viewWeek} picks
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="font-mono text-xs flex items-center gap-1" style={{ color: '#5C6862' }}>
-                    Season
-                    <input
-                      type="number"
-                      value={seasonYear}
-                      onChange={e => setSeasonYear(Number(e.target.value))}
-                      className="w-16 px-1.5 py-1 rounded font-mono text-xs"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-                    />
-                  </label>
-                  <button
-                    onClick={() => syncScores(viewWeek)}
-                    disabled={syncing}
-                    className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide flex items-center gap-1.5"
-                    style={{ background: '#1F2B25', border: '1px solid #3D9B5C', color: '#7FCB98', opacity: syncing ? 0.6 : 1 }}
-                  >
-                    <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-                    {syncing ? 'Syncing…' : `Sync week ${viewWeek} scores`}
-                  </button>
-                </div>
-              </div>
-              {syncMsg && (
-                <div className="mb-3 font-mono text-xs flex items-start gap-1.5" style={{ color: '#E8A23D' }}>
-                  <AlertCircle size={12} className="mt-0.5 shrink-0" />
-                  {syncMsg}
-                </div>
-              )}
-              <div className="space-y-2">
-                {data.participants.map(p => {
-                  const elimWeek = eliminatedAtWeek(p.id);
-                  const isOutByNow = elimWeek !== null && elimWeek < viewWeek;
-                  const pick = data.picks[viewWeek]?.[p.id];
-                  const used = usedTeams(p.id, viewWeek - 1);
-                  if (pick?.team) used.delete(pick.team);
-
-                  const isMe = myId === p.id;
-                  const locked = isPickLocked(viewWeek, pick?.team);
-                  const revealed = isRevealed(viewWeek, p.id, pick?.team);
-                  const scheduleReady = schedule[viewWeek]?.loaded;
-
-                  return (
-                    <div
-                      key={p.id}
-                      className="perf-left flex items-center gap-3 rounded-r px-4 py-3 flex-wrap"
-                      style={{
-                        background: isOutByNow ? '#17211D88' : '#1C2823',
-                        border: isMe ? '1px solid #3D9B5C88' : '1px solid #2A3830',
-                        opacity: isOutByNow ? 0.55 : 1,
-                      }}
-                    >
-                      <div className="w-28 shrink-0 font-head text-sm truncate flex items-center gap-1.5">
-                        {isOutByNow && <Skull size={13} color="#C1443A" />}
-                        {p.name}
-                      </div>
-
-                      {isOutByNow ? (
-                        <div className="font-mono text-xs uppercase" style={{ color: '#C1443A' }}>
-                          Eliminated — week {elimWeek}
-                        </div>
-                      ) : !revealed ? (
-                        <div className="flex-1 flex items-center gap-1.5 font-mono text-xs uppercase" style={{ color: '#5C6862' }}>
-                          <Lock size={12} />
-                          {scheduleReady ? 'Hidden until kickoff' : 'Checking kickoff time…'}
-                        </div>
-                      ) : (
-                        <div className="flex-1 w-full flex flex-col gap-2">
-                          <div className="flex flex-wrap gap-2">
-                            {(schedule[viewWeek]?.games || []).map(g => {
-                              const awaySelected = pick?.team === g.away.abbr;
-                              const homeSelected = pick?.team === g.home.abbr;
-                              const awayUsed = used.has(g.away.abbr) && !isAdmin;
-                              const homeUsed = used.has(g.home.abbr) && !isAdmin;
-                              return (
-                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                                  <button
-                                    onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, pick?.team)}
-                                    disabled={locked || awayUsed}
-                                    className="px-2.5 py-1.5 text-center"
-                                    style={{
-                                      background: awaySelected ? '#3D9B5C' : '#0F1614',
-                                      color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
-                                      cursor: (locked || awayUsed) ? 'not-allowed' : 'pointer',
-                                    }}
-                                  >
-                                    <div className="font-head text-xs">{g.away.abbr}</div>
-                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
-                                  </button>
-                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
-                                  <button
-                                    onClick={() => requestPick(viewWeek, p.id, g.home.abbr, p.name, pick?.team)}
-                                    disabled={locked || homeUsed}
-                                    className="px-2.5 py-1.5 text-center"
-                                    style={{
-                                      background: homeSelected ? '#3D9B5C' : '#0F1614',
-                                      color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
-                                      cursor: (locked || homeUsed) ? 'not-allowed' : 'pointer',
-                                    }}
-                                  >
-                                    <div className="font-head text-xs">{g.home.abbr}</div>
-                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
-                                  </button>
-                                </div>
-                              );
-                            })}
-                            {!schedule[viewWeek]?.loaded && (
-                              <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Loading matchups…</div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {locked && (
-                              <span className="font-mono text-[10px] uppercase flex items-center gap-1" style={{ color: '#5C6862' }}>
-                                <Lock size={10} /> Locked
-                              </span>
-                            )}
-                            <div className="flex items-center gap-1 shrink-0 ml-auto">
-                              <span className="font-mono text-[9px] uppercase" style={{ color: '#3A4A42' }}>Override:</span>
-                              {['win', 'loss'].map(r => (
-                                <button
-                                  key={r}
-                                  onClick={() => setResult(viewWeek, p.id, pick?.result === r ? 'pending' : r)}
-                                  title={r === 'win' ? 'Mark as won' : 'Mark as lost'}
-                                  className="w-6 h-6 rounded flex items-center justify-center"
-                                  style={{
-                                    background: pick?.result === r ? (r === 'win' ? '#3D9B5C' : '#C1443A') : '#1F2B25',
-                                    border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
-                                  }}
-                                >
-                                  {r === 'win' && <Check size={12} color={pick?.result === 'win' ? '#0F1614' : '#3A4A42'} />}
-                                  {r === 'loss' && <X size={12} color={pick?.result === 'loss' ? '#0F1614' : '#3A4A42'} />}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <button onClick={() => removeParticipant(p.id)} className="ml-auto shrink-0 p-1 rounded" style={{ color: '#5C6862' }}>
-                        <X size={14} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Pick distribution */}
             <div>
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
@@ -899,30 +758,85 @@ export default function SurvivorPool() {
               )}
             </div>
 
-            {/* Elimination chain */}
+            {/* Season picks — one row per entrant, alive first (alphabetical by last name), eliminated
+                at the bottom. The current week shows the live picker inline for your own row (or
+                admin); every other week — and everyone else's current week — shows as a chip. */}
             <div>
-              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
-                Season chain
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <div className="font-head uppercase text-sm tracking-[0.2em]" style={{ color: '#8A9A90' }}>
+                  Season picks
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-xs flex items-center gap-1" style={{ color: '#5C6862' }}>
+                    Season
+                    <input
+                      type="number"
+                      value={seasonYear}
+                      onChange={e => setSeasonYear(Number(e.target.value))}
+                      className="w-16 px-1.5 py-1 rounded font-mono text-xs"
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                    />
+                  </label>
+                  <button
+                    onClick={() => syncScores(viewWeek)}
+                    disabled={syncing}
+                    className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide flex items-center gap-1.5"
+                    style={{ background: '#1F2B25', border: '1px solid #3D9B5C', color: '#7FCB98', opacity: syncing ? 0.6 : 1 }}
+                  >
+                    <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+                    {syncing ? 'Syncing…' : `Sync week ${viewWeek} scores`}
+                  </button>
+                </div>
               </div>
+              {syncMsg && (
+                <div className="mb-3 font-mono text-xs flex items-start gap-1.5" style={{ color: '#E8A23D' }}>
+                  <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                  {syncMsg}
+                </div>
+              )}
               <div className="space-y-2">
-                {data.participants.map(p => {
+                {sortedParticipants.map(p => {
                   const elimWeek = eliminatedAtWeek(p.id);
+                  const isOutByNow = elimWeek !== null && elimWeek < viewWeek;
                   const wins = weeksForSeason(viewWeek).filter(w => data.picks[w]?.[p.id]?.result === 'win').length;
+                  const isMe = myId === p.id;
+                  const currentPick = data.picks[viewWeek]?.[p.id];
+                  const currentLocked = isPickLocked(viewWeek, currentPick?.team);
+                  const scheduleReady = schedule[viewWeek]?.loaded;
+                  const canEditCurrent = (isMe || isAdmin) && !currentLocked && elimWeek === null;
+                  const used = usedTeams(p.id, viewWeek - 1);
+                  if (currentPick?.team) used.delete(currentPick.team);
+
                   return (
-                    <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                    <div
+                      key={p.id}
+                      className="rounded px-3 py-2.5"
+                      style={{
+                        background: isOutByNow ? '#17211D88' : '#1C2823',
+                        border: isMe ? '1px solid #3D9B5C88' : '1px solid #2A3830',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
+                        opacity: isOutByNow ? 0.55 : 1,
+                      }}
+                    >
                       <div className="flex items-center gap-3 mb-1.5">
                         <button
                           onClick={() => setExpandedId(id => id === p.id ? null : p.id)}
-                          className="w-24 shrink-0 font-head text-sm truncate flex items-center gap-1.5 text-left"
+                          className="w-28 shrink-0 font-head text-sm truncate flex items-center gap-1.5 text-left"
                         >
                           {elimWeek !== null ? <Skull size={12} color="#C1443A" /> : <Trophy size={12} color="#3D9B5C" />}
                           {p.name}
                           <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                         </button>
                         <div className="font-mono text-xs" style={{ color: '#5C6862' }}>{wins}-{elimWeek ? 1 : 0}</div>
+                        {isAdmin && (
+                          <button onClick={() => removeParticipant(p.id)} className="ml-auto shrink-0 p-1 rounded" style={{ color: '#5C6862' }}>
+                            <X size={14} />
+                          </button>
+                        )}
                       </div>
+
                       <div className="flex gap-1 overflow-x-auto pb-1">
-                        {weeksForSeason(viewWeek).map(w => {
+                        {weeksForSeason(viewWeek).filter(w => w !== viewWeek || !canEditCurrent).map(w => {
                           const pk = data.picks[w]?.[p.id];
                           const isElimHere = elimWeek === w;
                           const grey = elimWeek !== null && w > elimWeek;
@@ -942,6 +856,74 @@ export default function SurvivorPool() {
                           );
                         })}
                       </div>
+
+                      {canEditCurrent && (
+                        <div className="mt-2 pt-2 flex flex-col gap-2" style={{ borderTop: '1px solid #2A3830' }}>
+                          <div className="flex flex-wrap gap-2">
+                            {(schedule[viewWeek]?.games || []).map(g => {
+                              const awaySelected = currentPick?.team === g.away.abbr;
+                              const homeSelected = currentPick?.team === g.home.abbr;
+                              const awayUsed = used.has(g.away.abbr) && !isAdmin;
+                              const homeUsed = used.has(g.home.abbr) && !isAdmin;
+                              return (
+                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                                  <button
+                                    onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, currentPick?.team)}
+                                    disabled={currentLocked || awayUsed}
+                                    className="px-2.5 py-1.5 text-center"
+                                    style={{
+                                      background: awaySelected ? '#3D9B5C' : '#0F1614',
+                                      color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
+                                      cursor: (currentLocked || awayUsed) ? 'not-allowed' : 'pointer',
+                                    }}
+                                  >
+                                    <div className="font-head text-xs">{g.away.abbr}</div>
+                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                                  </button>
+                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
+                                  <button
+                                    onClick={() => requestPick(viewWeek, p.id, g.home.abbr, p.name, currentPick?.team)}
+                                    disabled={currentLocked || homeUsed}
+                                    className="px-2.5 py-1.5 text-center"
+                                    style={{
+                                      background: homeSelected ? '#3D9B5C' : '#0F1614',
+                                      color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
+                                      cursor: (currentLocked || homeUsed) ? 'not-allowed' : 'pointer',
+                                    }}
+                                  >
+                                    <div className="font-head text-xs">{g.home.abbr}</div>
+                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {!scheduleReady && (
+                              <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Loading matchups…</div>
+                            )}
+                          </div>
+                          {isAdmin && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="font-mono text-[9px] uppercase" style={{ color: '#3A4A42' }}>Override:</span>
+                              {['win', 'loss'].map(r => (
+                                <button
+                                  key={r}
+                                  onClick={() => setResult(viewWeek, p.id, currentPick?.result === r ? 'pending' : r)}
+                                  title={r === 'win' ? 'Mark as won' : 'Mark as lost'}
+                                  className="w-6 h-6 rounded flex items-center justify-center"
+                                  style={{
+                                    background: currentPick?.result === r ? (r === 'win' ? '#3D9B5C' : '#C1443A') : '#1F2B25',
+                                    border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
+                                  }}
+                                >
+                                  {r === 'win' && <Check size={12} color={currentPick?.result === 'win' ? '#0F1614' : '#3A4A42'} />}
+                                  {r === 'loss' && <X size={12} color={currentPick?.result === 'loss' ? '#0F1614' : '#3A4A42'} />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {expandedId === p.id && (
                         <div className="mt-2 pt-2 grid gap-1" style={{ borderTop: '1px solid #2A3830' }}>
                           {weeksForSeason(viewWeek).map(w => {

@@ -653,7 +653,7 @@ export default function SurvivorPool() {
                     <button
                       key={w}
                       onClick={() => setViewWeek(w)}
-                      className="shrink-0 h-9 px-2.5 rounded font-mono text-sm flex items-center justify-center whitespace-nowrap"
+                      className="shrink-0 h-9 px-2.5 rounded font-mono text-sm flex flex-col items-center justify-center whitespace-nowrap leading-none"
                       style={{
                         background: w === viewWeek ? '#E8A23D' : '#1F2B25',
                         color: w === viewWeek ? '#0F1614' : '#8A9A90',
@@ -661,7 +661,12 @@ export default function SurvivorPool() {
                         fontWeight: w === viewWeek ? 700 : 400,
                       }}
                     >
-                      {weekLabel(w)}
+                      {isPreseasonWeek(w) ? weekLabel(w) : (
+                        <>
+                          <span style={{ fontSize: '8px', opacity: 0.75 }}>WK</span>
+                          <span>{w}</span>
+                        </>
+                      )}
                     </button>
                   ))}
                 </div>

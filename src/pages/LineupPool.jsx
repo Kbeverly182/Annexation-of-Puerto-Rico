@@ -7,6 +7,8 @@ import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, buildScoreboardUrl } from '../lib/espnSchedule';
 import { useNflRosters } from '../lib/rosters';
 import { useAdminMode } from '../lib/admin';
+import PoolTicker from '../components/PoolTicker';
+import PoolChat from '../components/PoolChat';
 
 const POOL_KEY = 'lineup-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-lineup';
@@ -48,6 +50,8 @@ export default function LineupPool() {
   const [expandedId, setExpandedId] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [clearWeekConfirm, setClearWeekConfirm] = useState(false);
+  const [clearAllWeeksConfirmState, setClearAllWeeksConfirmState] = useState(false);
+  const [slotPickConfirm, setSlotPickConfirm] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
   const [playerSearch, setPlayerSearch] = useState({}); // { `${pid}-${slotKey}`: searchText }
@@ -91,7 +95,7 @@ export default function LineupPool() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => { setClearWeekConfirm(false); }, [viewWeek]);
+  useEffect(() => { setClearWeekConfirm(false); setClearAllWeeksConfirmState(false); }, [viewWeek]);
 
   useEffect(() => {
     const t = setInterval(async () => {
@@ -112,7 +116,7 @@ export default function LineupPool() {
     );
   }
 
-  const persist = (next, removedIds = []) => {
+  const persist = (next, removedIds = [], removedMessageIds = []) => {
     setData(next);
     skipNextPoll.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -120,11 +124,15 @@ export default function LineupPool() {
       try {
         const remote = await apiGetPool(POOL_KEY).catch(() => null);
         let merged = mergePoolData(next, remote);
-        // The merge above unions participants from both copies to protect concurrent additions —
-        // but that can't distinguish "removed on purpose" from "exists on the server but not here
-        // yet," so it'll silently re-add anyone just deleted. Force those specific ids back out.
+        // The merge above unions participants (and chat messages) from both copies to protect
+        // concurrent additions — but that can't distinguish "removed on purpose" from "exists on
+        // the server but not here yet," so it'll silently re-add anything just deleted. Force
+        // those specific ids back out.
         if (removedIds.length) {
           merged = { ...merged, participants: merged.participants.filter(p => !removedIds.includes(p.id)) };
+        }
+        if (removedMessageIds.length) {
+          merged = { ...merged, chatMessages: (merged.chatMessages || []).filter(m => !removedMessageIds.includes(m.id)) };
         }
         await apiSavePool(POOL_KEY, merged);
         setData(merged);
@@ -219,6 +227,19 @@ export default function LineupPool() {
     URL.revokeObjectURL(url);
   };
 
+  const setTickerMessage = (text) => {
+    persist({ ...data, tickerMessage: text });
+  };
+  const postMessage = (text) => {
+    const me = data.participants.find(p => p.id === myId);
+    const msg = { id: uid(), authorId: myId, authorName: me?.name || 'Unknown', text, at: new Date().toISOString() };
+    persist({ ...data, chatMessages: [...(data.chatMessages || []), msg] });
+  };
+  const deleteMessage = (id) => {
+    const next = { ...data, chatMessages: (data.chatMessages || []).filter(m => m.id !== id) };
+    persist(next, [], [id]);
+  };
+
   // Wipes everyone's picks and scores for one specific week only — leaves every other week,
   // all entrants, and their PINs completely untouched. Admin-only, two taps to confirm.
   const clearWeek = (week) => {
@@ -228,6 +249,29 @@ export default function LineupPool() {
     delete next.playerScores[week];
     persist(next);
     setClearWeekConfirm(false);
+  };
+
+  // Wipes picks/scores for every week (preseason and regular) — for clearing out test data that
+  // predates the current week system entirely, when it's unclear which exact key it landed under.
+  const clearAllWeeks = () => {
+    if (!clearAllWeeksConfirmState) { setClearAllWeeksConfirmState(true); return; }
+    persist({ ...data, picks: {}, playerScores: {} });
+    setClearAllWeeksConfirmState(false);
+  };
+
+  // Selecting a player doesn't commit right away — it opens a confirmation prompt first, same
+  // pattern as Survivor, so a stray tap doesn't silently overwrite an existing pick.
+  const requestSlotPick = (pid, slotKey, position, value, label, participantName) => {
+    const oldValue = data.picks[viewWeek]?.[pid]?.[slotKey];
+    setSlotPickConfirm({
+      pid, slotKey, position, value, label, participantName,
+      oldValue, oldLabel: oldValue ? playerLabel(oldValue, position) : null,
+    });
+  };
+  const confirmSlotPick = () => {
+    if (!slotPickConfirm) return;
+    setSlot(viewWeek, slotPickConfirm.pid, slotPickConfirm.slotKey, slotPickConfirm.value);
+    setSlotPickConfirm(null);
   };
 
   const games = schedule[viewWeek]?.games || [];
@@ -316,13 +360,13 @@ export default function LineupPool() {
     });
   });
 
-  // How many entrants have already used a given player at any point this season — computed
-  // directly from data.picks (not usedByParticipant, which short-circuits for admin) so this
-  // stays accurate regardless of who's viewing.
+  // How many entrants have already used a given player in a PRIOR week — deliberately excludes
+  // the currently-viewed week itself, so this reflects "still available going into this week,"
+  // not a live readout of who's already picked this week (which would leak other people's picks).
   const seasonUsageCounts = {};
   data.participants.forEach(p => {
     const usedByThis = new Set();
-    weeksForSeason(viewWeek).forEach(w => {
+    weeksForSeason(viewWeek).filter(w => w < viewWeek).forEach(w => {
       const weekPicks = data.picks[w]?.[p.id];
       if (!weekPicks) return;
       SLOTS.forEach(s => { if (weekPicks[s.key]) usedByThis.add(weekPicks[s.key]); });
@@ -638,6 +682,8 @@ export default function LineupPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
+        <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#8A9A90" />
+
         {/* Entrants */}
         <div>
           <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
@@ -863,6 +909,15 @@ export default function LineupPool() {
                   {clearWeekConfirm ? `Confirm: erase all picks & scores for week ${weekLabel(viewWeek)}?` : `Clear week ${weekLabel(viewWeek)} data`}
                 </button>
               )}
+              {isAdmin && (
+                <button
+                  onClick={clearAllWeeks}
+                  className="font-mono text-xs underline block mt-1"
+                  style={{ color: clearAllWeeksConfirmState ? '#E28A82' : '#5C6862' }}
+                >
+                  {clearAllWeeksConfirmState ? 'Confirm: erase ALL weeks\' picks & scores (everything)?' : 'Clear ALL weeks\' data (e.g. old test data before PRE 1 existed)'}
+                </button>
+              )}
               {rostersLoading && (
                 <div className="font-mono text-xs mt-2 flex items-center gap-1.5" style={{ color: '#5C6862' }}>
                   <Loader2 size={10} className="animate-spin" /> Loading player rosters ({rostersProgress.loaded}/{rostersProgress.total} teams)…
@@ -907,7 +962,8 @@ export default function LineupPool() {
                           const options = s.position === 'DST'
                             ? TEAMS
                               .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr))
-                              .map(([abbr]) => ({ value: abbr, label: `${abbr} — ${TEAM_MAP[abbr]}`, avail: availabilityPct(abbr) }))
+                              .filter(([abbr, name]) => !searchText || name.toLowerCase().includes(searchText.toLowerCase()) || abbr.toLowerCase().includes(searchText.toLowerCase()))
+                              .map(([abbr, name]) => ({ value: abbr, label: `${abbr} — ${name}`, avail: availabilityPct(abbr) }))
                               .sort((a, b) => a.label.localeCompare(b.label))
                             : rosters
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id))
@@ -921,18 +977,6 @@ export default function LineupPool() {
                                 <span className="flex-1 flex items-center gap-1.5" style={{ color: '#F0EDE4' }}>
                                   <Lock size={10} color="#5C6862" /> {value ? playerLabel(value, s.position) : '— no pick —'}
                                 </span>
-                              ) : s.position === 'DST' ? (
-                                <select
-                                  value={value || ''}
-                                  onChange={e => setSlot(viewWeek, p.id, s.key, e.target.value || undefined)}
-                                  className="flex-1 px-1.5 py-1 rounded min-w-[140px]"
-                                  style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-                                >
-                                  <option value="">— pick a D/ST —</option>
-                                  {options.map(o => (
-                                    <option key={o.value} value={o.value}>{o.label} · {o.avail}% available</option>
-                                  ))}
-                                </select>
                               ) : (
                                 <div className="relative flex-1">
                                   <input
@@ -958,7 +1002,7 @@ export default function LineupPool() {
                                             type="button"
                                             onMouseDown={e => e.preventDefault()}
                                             onClick={() => {
-                                              setSlot(viewWeek, p.id, s.key, o.value);
+                                              requestSlotPick(p.id, s.key, s.position, o.value, o.label, p.name);
                                               setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
                                               setOpenCombo(null);
                                             }}
@@ -1136,6 +1180,29 @@ export default function LineupPool() {
         )}
       </div>
 
+      {/* Slot pick confirmation modal */}
+      {slotPickConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
+            <div className="font-mono text-sm mb-4" style={{ color: '#F0EDE4' }}>
+              {slotPickConfirm.oldValue ? (
+                <>Change <span style={{ color: '#8A9A90' }}>{slotPickConfirm.participantName}'s</span> pick from <span style={{ color: '#E28A82' }}>{slotPickConfirm.oldLabel}</span> to <span style={{ color: '#7FCB98' }}>{slotPickConfirm.label}</span>?</>
+              ) : (
+                <>Save <span style={{ color: '#8A9A90' }}>{slotPickConfirm.participantName}'s</span> pick as <span style={{ color: '#7FCB98' }}>{slotPickConfirm.label}</span>?</>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={confirmSlotPick} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#8A9A90', color: '#0F1614' }}>
+                Confirm
+              </button>
+              <button onClick={() => setSlotPickConfirm(null)} className="font-mono text-xs underline" style={{ color: '#5C6862' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admin PIN modal */}
       {adminPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
@@ -1169,6 +1236,16 @@ export default function LineupPool() {
           </div>
         </div>
       )}
+
+      <PoolChat
+        messages={data.chatMessages || []}
+        isAdmin={isAdmin}
+        myId={myId}
+        myName={data.participants.find(p => p.id === myId)?.name || ''}
+        onPost={postMessage}
+        onDelete={deleteMessage}
+        accent="#8A9A90"
+      />
 
       {/* Saved indicator */}
       {justSaved && (

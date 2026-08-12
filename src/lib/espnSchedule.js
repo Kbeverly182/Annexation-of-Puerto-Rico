@@ -53,12 +53,20 @@ export function useEspnSchedule(week, seasonYear) {
           const home = a.homeAway === 'home' ? a : b;
           const awayAbbr = ESPN_ABBR_FIX[away.team?.abbreviation] || away.team?.abbreviation;
           const homeAbbr = ESPN_ABBR_FIX[home.team?.abbreviation] || home.team?.abbreviation;
+          // Point spread, when ESPN has one posted (usually not until closer to kickoff,
+          // especially in preseason) — e.g. "ATL -3.5" means Atlanta favored by 3.5.
+          // Left null rather than guessed/faked when nothing's posted yet.
+          const oddsRaw = comp.odds?.[0];
+          const odds = oddsRaw
+            ? { details: oddsRaw.details || null, spread: oddsRaw.spread ?? null, overUnder: oddsRaw.overUnder ?? null }
+            : null;
           games.push({
             id: ev.id || `${awayAbbr}-${homeAbbr}`,
             kickoff: dateStr,
             completed: !!comp?.status?.type?.completed,
             away: { abbr: awayAbbr, record: recordOf(away), score: away.score, winner: !!away.winner },
             home: { abbr: homeAbbr, record: recordOf(home), score: home.score, winner: !!home.winner },
+            odds,
           });
         }
         const etHour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(d));

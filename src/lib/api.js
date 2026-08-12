@@ -18,8 +18,9 @@ export async function apiSavePool(key, data) {
 // Two people can each be holding a slightly different local snapshot of the pool and save
 // around the same time. Without merging, whoever saves last would silently overwrite anything
 // the other person just added (e.g. a brand new entrant). This does a best-effort merge right
-// before writing: participants are unioned by id (nobody's entry gets dropped), and picks/results
-// are merged per-week so untouched weeks/entrants from the other snapshot survive.
+// before writing: participants are unioned by id (nobody's entry gets dropped), picks/results
+// are merged per-week so untouched weeks/entrants from the other snapshot survive, and chat
+// messages are unioned by id so two people posting around the same moment don't erase each other.
 export function mergePoolData(local, remote) {
   if (!remote) return local;
   if (!local) return remote;
@@ -38,11 +39,19 @@ export function mergePoolData(local, remote) {
     return out;
   };
 
+  const mergeMessages = (localArr = [], remoteArr = []) => {
+    const byMsgId = new Map();
+    (remoteArr || []).forEach(m => byMsgId.set(m.id, m));
+    (localArr || []).forEach(m => byMsgId.set(m.id, m)); // local wins on same-id conflicts
+    return Array.from(byMsgId.values()).sort((a, b) => new Date(a.at) - new Date(b.at));
+  };
+
   return {
     ...remote,
     ...local,
     participants,
     picks: mergeNested(local.picks, remote.picks),
     results: mergeNested(local.results, remote.results),
+    chatMessages: mergeMessages(local.chatMessages, remote.chatMessages),
   };
 }

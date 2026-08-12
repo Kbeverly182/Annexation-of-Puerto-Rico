@@ -6,6 +6,8 @@ import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
+import PoolTicker from '../components/PoolTicker';
+import PoolChat from '../components/PoolChat';
 
 const POOL_KEY = 'survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-survivor';
@@ -155,7 +157,7 @@ export default function SurvivorPool() {
     return { abbr, full, availableCount, pct };
   }).sort((a, b) => b.pct - a.pct || a.abbr.localeCompare(b.abbr));
 
-  const persist = (next, removedIds = []) => {
+  const persist = (next, removedIds = [], removedMessageIds = []) => {
     setData(next);
     skipNextPoll.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -163,11 +165,15 @@ export default function SurvivorPool() {
       try {
         const remote = await apiGetPool(POOL_KEY).catch(() => null);
         let merged = mergePoolData(next, remote);
-        // The merge above unions participants from both copies to protect concurrent additions —
-        // but that can't distinguish "removed on purpose" from "exists on the server but not here
-        // yet," so it'll silently re-add anyone just deleted. Force those specific ids back out.
+        // The merge above unions participants (and chat messages) from both copies to protect
+        // concurrent additions — but that can't distinguish "removed on purpose" from "exists on
+        // the server but not here yet," so it'll silently re-add anything just deleted. Force
+        // those specific ids back out.
         if (removedIds.length) {
           merged = { ...merged, participants: merged.participants.filter(p => !removedIds.includes(p.id)) };
+        }
+        if (removedMessageIds.length) {
+          merged = { ...merged, chatMessages: (merged.chatMessages || []).filter(m => !removedMessageIds.includes(m.id)) };
         }
         await apiSavePool(POOL_KEY, merged);
         setData(merged);
@@ -290,6 +296,19 @@ export default function SurvivorPool() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const setTickerMessage = (text) => {
+    persist({ ...data, tickerMessage: text });
+  };
+  const postMessage = (text) => {
+    const me = data.participants.find(p => p.id === myId);
+    const msg = { id: uid(), authorId: myId, authorName: me?.name || 'Unknown', text, at: new Date().toISOString() };
+    persist({ ...data, chatMessages: [...(data.chatMessages || []), msg] });
+  };
+  const deleteMessage = (id) => {
+    const next = { ...data, chatMessages: (data.chatMessages || []).filter(m => m.id !== id) };
+    persist(next, [], [id]);
   };
 
   const isPickLocked = (week, team) => {
@@ -442,6 +461,8 @@ export default function SurvivorPool() {
       </div>
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
+
+        <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#3D9B5C" />
 
         {/* Entrants */}
         <div>
@@ -726,34 +747,39 @@ export default function SurvivorPool() {
                         const awayUsed = myUsed.has(g.away.abbr) && !isAdmin;
                         const homeUsed = myUsed.has(g.home.abbr) && !isAdmin;
                         return (
-                          <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                            <button
-                              onClick={() => requestPick(viewWeek, myId, g.away.abbr, me.name, myPick?.team)}
-                              disabled={awayUsed}
-                              className="px-2.5 py-1.5 text-center"
-                              style={{
-                                background: awaySelected ? '#3D9B5C' : '#0F1614',
-                                color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
-                                cursor: awayUsed ? 'not-allowed' : 'pointer',
-                              }}
-                            >
-                              <div className="font-head text-xs">{g.away.abbr}</div>
-                              <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
-                            </button>
-                            <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
-                            <button
-                              onClick={() => requestPick(viewWeek, myId, g.home.abbr, me.name, myPick?.team)}
-                              disabled={homeUsed}
-                              className="px-2.5 py-1.5 text-center"
-                              style={{
-                                background: homeSelected ? '#3D9B5C' : '#0F1614',
-                                color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
-                                cursor: homeUsed ? 'not-allowed' : 'pointer',
-                              }}
-                            >
-                              <div className="font-head text-xs">{g.home.abbr}</div>
-                              <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
-                            </button>
+                          <div key={g.id} className="flex flex-col items-center gap-1">
+                            {g.odds?.details && (
+                              <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
+                            )}
+                            <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                              <button
+                                onClick={() => requestPick(viewWeek, myId, g.away.abbr, me.name, myPick?.team)}
+                                disabled={awayUsed}
+                                className="px-2.5 py-1.5 text-center"
+                                style={{
+                                  background: awaySelected ? '#3D9B5C' : '#0F1614',
+                                  color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
+                                  cursor: awayUsed ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                <div className="font-head text-xs">{g.away.abbr}</div>
+                                <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                              </button>
+                              <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
+                              <button
+                                onClick={() => requestPick(viewWeek, myId, g.home.abbr, me.name, myPick?.team)}
+                                disabled={homeUsed}
+                                className="px-2.5 py-1.5 text-center"
+                                style={{
+                                  background: homeSelected ? '#3D9B5C' : '#0F1614',
+                                  color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
+                                  cursor: homeUsed ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                <div className="font-head text-xs">{g.home.abbr}</div>
+                                <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -936,34 +962,39 @@ export default function SurvivorPool() {
                               const awayUsed = used.has(g.away.abbr) && !isAdmin;
                               const homeUsed = used.has(g.home.abbr) && !isAdmin;
                               return (
-                                <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                                  <button
-                                    onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, currentPick?.team)}
-                                    disabled={currentLocked || awayUsed}
-                                    className="px-2.5 py-1.5 text-center"
-                                    style={{
-                                      background: awaySelected ? '#3D9B5C' : '#0F1614',
-                                      color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
-                                      cursor: (currentLocked || awayUsed) ? 'not-allowed' : 'pointer',
-                                    }}
-                                  >
-                                    <div className="font-head text-xs">{g.away.abbr}</div>
-                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
-                                  </button>
-                                  <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
-                                  <button
-                                    onClick={() => requestPick(viewWeek, p.id, g.home.abbr, p.name, currentPick?.team)}
-                                    disabled={currentLocked || homeUsed}
-                                    className="px-2.5 py-1.5 text-center"
-                                    style={{
-                                      background: homeSelected ? '#3D9B5C' : '#0F1614',
-                                      color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
-                                      cursor: (currentLocked || homeUsed) ? 'not-allowed' : 'pointer',
-                                    }}
-                                  >
-                                    <div className="font-head text-xs">{g.home.abbr}</div>
-                                    <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
-                                  </button>
+                                <div key={g.id} className="flex flex-col items-center gap-1">
+                                  {g.odds?.details && (
+                                    <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
+                                  )}
+                                  <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                                    <button
+                                      onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, currentPick?.team)}
+                                      disabled={currentLocked || awayUsed}
+                                      className="px-2.5 py-1.5 text-center"
+                                      style={{
+                                        background: awaySelected ? '#3D9B5C' : '#0F1614',
+                                        color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
+                                        cursor: (currentLocked || awayUsed) ? 'not-allowed' : 'pointer',
+                                      }}
+                                    >
+                                      <div className="font-head text-xs">{g.away.abbr}</div>
+                                      <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                                    </button>
+                                    <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
+                                    <button
+                                      onClick={() => requestPick(viewWeek, p.id, g.home.abbr, p.name, currentPick?.team)}
+                                      disabled={currentLocked || homeUsed}
+                                      className="px-2.5 py-1.5 text-center"
+                                      style={{
+                                        background: homeSelected ? '#3D9B5C' : '#0F1614',
+                                        color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
+                                        cursor: (currentLocked || homeUsed) ? 'not-allowed' : 'pointer',
+                                      }}
+                                    >
+                                      <div className="font-head text-xs">{g.home.abbr}</div>
+                                      <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -1096,6 +1127,16 @@ export default function SurvivorPool() {
           </div>
         </div>
       )}
+
+      <PoolChat
+        messages={data.chatMessages || []}
+        isAdmin={isAdmin}
+        myId={myId}
+        myName={data.participants.find(p => p.id === myId)?.name || ''}
+        onPost={postMessage}
+        onDelete={deleteMessage}
+        accent="#3D9B5C"
+      />
 
       {/* Saved indicator */}
       {justSaved && (

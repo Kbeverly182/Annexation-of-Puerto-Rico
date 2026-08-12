@@ -6,6 +6,8 @@ import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
+import PoolTicker from '../components/PoolTicker';
+import PoolChat from '../components/PoolChat';
 
 const POOL_KEY = 'confidence-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-confidence';
@@ -107,7 +109,7 @@ export default function ConfidencePool() {
     );
   }
 
-  const persist = (next, removedIds = []) => {
+  const persist = (next, removedIds = [], removedMessageIds = []) => {
     setData(next);
     skipNextPoll.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -115,11 +117,15 @@ export default function ConfidencePool() {
       try {
         const remote = await apiGetPool(POOL_KEY).catch(() => null);
         let merged = mergePoolData(next, remote);
-        // The merge above unions participants from both copies to protect concurrent additions —
-        // but that can't distinguish "removed on purpose" from "exists on the server but not here
-        // yet," so it'll silently re-add anyone just deleted. Force those specific ids back out.
+        // The merge above unions participants (and chat messages) from both copies to protect
+        // concurrent additions — but that can't distinguish "removed on purpose" from "exists on
+        // the server but not here yet," so it'll silently re-add anything just deleted. Force
+        // those specific ids back out.
         if (removedIds.length) {
           merged = { ...merged, participants: merged.participants.filter(p => !removedIds.includes(p.id)) };
+        }
+        if (removedMessageIds.length) {
+          merged = { ...merged, chatMessages: (merged.chatMessages || []).filter(m => !removedMessageIds.includes(m.id)) };
         }
         await apiSavePool(POOL_KEY, merged);
         setData(merged);
@@ -212,6 +218,19 @@ export default function ConfidencePool() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const setTickerMessage = (text) => {
+    persist({ ...data, tickerMessage: text });
+  };
+  const postMessage = (text) => {
+    const me = data.participants.find(p => p.id === myId);
+    const msg = { id: uid(), authorId: myId, authorName: me?.name || 'Unknown', text, at: new Date().toISOString() };
+    persist({ ...data, chatMessages: [...(data.chatMessages || []), msg] });
+  };
+  const deleteMessage = (id) => {
+    const next = { ...data, chatMessages: (data.chatMessages || []).filter(m => m.id !== id) };
+    persist(next, [], [id]);
   };
 
   const games = schedule[viewWeek]?.games || [];
@@ -453,6 +472,8 @@ export default function ConfidencePool() {
       </div>
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
+
+        <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#E8A23D" />
 
         {/* Entrants */}
         <div>
@@ -761,32 +782,37 @@ export default function ConfidencePool() {
                                   }}
                                 >
                                   <span className="w-6 text-center font-head shrink-0" style={{ color: '#E8A23D' }}>{confidence}</span>
-                                  <div className="flex items-stretch rounded overflow-hidden shrink-0" style={{ border: '1px solid #2A3830' }}>
-                                    <button
-                                      onClick={() => setWinner(viewWeek, p.id, gid, g.away.abbr)}
-                                      disabled={gLocked}
-                                      className="px-2.5 py-1.5 text-center font-mono text-xs"
-                                      style={{
-                                        background: awaySelected ? '#3D9B5C' : '#1C2823',
-                                        color: awaySelected ? '#0F1614' : '#F0EDE4',
-                                        cursor: gLocked ? 'not-allowed' : 'pointer',
-                                      }}
-                                    >
-                                      {g.away.abbr}
-                                    </button>
-                                    <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
-                                    <button
-                                      onClick={() => setWinner(viewWeek, p.id, gid, g.home.abbr)}
-                                      disabled={gLocked}
-                                      className="px-2.5 py-1.5 text-center font-mono text-xs"
-                                      style={{
-                                        background: homeSelected ? '#3D9B5C' : '#1C2823',
-                                        color: homeSelected ? '#0F1614' : '#F0EDE4',
-                                        cursor: gLocked ? 'not-allowed' : 'pointer',
-                                      }}
-                                    >
-                                      {g.home.abbr}
-                                    </button>
+                                  <div className="flex flex-col items-center gap-0.5 shrink-0">
+                                    {g.odds?.details && (
+                                      <div className="font-mono text-[8px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
+                                    )}
+                                    <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830' }}>
+                                      <button
+                                        onClick={() => setWinner(viewWeek, p.id, gid, g.away.abbr)}
+                                        disabled={gLocked}
+                                        className="px-2.5 py-1.5 text-center font-mono text-xs"
+                                        style={{
+                                          background: awaySelected ? '#3D9B5C' : '#1C2823',
+                                          color: awaySelected ? '#0F1614' : '#F0EDE4',
+                                          cursor: gLocked ? 'not-allowed' : 'pointer',
+                                        }}
+                                      >
+                                        {g.away.abbr}
+                                      </button>
+                                      <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
+                                      <button
+                                        onClick={() => setWinner(viewWeek, p.id, gid, g.home.abbr)}
+                                        disabled={gLocked}
+                                        className="px-2.5 py-1.5 text-center font-mono text-xs"
+                                        style={{
+                                          background: homeSelected ? '#3D9B5C' : '#1C2823',
+                                          color: homeSelected ? '#0F1614' : '#F0EDE4',
+                                          cursor: gLocked ? 'not-allowed' : 'pointer',
+                                        }}
+                                      >
+                                        {g.home.abbr}
+                                      </button>
+                                    </div>
                                   </div>
                                   {missed && <span style={{ color: '#5C6862' }}>Missed pick</span>}
                                   {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
@@ -987,6 +1013,16 @@ export default function ConfidencePool() {
           </div>
         </div>
       )}
+
+      <PoolChat
+        messages={data.chatMessages || []}
+        isAdmin={isAdmin}
+        myId={myId}
+        myName={data.participants.find(p => p.id === myId)?.name || ''}
+        onPost={postMessage}
+        onDelete={deleteMessage}
+        accent="#E8A23D"
+      />
 
       {/* Saved indicator */}
       {justSaved && (

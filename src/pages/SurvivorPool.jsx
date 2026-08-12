@@ -696,6 +696,76 @@ export default function SurvivorPool() {
               )}
             </div>
 
+            {/* Make your pick — front and center, so nobody has to scroll the full entrant list
+                (which could be 100+ names) just to find their own row and pick a team. */}
+            {myId && (() => {
+              const me = data.participants.find(p => p.id === myId);
+              if (!me) return null;
+              const myElimWeek = eliminatedAtWeek(myId);
+              if (myElimWeek !== null) return null;
+              const myPick = data.picks[viewWeek]?.[myId];
+              const myLocked = isPickLocked(viewWeek, myPick?.team);
+              const myUsed = usedTeams(myId, viewWeek - 1);
+              if (myPick?.team) myUsed.delete(myPick.team);
+              const scheduleReady = schedule[viewWeek]?.loaded;
+              return (
+                <div className="rounded px-4 py-3" style={{ background: '#1C2823', border: '1px solid #3D9B5C', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                  <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#7FCB98' }}>
+                    <Trophy size={14} /> Make your pick — Week {weekLabel(viewWeek)}
+                  </div>
+                  {myLocked ? (
+                    <div className="font-mono text-xs flex items-center gap-1.5" style={{ color: '#5C6862' }}>
+                      <Lock size={12} />
+                      {myPick?.team ? `Locked in: ${myPick.team}` : 'Locked — no pick was made this week'}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {(schedule[viewWeek]?.games || []).map(g => {
+                        const awaySelected = myPick?.team === g.away.abbr;
+                        const homeSelected = myPick?.team === g.home.abbr;
+                        const awayUsed = myUsed.has(g.away.abbr) && !isAdmin;
+                        const homeUsed = myUsed.has(g.home.abbr) && !isAdmin;
+                        return (
+                          <div key={g.id} className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                            <button
+                              onClick={() => requestPick(viewWeek, myId, g.away.abbr, me.name, myPick?.team)}
+                              disabled={awayUsed}
+                              className="px-2.5 py-1.5 text-center"
+                              style={{
+                                background: awaySelected ? '#3D9B5C' : '#0F1614',
+                                color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
+                                cursor: awayUsed ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              <div className="font-head text-xs">{g.away.abbr}</div>
+                              <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                            </button>
+                            <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
+                            <button
+                              onClick={() => requestPick(viewWeek, myId, g.home.abbr, me.name, myPick?.team)}
+                              disabled={homeUsed}
+                              className="px-2.5 py-1.5 text-center"
+                              style={{
+                                background: homeSelected ? '#3D9B5C' : '#0F1614',
+                                color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
+                                cursor: homeUsed ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              <div className="font-head text-xs">{g.home.abbr}</div>
+                              <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {!scheduleReady && (
+                        <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Loading matchups…</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Team availability */}
             <div>
               <button
@@ -803,7 +873,7 @@ export default function SurvivorPool() {
                   const currentPick = data.picks[viewWeek]?.[p.id];
                   const currentLocked = isPickLocked(viewWeek, currentPick?.team);
                   const scheduleReady = schedule[viewWeek]?.loaded;
-                  const canEditCurrent = (isMe || isAdmin) && !currentLocked && elimWeek === null;
+                  const canEditCurrent = isAdmin && !currentLocked && elimWeek === null;
                   const used = usedTeams(p.id, viewWeek - 1);
                   if (currentPick?.team) used.delete(currentPick.team);
 

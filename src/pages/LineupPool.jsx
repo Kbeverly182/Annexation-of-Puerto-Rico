@@ -47,6 +47,7 @@ export default function LineupPool() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [clearWeekConfirm, setClearWeekConfirm] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
   const [playerSearch, setPlayerSearch] = useState({}); // { `${pid}-${slotKey}`: searchText }
@@ -89,6 +90,8 @@ export default function LineupPool() {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => { setClearWeekConfirm(false); }, [viewWeek]);
 
   useEffect(() => {
     const t = setInterval(async () => {
@@ -214,6 +217,17 @@ export default function LineupPool() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Wipes everyone's picks and scores for one specific week only — leaves every other week,
+  // all entrants, and their PINs completely untouched. Admin-only, two taps to confirm.
+  const clearWeek = (week) => {
+    if (!clearWeekConfirm) { setClearWeekConfirm(true); return; }
+    const next = { ...data, picks: { ...data.picks }, playerScores: { ...data.playerScores } };
+    delete next.picks[week];
+    delete next.playerScores[week];
+    persist(next);
+    setClearWeekConfirm(false);
   };
 
   const games = schedule[viewWeek]?.games || [];
@@ -838,6 +852,15 @@ export default function LineupPool() {
               {viewWeek !== data.currentWeek && (
                 <button onClick={() => setCurrentWeek(viewWeek)} className="font-mono text-xs underline" style={{ color: '#8A9A90' }}>
                   Set week {weekLabel(viewWeek)} as current week
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => clearWeek(viewWeek)}
+                  className="font-mono text-xs underline block mt-1"
+                  style={{ color: clearWeekConfirm ? '#E28A82' : '#5C6862' }}
+                >
+                  {clearWeekConfirm ? `Confirm: erase all picks & scores for week ${weekLabel(viewWeek)}?` : `Clear week ${weekLabel(viewWeek)} data`}
                 </button>
               )}
               {rostersLoading && (

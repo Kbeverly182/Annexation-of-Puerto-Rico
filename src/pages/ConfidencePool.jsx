@@ -767,7 +767,7 @@ export default function ConfidencePool() {
                                       disabled={gLocked}
                                       className="px-2.5 py-1.5 text-center font-mono text-xs"
                                       style={{
-                                        background: awaySelected ? '#E8A23D' : '#1C2823',
+                                        background: awaySelected ? '#3D9B5C' : '#1C2823',
                                         color: awaySelected ? '#0F1614' : '#F0EDE4',
                                         cursor: gLocked ? 'not-allowed' : 'pointer',
                                       }}
@@ -780,7 +780,7 @@ export default function ConfidencePool() {
                                       disabled={gLocked}
                                       className="px-2.5 py-1.5 text-center font-mono text-xs"
                                       style={{
-                                        background: homeSelected ? '#E8A23D' : '#1C2823',
+                                        background: homeSelected ? '#3D9B5C' : '#1C2823',
                                         color: homeSelected ? '#0F1614' : '#F0EDE4',
                                         cursor: gLocked ? 'not-allowed' : 'pointer',
                                       }}

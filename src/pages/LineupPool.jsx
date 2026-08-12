@@ -45,6 +45,7 @@ export default function LineupPool() {
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -288,10 +289,8 @@ export default function LineupPool() {
     return total;
   };
 
-  const leaderboard = [...data.participants]
-    .map(p => ({ ...p, total: seasonTotal(p.id) }))
-    .sort((a, b) => b.total - a.total);
-
+  // Kept internal-only (not rendered as a visible list) — used by the auto-stats matcher below
+  // to know which players were actually drafted this week.
   const pickedThisWeek = new Map();
   data.participants.forEach(p => {
     const weekPicks = data.picks[viewWeek]?.[p.id] || {};
@@ -302,6 +301,46 @@ export default function LineupPool() {
       }
     });
   });
+
+  // How many entrants have already used a given player at any point this season — computed
+  // directly from data.picks (not usedByParticipant, which short-circuits for admin) so this
+  // stays accurate regardless of who's viewing.
+  const seasonUsageCounts = {};
+  data.participants.forEach(p => {
+    const usedByThis = new Set();
+    weeksForSeason(viewWeek).forEach(w => {
+      const weekPicks = data.picks[w]?.[p.id];
+      if (!weekPicks) return;
+      SLOTS.forEach(s => { if (weekPicks[s.key]) usedByThis.add(weekPicks[s.key]); });
+    });
+    usedByThis.forEach(val => { seasonUsageCounts[val] = (seasonUsageCounts[val] || 0) + 1; });
+  });
+  const availabilityPct = (value) => {
+    const total = data.participants.length;
+    if (total === 0) return 100;
+    return Math.round(((total - (seasonUsageCounts[value] || 0)) / total) * 100);
+  };
+
+  // How many entrants drafted a given player this specific week — an aggregate count only,
+  // never tied to who picked it, so it's safe to show even before picks lock.
+  const weekOwnershipCounts = {};
+  data.participants.forEach(p => {
+    const weekPicks = data.picks[viewWeek]?.[p.id];
+    if (!weekPicks) return;
+    const pickedThisPerson = new Set(Object.values(weekPicks).filter(Boolean));
+    pickedThisPerson.forEach(val => { weekOwnershipCounts[val] = (weekOwnershipCounts[val] || 0) + 1; });
+  });
+  const ownershipPct = (value) => {
+    const total = data.participants.length;
+    if (total === 0 || !value) return 0;
+    return Math.round(((weekOwnershipCounts[value] || 0) / total) * 100);
+  };
+
+  // Standings order: highest season total first; before anyone has scores (all zero), this
+  // naturally falls back to alphabetical-by-last-name via the tiebreaker.
+  const standingsRows = [...data.participants]
+    .map(p => ({ ...p, total: seasonTotal(p.id) }))
+    .sort((a, b) => (b.total - a.total) || lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
 
   const testPlayerStatsSync = async () => {
     setStatsDebugLoading(true);
@@ -815,10 +854,12 @@ export default function LineupPool() {
               )}
             </div>
 
-            {/* Lineups */}
+            {/* Lineups — only your own card (or all, for admin); everyone else's picks now live
+                in the Week Standings list below instead of a full hidden-placeholder card each. */}
             <div className="space-y-4">
               {data.participants.map(p => {
                 const isMe = myId === p.id;
+                if (!isAdmin && !isMe) return null;
                 const revealed = isPickRevealed(p.id);
                 const weekPicks = data.picks[viewWeek]?.[p.id] || {};
                 const total = seasonTotal(p.id);
@@ -843,13 +884,13 @@ export default function LineupPool() {
                           const options = s.position === 'DST'
                             ? TEAMS
                               .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr))
-                              .map(([abbr]) => ({ value: abbr, label: `${abbr} — ${TEAM_MAP[abbr]}` }))
+                              .map(([abbr]) => ({ value: abbr, label: `${abbr} — ${TEAM_MAP[abbr]}`, avail: availabilityPct(abbr) }))
                               .sort((a, b) => a.label.localeCompare(b.label))
                             : rosters
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
                               .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
-                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})` }));
+                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id) }));
                           return (
                             <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
                               <span className="w-9 shrink-0 font-head" style={{ color: '#8A9A90' }}>{s.label}</span>
@@ -866,7 +907,7 @@ export default function LineupPool() {
                                 >
                                   <option value="">— pick a D/ST —</option>
                                   {options.map(o => (
-                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                    <option key={o.value} value={o.value}>{o.label} · {o.avail}% available</option>
                                   ))}
                                 </select>
                               ) : (
@@ -898,10 +939,11 @@ export default function LineupPool() {
                                               setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
                                               setOpenCombo(null);
                                             }}
-                                            className="w-full text-left px-2 py-1.5"
+                                            className="w-full text-left px-2 py-1.5 flex items-center justify-between gap-2"
                                             style={{ color: '#F0EDE4' }}
                                           >
-                                            {o.label}
+                                            <span>{o.label}</span>
+                                            <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
                                           </button>
                                         ))
                                       )}
@@ -920,6 +962,11 @@ export default function LineupPool() {
                   </div>
                 );
               })}
+              {!isAdmin && !myId && (
+                <div className="font-mono text-xs px-3 py-2" style={{ color: '#5C6862' }}>
+                  Claim your name above (under "Returning member?") to set your lineup.
+                </div>
+              )}
             </div>
 
             {/* Diagnostic: test auto-stats fetch */}
@@ -999,57 +1046,67 @@ export default function LineupPool() {
               )}
             </div>
 
-            {/* Score entry */}
-            <div>
-              <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
-                Week {weekLabel(viewWeek)} Scores
-              </div>
-              <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
-                Enter each rostered player's fantasy points once their game is final. Points apply automatically to everyone who started them.
-              </div>
-              {pickedThisWeek.size === 0 ? (
-                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Nobody's set a lineup yet this week.</div>
-              ) : (
-                <div className="space-y-1.5">
-                  {Array.from(pickedThisWeek.entries()).map(([key, info]) => (
-                    <div key={key} className="flex items-center gap-2 font-mono text-xs rounded px-2.5 py-1.5" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                      <span className="w-8 shrink-0" style={{ color: '#5C6862' }}>{info.position}</span>
-                      <span className="flex-1" style={{ color: '#F0EDE4' }}>{info.label}</span>
-                      <input
-                        type="number"
-                        value={data.playerScores?.[viewWeek]?.[key] ?? ''}
-                        onChange={e => setPlayerScore(viewWeek, key, e.target.value)}
-                        placeholder="pts"
-                        className="w-16 px-1.5 py-1 rounded text-right"
-                        style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}
-                      />
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-2 font-mono text-xs rounded px-2.5 py-1.5 mt-2" style={{ background: '#1F2B25', border: '1px solid #8A9A90' }}>
-                    <span className="flex-1 font-head uppercase" style={{ color: '#8A9A90' }}>Total</span>
-                    <span className="w-16 text-right" style={{ color: '#F0EDE4' }}>
-                      {Array.from(pickedThisWeek.keys())
-                        .reduce((sum, key) => sum + (data.playerScores?.[viewWeek]?.[key] || 0), 0)
-                        .toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Leaderboard */}
+            {/* Week standings — nobody sees a plain list of who's been drafted. Sorted by season
+                total (alphabetical by last name before anyone has scores). Tap a name to reveal
+                their picks — only the slots whose games have actually locked. */}
             <div>
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2" style={{ color: '#8A9A90' }}>
-                <Trophy size={14} /> Season Leaderboard
+                <Trophy size={14} /> Week {weekLabel(viewWeek)} Standings
               </div>
               <div className="space-y-1.5">
-                {leaderboard.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded px-3 py-2" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                    <div className="font-mono text-xs w-6" style={{ color: '#5C6862' }}>{i + 1}</div>
-                    <div className="font-head text-sm flex-1">{p.name}</div>
-                    <div className="font-mono text-sm" style={{ color: '#8A9A90' }}>{p.total.toFixed(1)} pts</div>
-                  </div>
-                ))}
+                {standingsRows.map(p => {
+                  const weekPicks = data.picks[viewWeek]?.[p.id] || {};
+                  const weekTotal = SLOTS.reduce((sum, s) => {
+                    const val = weekPicks[s.key];
+                    return sum + (val && data.playerScores?.[viewWeek]?.[val] != null ? data.playerScores[viewWeek][val] : 0);
+                  }, 0);
+                  const isMe = myId === p.id;
+                  return (
+                    <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#1C2823', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                      <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-3">
+                        <span className="font-head text-sm flex-1 text-left truncate">{p.name}</span>
+                        <span className="font-mono text-[10px]" style={{ color: '#5C6862' }}>wk {weekTotal.toFixed(1)}</span>
+                        <span className="font-mono text-sm" style={{ color: '#8A9A90' }}>{p.total.toFixed(1)} pts</span>
+                        <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
+                      </button>
+                      {expandedId === p.id && (
+                        <div className="mt-2 pt-2 space-y-1.5" style={{ borderTop: '1px solid #2A3830' }}>
+                          {SLOTS.map(s => {
+                            const value = weekPicks[s.key];
+                            const revealed = isAdmin || isMe || (value ? isSlotLocked(s.position, value) : false);
+                            return (
+                              <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
+                                <span className="w-9 shrink-0 font-head" style={{ color: '#8A9A90' }}>{s.label}</span>
+                                {!revealed ? (
+                                  <span className="flex-1 flex items-center gap-1.5" style={{ color: '#5C6862' }}>
+                                    <Lock size={10} /> Hidden until kickoff
+                                  </span>
+                                ) : !value ? (
+                                  <span className="flex-1" style={{ color: '#5C6862' }}>— no pick —</span>
+                                ) : (
+                                  <>
+                                    <span className="flex-1" style={{ color: '#F0EDE4' }}>{playerLabel(value, s.position)}</span>
+                                    <span style={{ color: '#E8A23D' }}>{ownershipPct(value)}% owned</span>
+                                    {isAdmin && (
+                                      <input
+                                        type="number"
+                                        value={data.playerScores?.[viewWeek]?.[value] ?? ''}
+                                        onChange={e => setPlayerScore(viewWeek, value, e.target.value)}
+                                        placeholder="pts"
+                                        className="w-14 px-1.5 py-1 rounded text-right"
+                                        style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
+                                      />
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>

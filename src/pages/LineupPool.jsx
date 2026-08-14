@@ -1145,7 +1145,13 @@ export default function LineupPool() {
                                   <>
                                     <span className="flex-1" style={{ color: '#F0EDE4' }}>{playerLabel(value, s.position)}</span>
                                     <span style={{ color: '#7FCB98' }}>
-                                      {data.playerScores?.[viewWeek]?.[value] != null ? `${data.playerScores[viewWeek][value].toFixed(1)} pts` : '— pts'}
+                                      {(() => {
+                                        const rawScore = data.playerScores?.[viewWeek]?.[value];
+                                        if (rawScore != null) return `${rawScore.toFixed(1)} pts`;
+                                        const team = slotTeamAbbr(value, s.position);
+                                        const teamGame = games.find(g => g.away.abbr === team || g.home.abbr === team);
+                                        return teamGame?.completed ? '0.0 pts' : '— pts';
+                                      })()}
                                     </span>
                                     <span style={{ color: '#E8A23D' }}>{ownershipPct(value)}% owned</span>
                                     {isAdmin && (

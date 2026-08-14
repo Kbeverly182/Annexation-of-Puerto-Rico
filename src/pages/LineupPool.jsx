@@ -1036,7 +1036,9 @@ export default function LineupPool() {
               )}
             </div>
 
-            {/* Diagnostic: test auto-stats fetch */}
+            {/* Diagnostic: test auto-stats fetch — admin only, this is raw debug output, not
+                something a regular participant should ever need to see. */}
+            {isAdmin && (
             <div className="rounded px-4 py-3" style={{ background: '#1C2823', border: '1px dashed #5C6862' }}>
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 Auto-Stats Test (beta)
@@ -1112,6 +1114,7 @@ export default function LineupPool() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Week standings — nobody sees a plain list of who's been drafted. Sorted by season
                 total (alphabetical by last name before anyone has scores). Tap a name to reveal
@@ -1132,8 +1135,12 @@ export default function LineupPool() {
                     <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#1C2823', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-3">
                         <span className="font-head text-sm flex-1 text-left truncate">{p.name}</span>
-                        <span className="font-mono text-[10px]" style={{ color: '#5C6862' }}>wk {weekTotal.toFixed(1)}</span>
-                        <span className="font-mono text-sm" style={{ color: '#8A9A90' }}>{p.total.toFixed(1)} pts</span>
+                        <div className="text-right shrink-0 leading-tight">
+                          <div className="font-head text-base" style={{ color: '#E8A23D' }}>
+                            {weekTotal.toFixed(1)} <span className="font-mono text-[9px] uppercase" style={{ color: '#5C6862' }}>this wk</span>
+                          </div>
+                          <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{p.total.toFixed(1)} season</div>
+                        </div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>
                       {expandedId === p.id && (

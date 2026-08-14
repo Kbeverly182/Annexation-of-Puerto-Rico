@@ -103,13 +103,24 @@ export default function SurvivorPool() {
     );
   }
 
-  // A week counts as "over" once the commissioner has advanced past it, or — for the current
-  // week specifically — once its own 1pm-Sunday-style deadline has actually passed. Used to
-  // auto-eliminate anyone who never made a pick, same as a real missed-pick loss.
+  // A week counts as "over" once the commissioner has advanced past it, or once its own
+  // 1pm-Sunday-style deadline has actually passed. Used to auto-eliminate anyone who never made
+  // a pick, same as a real missed-pick loss. Chronological order uses ALL_WEEKS (not raw numeric
+  // comparison) since preseason weeks are encoded as 101/102/103 specifically to avoid colliding
+  // with regular season week numbers — a plain "w < currentWeek" check would wrongly treat
+  // preseason as "later" than week 1 and silently disable this check entirely.
   const isWeekDefinitivelyOver = (w) => {
-    if (w < data.currentWeek) return true;
+    const wIdx = ALL_WEEKS.indexOf(w);
+    const curIdx = ALL_WEEKS.indexOf(data.currentWeek);
+    if (wIdx !== -1 && curIdx !== -1 && wIdx < curIdx) return true;
     if (w === data.currentWeek) {
       const lockTime = lockTimeForPickCurrentWeek(w, undefined);
+      return lockTime !== null && now >= lockTime;
+    }
+    // Also check the week actually being viewed directly, in case the commissioner hasn't
+    // manually advanced "current week" yet but is looking at (and testing within) this week.
+    if (w === viewWeek) {
+      const lockTime = lockTimeForPick(w, undefined);
       return lockTime !== null && now >= lockTime;
     }
     return false;

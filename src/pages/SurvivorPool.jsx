@@ -103,31 +103,36 @@ export default function SurvivorPool() {
     );
   }
 
-  // A week counts as "over" once the commissioner has advanced past it, or once its own
-  // 1pm-Sunday-style deadline has actually passed. Used to auto-eliminate anyone who never made
-  // a pick, same as a real missed-pick loss. Chronological order uses ALL_WEEKS (not raw numeric
-  // comparison) since preseason weeks are encoded as 101/102/103 specifically to avoid colliding
-  // with regular season week numbers — a plain "w < currentWeek" check would wrongly treat
-  // preseason as "later" than week 1 and silently disable this check entirely.
+  // A week counts as "over" if it's strictly earlier than the week actually being viewed (within
+  // the same season — preseason and regular season are checked separately), or if it's the viewed
+  // week itself and its own 1pm-Sunday-style deadline has passed. Deliberately does NOT compare
+  // against data.currentWeek, since that defaults to plain "1" until a commissioner manually
+  // advances it — comparing against that default would wrongly treat every preseason week as
+  // "already over" the moment the pool is created, before any games have even been played.
   const isWeekDefinitivelyOver = (w) => {
-    const wIdx = ALL_WEEKS.indexOf(w);
-    const curIdx = ALL_WEEKS.indexOf(data.currentWeek);
-    if (wIdx !== -1 && curIdx !== -1 && wIdx < curIdx) return true;
-    if (w === data.currentWeek) {
-      const lockTime = lockTimeForPickCurrentWeek(w, undefined);
-      return lockTime !== null && now >= lockTime;
-    }
-    // Also check the week actually being viewed directly, in case the commissioner hasn't
-    // manually advanced "current week" yet but is looking at (and testing within) this week.
+    const seasonWeeks = weeksForSeason(w);
+    const wIdx = seasonWeeks.indexOf(w);
+    const viewIdx = seasonWeeks.indexOf(viewWeek);
+    if (wIdx !== -1 && viewIdx !== -1 && wIdx < viewIdx) return true;
     if (w === viewWeek) {
       const lockTime = lockTimeForPick(w, undefined);
+      return lockTime !== null && now >= lockTime;
+    }
+    if (w === data.currentWeek) {
+      const lockTime = lockTimeForPickCurrentWeek(w, undefined);
       return lockTime !== null && now >= lockTime;
     }
     return false;
   };
 
+  // Only ever checks weeks up to and including the one being viewed — future weeks within the
+  // same season (e.g. PRE 2/3 while looking at PRE 1) are never examined, so nobody gets falsely
+  // eliminated for not yet having a pick in a week that hasn't opened up yet.
   const eliminatedAtWeek = (pid) => {
-    for (const w of weeksForSeason(viewWeek)) {
+    const seasonWeeks = weeksForSeason(viewWeek);
+    const viewIdx = seasonWeeks.indexOf(viewWeek);
+    const weeksToCheck = viewIdx >= 0 ? seasonWeeks.slice(0, viewIdx + 1) : seasonWeeks;
+    for (const w of weeksToCheck) {
       const p = data.picks[w]?.[pid];
       if (p && p.result === 'loss') return w;
       if ((!p || !p.team) && isWeekDefinitivelyOver(w)) return w;

@@ -941,7 +941,7 @@ export default function SurvivorPool() {
                           onClick={() => setExpandedId(id => id === p.id ? null : p.id)}
                           className="w-28 shrink-0 font-head text-sm truncate flex items-center gap-1.5 text-left"
                         >
-                          {elimWeek !== null ? <Skull size={12} color="#C1443A" /> : <Trophy size={12} color="#3D9B5C" />}
+                          {elimWeek !== null && <Skull size={12} color="#C1443A" />}
                           {p.name}
                           <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                         </button>

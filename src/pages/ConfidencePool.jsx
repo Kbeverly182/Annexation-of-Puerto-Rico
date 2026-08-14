@@ -946,7 +946,7 @@ export default function ConfidencePool() {
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-2">
                         <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                         <div className="font-head text-xs flex-1 text-left truncate">{p.name}</div>
-                        {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>guess: {p.guess}</div>}
+                        {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
                         <div className="font-head text-sm w-12 text-right shrink-0" style={{ color: '#E8A23D' }}>{p.points}</div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>

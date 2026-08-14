@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -403,44 +403,25 @@ export default function LineupPool() {
     .map(p => ({ ...p, total: seasonTotal(p.id) }))
     .sort((a, b) => (b.total - a.total) || lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
 
-  const testPlayerStatsSync = async () => {
+  const syncWeekPlayerScores = async () => {
     setStatsDebugLoading(true);
     setStatsDebug(null);
     try {
-      // Check whatever week is currently being viewed first, then fall back to scanning our
-      // three defined preseason weeks (by exact date, not ESPN's own mismatched week numbers) —
-      // that's what's actually being played right now.
-      const candidateWeeks = [viewWeek, 101, 102, 103].filter((w, i, arr) => arr.indexOf(w) === i);
-      let completedGames = [];
-      let sourceLabel = '';
-      for (const w of candidateWeeks) {
-        const res = await fetch(buildScoreboardUrl(w, seasonYear));
-        const json = await res.json();
-        const found = (json.events || []).filter(ev => ev.competitions?.[0]?.status?.type?.completed);
-        if (found.length > 0) {
-          completedGames = found;
-          sourceLabel = `Week ${weekLabel(w)}`;
-          break;
-        }
-      }
-
-      if (completedGames.length === 0) {
-        setStatsDebug([{ gameId: '—', matchup: 'No completed games found yet', ok: false, error: 'Checked this week and preseason weeks 1-3 — none have finished. Try again once a game has actually been played.' }]);
+      const completedThisWeek = games.filter(g => g.completed);
+      if (completedThisWeek.length === 0) {
+        setStatsDebug([{ gameId: '—', matchup: 'No completed games yet', ok: false, error: `None of Week ${weekLabel(viewWeek)}'s games have finished yet. Try again once at least one has.` }]);
         return;
       }
 
       const results = [];
-      for (const ev of completedGames.slice(0, 3)) {
-        const comp = ev.competitions[0];
-        const away = comp.competitors.find(c => c.homeAway === 'away');
-        const home = comp.competitors.find(c => c.homeAway === 'home');
-        const matchup = `${sourceLabel}: ${away?.team?.abbreviation} @ ${home?.team?.abbreviation}`;
+      for (const g of completedThisWeek) {
+        const matchup = `${g.away.abbr} @ ${g.home.abbr}`;
         try {
-          const res = await fetch(`/api/playerstats?gameId=${ev.id}`);
+          const res = await fetch(`/api/playerstats?gameId=${g.id}`);
           const json = await res.json();
-          results.push({ gameId: ev.id, matchup, ...json });
+          results.push({ gameId: g.id, matchup, ...json });
         } catch (e) {
-          results.push({ gameId: ev.id, matchup, ok: false, error: String(e) });
+          results.push({ gameId: g.id, matchup, ok: false, error: String(e) });
         }
       }
       setStatsDebug(results);
@@ -1039,23 +1020,24 @@ export default function LineupPool() {
               )}
             </div>
 
-            {/* Diagnostic: test auto-stats fetch — admin only, this is raw debug output, not
-                something a regular participant should ever need to see. */}
-            {isAdmin && (
-            <div className="rounded px-4 py-3" style={{ background: '#1C2823', border: '1px dashed #5C6862' }}>
+            {/* Sync player stats — available to everyone, same idea as the Sync button on the
+                other two pools. Covers every completed game for the currently-viewed week, no
+                cap, so nothing gets silently skipped once more than a few games finish. */}
+            <div className="rounded px-4 py-3" style={{ background: '#1C2823', border: '1px solid #8A9A90' }}>
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
-                Auto-Stats Test (beta)
+                Sync Week {weekLabel(viewWeek)} Player Stats
               </div>
               <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
-                Fetches player stats from the most recent completed game, computes PPR points, and applies them to whichever of this week's rostered players it can match — safe to re-run, and manual overrides below still work.
+                Pulls stats for every completed game this week and applies PPR points to whichever rostered players it can match. Safe to re-run any time — admin can still manually correct any score afterward.
               </div>
               <button
-                onClick={testPlayerStatsSync}
+                onClick={syncWeekPlayerScores}
                 disabled={statsDebugLoading}
-                className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
+                className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide flex items-center gap-1.5"
                 style={{ background: '#1F2B25', border: '1px solid #8A9A90', color: '#8A9A90', opacity: statsDebugLoading ? 0.6 : 1 }}
               >
-                {statsDebugLoading ? 'Searching for a completed game…' : 'Test fetch against the most recent completed game'}
+                <RefreshCw size={12} className={statsDebugLoading ? 'animate-spin' : ''} />
+                {statsDebugLoading ? 'Syncing…' : `Sync week ${weekLabel(viewWeek)} scores`}
               </button>
               {statsApplySummary && (
                 <div className="mt-2 font-mono text-xs" style={{ color: statsApplySummary.matched > 0 ? '#7FCB98' : '#E28A82' }}>
@@ -1063,7 +1045,7 @@ export default function LineupPool() {
                     ? `Applied points to ${statsApplySummary.matched} of ${statsApplySummary.total} rostered players this week.`
                     : `No rostered players this week matched anyone in that game's box score.`}
                   {statsApplySummary.hasApprox && ' (Kicker points are a rough estimate — no per-kick distance data available yet.)'}
-                  {statsApplySummary.details?.length > 0 && (
+                  {isAdmin && statsApplySummary.details?.length > 0 && (
                     <div className="mt-1.5 space-y-0.5">
                       {statsApplySummary.details.map((d, i) => (
                         <div key={i} style={{ color: d.status === 'matched' ? '#7FCB98' : d.status === 'id-mismatch' ? '#E8A23D' : '#5C6862' }}>
@@ -1076,7 +1058,7 @@ export default function LineupPool() {
                   )}
                 </div>
               )}
-              {statsDebug && (
+              {isAdmin && statsDebug && (
                 <div className="mt-3 space-y-2">
                   {statsDebug.some(r => r.players?.length > 0) && (
                     <input
@@ -1117,7 +1099,6 @@ export default function LineupPool() {
                 </div>
               )}
             </div>
-            )}
 
             {/* Week standings — nobody sees a plain list of who's been drafted. Sorted by season
                 total (alphabetical by last name before anyone has scores). Tap a name to reveal

@@ -370,7 +370,10 @@ export default function ConfidencePool() {
     return total;
   };
 
-  const seasonTotal = (pid) => WEEKS.reduce((sum, w) => sum + weeklyPoints(pid, w), 0);
+  // Reflects whichever season is currently being viewed — preseason weeks accumulate their own
+  // running total while you're on a PRE tab, regular season weeks accumulate separately once
+  // the real season starts. They never mix, so nothing from beta testing carries over later.
+  const seasonTotal = (pid) => weeksForSeason(viewWeek).reduce((sum, w) => sum + weeklyPoints(pid, w), 0);
 
   const numTopSpots = Math.max(1, Math.ceil(data.participants.length / 12));
 

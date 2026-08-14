@@ -327,11 +327,21 @@ export default function SurvivorPool() {
     .map(p => data.picks[viewWeek]?.[p.id]?.team)
     .filter(Boolean);
   const totalPicksThisWeek = picksThisWeek.length;
+  const totalParticipantsForDist = data.participants.length;
+  const noPickCount = totalParticipantsForDist - totalPicksThisWeek;
   const pickDistribution = Object.entries(
     picksThisWeek.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {})
   )
-    .map(([abbr, count]) => ({ abbr, count, pct: totalPicksThisWeek ? Math.round((count / totalPicksThisWeek) * 100) : 0 }))
+    .map(([abbr, count]) => ({ abbr, count, pct: totalParticipantsForDist ? Math.round((count / totalParticipantsForDist) * 100) : 0 }))
     .sort((a, b) => b.count - a.count || a.abbr.localeCompare(b.abbr));
+  if (noPickCount > 0) {
+    pickDistribution.push({
+      abbr: 'No Pick',
+      count: noPickCount,
+      pct: totalParticipantsForDist ? Math.round((noPickCount / totalParticipantsForDist) * 100) : 0,
+      isNoPick: true,
+    });
+  }
 
   const syncScores = async (week) => {
     setSyncing(true);
@@ -833,17 +843,13 @@ export default function SurvivorPool() {
                 <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
                   Unlocks once this week's picks lock, so nobody can see the crowd before choosing.
                 </div>
-              ) : totalPicksThisWeek === 0 ? (
-                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
-                  No picks were made this week.
-                </div>
               ) : (
                 <div className="space-y-2">
                   {pickDistribution.map(t => (
                     <div key={t.abbr} className="flex items-center gap-3">
-                      <div className="w-12 shrink-0 font-head text-xs" style={{ color: '#F0EDE4' }}>{t.abbr}</div>
+                      <div className="w-16 shrink-0 font-head text-xs" style={{ color: t.isNoPick ? '#5C6862' : '#F0EDE4' }}>{t.abbr}</div>
                       <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                        <div style={{ width: `${t.pct}%`, height: '100%', background: '#3D9B5C' }} />
+                        <div style={{ width: `${t.pct}%`, height: '100%', background: t.isNoPick ? '#5C6862' : '#3D9B5C' }} />
                       </div>
                       <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
                         {t.pct}% ({t.count})

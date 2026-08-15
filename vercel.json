@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/backup-to-sheets",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

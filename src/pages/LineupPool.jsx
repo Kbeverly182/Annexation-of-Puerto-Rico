@@ -9,6 +9,7 @@ import { useNflRosters } from '../lib/rosters';
 import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
+import PoolRules from '../components/PoolRules';
 
 const POOL_KEY = 'lineup-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-lineup';
@@ -27,6 +28,37 @@ const SLOTS = [
 
 const emptyData = () => ({ name: "Where's The Beef? - Lineup Pick'em", participants: [], picks: {}, playerScores: {}, currentWeek: 1 });
 
+const LINEUP_ENTRY_FEE = 25;
+const LINEUP_RULES = [
+  {
+    heading: 'How it works',
+    body: [
+      'Every week, build a lineup: 1 QB, 2 RB, 2 WR, 1 TE, 1 K, and 1 D/ST — 8 slots total.',
+      'Once you\'ve started a player in any week, they\'re off-limits to you for the rest of the season — no repeats, ever.',
+      'Other people can still use a player you\'ve already used — the no-repeat rule is personal to you only.',
+      'Bye-week players don\'t show up as options that week.',
+      'Points accumulate all season long.',
+    ],
+  },
+  {
+    heading: 'Scoring (full PPR)',
+    body: [
+      'Passing TD: 6 pts · Rushing/Receiving TD: 6 pts',
+      'Reception: 1 pt (every catch counts)',
+      'Passing yards: 1 pt per 25 yards',
+      'Rushing/Receiving yards: 1 pt per 10 yards',
+      'Interception thrown: -2 · Fumble lost: -2',
+      'Extra point made: 1 pt',
+      'Field goal: distance ÷ 10, minimum 3.0 points (a 46-yard FG = 4.6 pts, anything under 30 yards = 3.0 flat)',
+      'D/ST: standard scoring — points allowed tiers, sacks, interceptions, fumble recoveries, defensive/special teams touchdowns, and safeties.',
+    ],
+  },
+  {
+    heading: 'Locking & privacy',
+    body: 'Each player locks individually, based on their own team\'s kickoff — not the whole week at once. Your lineup stays hidden from everyone else until each pick locks.',
+  },
+];
+
 const lastNameOf = (fullName) => {
   const parts = (fullName || '').trim().split(/\s+/);
   return (parts[parts.length - 1] || '').toLowerCase();
@@ -39,6 +71,7 @@ export default function LineupPool() {
   const [justSaved, setJustSaved] = useState(false);
   const [viewWeek, setViewWeek] = useState(1);
   const [newName, setNewName] = useState('');
+  const [newRealName, setNewRealName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -49,6 +82,7 @@ export default function LineupPool() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [backupStatus, setBackupStatus] = useState(null);
   const [clearWeekConfirm, setClearWeekConfirm] = useState(false);
   const [clearAllWeeksConfirmState, setClearAllWeeksConfirmState] = useState(false);
   const [slotPickConfirm, setSlotPickConfirm] = useState(null);
@@ -148,11 +182,13 @@ export default function LineupPool() {
 
   const addParticipant = () => {
     const name = newName.trim();
+    const realName = newRealName.trim();
     const email = newEmail.trim();
-    if (!name || !email) return;
-    const newP = { id: uid(), name, pin: null, email };
+    if (!name || !realName || !email) return;
+    const newP = { id: uid(), name, realName, pin: null, email };
     persist({ ...data, participants: [...data.participants, newP] });
     setNewName('');
+    setNewRealName('');
     setNewEmail('');
     setShowCreateForm(false);
     setClaimPrompt({ participantId: newP.id, mode: 'set', input: '', error: '' });
@@ -214,8 +250,10 @@ export default function LineupPool() {
   };
 
   const exportEmails = () => {
-    const rows = data.participants.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.email || ''}"`);
-    const csv = 'Name,Email\n' + rows.join('\n');
+    const rows = data.participants.map(p =>
+      `"${(p.name || '').replace(/"/g, '""')}","${(p.realName || '').replace(/"/g, '""')}","${p.email || ''}"`
+    );
+    const csv = 'Display Name,Real Name,Email\n' + rows.join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -225,6 +263,17 @@ export default function LineupPool() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const runBackup = async () => {
+    setBackupStatus({ loading: true });
+    try {
+      const res = await fetch('/api/backup-to-sheets');
+      const json = await res.json();
+      setBackupStatus({ loading: false, ...json });
+    } catch (e) {
+      setBackupStatus({ loading: false, ok: false, error: String(e) });
+    }
   };
 
   const setTickerMessage = (text) => {
@@ -612,6 +661,7 @@ export default function LineupPool() {
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
+          <PoolRules title="Lineup Pick'em" entryFee={LINEUP_ENTRY_FEE} sections={LINEUP_RULES} accent="#8A9A90" />
           {isAdmin ? (
             <button onClick={exitAdmin} className="ml-auto font-mono text-[10px] uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#E28A82' }}>
               <Lock size={10} /> Admin mode — exit
@@ -675,6 +725,7 @@ export default function LineupPool() {
           </div>
 
           <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
+          <div className="font-mono text-xs mb-3" style={{ color: '#E8A23D' }}>Entry fee: {LINEUP_ENTRY_FEE} units</div>
           {!showCreateForm ? (
             <button
               onClick={() => setShowCreateForm(true)}
@@ -684,15 +735,23 @@ export default function LineupPool() {
               <Plus size={16} /> New Entry
             </button>
           ) : (
-            <div className="flex gap-2 mb-1 flex-wrap">
+            <div className="flex flex-col gap-2 mb-1">
               <input
                 autoFocus
+                value={newRealName}
+                onChange={e => setNewRealName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                placeholder="Your real name (private — only the commissioner sees this)…"
+                className="px-3 py-2 rounded outline-none font-head text-sm"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              />
+              <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
-                placeholder="Your name…"
-                className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ minWidth: '140px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                placeholder="Display name (what everyone sees)…"
+                className="px-3 py-2 rounded outline-none font-head text-sm"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
               />
               <input
                 type="email"
@@ -700,28 +759,30 @@ export default function LineupPool() {
                 onChange={e => setNewEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
                 placeholder="Email…"
-                className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
-                style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                className="px-3 py-2 rounded outline-none font-mono text-xs"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
               />
-              <button
-                onClick={addParticipant}
-                disabled={!newName.trim() || !newEmail.trim()}
-                className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
-                style={{ background: (!newName.trim() || !newEmail.trim()) ? '#1F2B25' : '#8A9A90', color: (!newName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
-              >
-                <Plus size={16} /> Create
-              </button>
-              <button
-                onClick={() => { setShowCreateForm(false); setNewName(''); setNewEmail(''); }}
-                className="px-3 rounded font-mono text-xs underline"
-                style={{ color: '#5C6862' }}
-              >
-                Cancel
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={addParticipant}
+                  disabled={!newName.trim() || !newRealName.trim() || !newEmail.trim()}
+                  className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
+                  style={{ background: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#1F2B25' : '#8A9A90', color: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
+                >
+                  <Plus size={16} /> Create
+                </button>
+                <button
+                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); }}
+                  className="px-3 rounded font-mono text-xs underline"
+                  style={{ color: '#5C6862' }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
           {showCreateForm && (
-            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>Both fields are required.</div>
+            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>All three fields are required. Your real name and email are only ever visible to the commissioner, never shown publicly.</div>
           )}
 
           {myIdLoaded && (
@@ -759,14 +820,24 @@ export default function LineupPool() {
               </div>
             ) : isAdmin ? (
               <>
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1.5">
                   <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
-                  {data.participants.some(p => p.email) && (
-                    <button onClick={exportEmails} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98' }}>
-                      <Download size={10} /> Export emails (.csv)
+                  <div className="flex items-center gap-3">
+                    <button onClick={runBackup} disabled={backupStatus?.loading} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98', opacity: backupStatus?.loading ? 0.6 : 1 }}>
+                      <RefreshCw size={10} className={backupStatus?.loading ? 'animate-spin' : ''} /> {backupStatus?.loading ? 'Backing up…' : 'Backup Now'}
                     </button>
-                  )}
+                    {data.participants.some(p => p.email) && (
+                      <button onClick={exportEmails} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98' }}>
+                        <Download size={10} /> Export emails (.csv)
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {backupStatus && !backupStatus.loading && (
+                  <div className="font-mono text-[10px] mb-2" style={{ color: backupStatus.ok ? '#7FCB98' : '#E28A82' }}>
+                    {backupStatus.ok ? `Backed up all 3 pools to Google Sheets at ${new Date(backupStatus.syncedAt).toLocaleTimeString()}.` : `Backup failed: ${backupStatus.error}`}
+                  </div>
+                )}
                 {data.participants.length === 0 ? (
                   <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No entrants yet.</div>
                 ) : (
@@ -777,7 +848,11 @@ export default function LineupPool() {
                           {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}
                         </button>
-                        {p.email && <span style={{ color: '#5C6862', fontSize: '9px' }}>({p.email})</span>}
+                        {(p.realName || p.email) && (
+                          <span style={{ color: '#5C6862', fontSize: '9px' }}>
+                            ({p.realName || '?'}{p.email ? ` — ${p.email}` : ''})
+                          </span>
+                        )}
                         {p.pin && (
                           <button onClick={() => resetPin(p.id)} className="underline" style={{ color: resetConfirmId === p.id ? '#E8A23D' : '#5C6862' }}>
                             {resetConfirmId === p.id ? 'Confirm reset?' : 'Reset PIN'}

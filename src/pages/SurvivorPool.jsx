@@ -8,6 +8,7 @@ import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
+import PoolRules from '../components/PoolRules';
 
 const POOL_KEY = 'survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-survivor';
@@ -15,12 +16,40 @@ const POLL_MS = 15000;
 
 const emptyData = () => ({ name: 'Survivor Pool', participants: [], picks: {}, currentWeek: 1 });
 
+const SURVIVOR_ENTRY_FEE = 20;
+const SURVIVOR_RULES = [
+  {
+    heading: 'How it works',
+    body: [
+      'Each week, pick one NFL team you think will win.',
+      'You can only use each team once all season — no repeats.',
+      'If your team loses, you\'re eliminated for the rest of the season.',
+      'If your team ties, you survive — a tie counts as a win, not a loss.',
+      'Last person(s) standing wins the pool.',
+    ],
+  },
+  {
+    heading: 'Picks & locking',
+    body: [
+      'Early games (Thursday, Saturday, international) lock at their own kickoff time.',
+      'All Sunday 1pm-or-later games — including Sunday Night and Monday Night — lock together, all at once, when the early Sunday window starts.',
+      'Your pick stays hidden from everyone else until it locks.',
+      'If you don\'t submit a pick before your deadline, you\'re automatically eliminated that week, same as a loss.',
+    ],
+  },
+  {
+    heading: 'Joining',
+    body: 'Entries close once Week 1\'s picks lock. No new entrants can join after that point for the rest of the season.',
+  },
+];
+
 export default function SurvivorPool() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState(false);
   const [viewWeek, setViewWeek] = useState(1);
   const [newName, setNewName] = useState('');
+  const [newRealName, setNewRealName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -32,6 +61,7 @@ export default function SurvivorPool() {
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [showAvailability, setShowAvailability] = useState(false);
@@ -209,11 +239,13 @@ export default function SurvivorPool() {
   const addParticipant = () => {
     if (joinClosed && !isAdmin) return;
     const name = newName.trim();
+    const realName = newRealName.trim();
     const email = newEmail.trim();
-    if (!name || !email) return;
-    const newP = { id: uid(), name, pin: null, email };
+    if (!name || !realName || !email) return;
+    const newP = { id: uid(), name, realName, pin: null, email };
     persist({ ...data, participants: [...data.participants, newP] });
     setNewName('');
+    setNewRealName('');
     setNewEmail('');
     setShowCreateForm(false);
     setClaimPrompt({ participantId: newP.id, mode: 'set', input: '', error: '' });
@@ -301,8 +333,10 @@ export default function SurvivorPool() {
   };
 
   const exportEmails = () => {
-    const rows = data.participants.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.email || ''}"`);
-    const csv = 'Name,Email\n' + rows.join('\n');
+    const rows = data.participants.map(p =>
+      `"${(p.name || '').replace(/"/g, '""')}","${(p.realName || '').replace(/"/g, '""')}","${p.email || ''}"`
+    );
+    const csv = 'Display Name,Real Name,Email\n' + rows.join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -312,6 +346,19 @@ export default function SurvivorPool() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Backs up all three pools at once (not just this one) to the connected Google Sheet — same
+  // endpoint the daily automatic backup uses, just triggered on demand.
+  const runBackup = async () => {
+    setBackupStatus({ loading: true });
+    try {
+      const res = await fetch('/api/backup-to-sheets');
+      const json = await res.json();
+      setBackupStatus({ loading: false, ...json });
+    } catch (e) {
+      setBackupStatus({ loading: false, ok: false, error: String(e) });
+    }
   };
 
   const setTickerMessage = (text) => {
@@ -421,6 +468,7 @@ export default function SurvivorPool() {
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
+          <PoolRules title="Survivor Pool" entryFee={SURVIVOR_ENTRY_FEE} sections={SURVIVOR_RULES} accent="#3D9B5C" />
           {isAdmin ? (
             <button onClick={exitAdmin} className="ml-auto font-mono text-[10px] uppercase px-2 py-1 rounded flex items-center gap-1" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#E28A82' }}>
               <Lock size={10} /> Admin mode — exit
@@ -496,7 +544,10 @@ export default function SurvivorPool() {
             <Users size={14} /> Entrants
           </div>
 
-          <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="font-mono text-[20px] uppercase" style={{ color: '#5C6862' }}>Create new entry?</div>
+          </div>
+          <div className="font-mono text-xs mb-3" style={{ color: '#E8A23D' }}>Entry fee: {SURVIVOR_ENTRY_FEE} units</div>
           {joinClosed && !isAdmin ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
               Entries closed — Week 1 picks have locked, no new entrants can join this season.
@@ -510,15 +561,23 @@ export default function SurvivorPool() {
               <Plus size={16} /> New Entry
             </button>
           ) : (
-            <div className="flex gap-2 mb-1 flex-wrap">
+            <div className="flex flex-col gap-2 mb-1">
               <input
                 autoFocus
+                value={newRealName}
+                onChange={e => setNewRealName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                placeholder="Your real name (private — only the commissioner sees this)…"
+                className="px-3 py-2 rounded outline-none font-head text-sm"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+              />
+              <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
-                placeholder="Your name…"
-                className="flex-1 px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ minWidth: '140px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                placeholder="Display name (what everyone sees)…"
+                className="px-3 py-2 rounded outline-none font-head text-sm"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
               />
               <input
                 type="email"
@@ -526,28 +585,30 @@ export default function SurvivorPool() {
                 onChange={e => setNewEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
                 placeholder="Email…"
-                className="flex-1 px-3 py-2 rounded outline-none font-mono text-xs"
-                style={{ minWidth: '180px', background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                className="px-3 py-2 rounded outline-none font-mono text-xs"
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
               />
-              <button
-                onClick={addParticipant}
-                disabled={!newName.trim() || !newEmail.trim()}
-                className="px-4 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
-                style={{ background: (!newName.trim() || !newEmail.trim()) ? '#1F2B25' : '#3D9B5C', color: (!newName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
-              >
-                <Plus size={16} /> Create
-              </button>
-              <button
-                onClick={() => { setShowCreateForm(false); setNewName(''); setNewEmail(''); }}
-                className="px-3 rounded font-mono text-xs underline"
-                style={{ color: '#5C6862' }}
-              >
-                Cancel
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={addParticipant}
+                  disabled={!newName.trim() || !newRealName.trim() || !newEmail.trim()}
+                  className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
+                  style={{ background: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#1F2B25' : '#3D9B5C', color: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
+                >
+                  <Plus size={16} /> Create
+                </button>
+                <button
+                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); }}
+                  className="px-3 rounded font-mono text-xs underline"
+                  style={{ color: '#5C6862' }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
           {showCreateForm && (
-            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>Both fields are required.</div>
+            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>All three fields are required. Your real name and email are only ever visible to the commissioner, never shown publicly.</div>
           )}
 
           {myIdLoaded && (
@@ -597,14 +658,24 @@ export default function SurvivorPool() {
               </div>
             ) : isAdmin ? (
               <>
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1.5">
                   <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
-                  {data.participants.some(p => p.email) && (
-                    <button onClick={exportEmails} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#3D9B5C' }}>
-                      <Download size={10} /> Export emails (.csv)
+                  <div className="flex items-center gap-3">
+                    <button onClick={runBackup} disabled={backupStatus?.loading} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98', opacity: backupStatus?.loading ? 0.6 : 1 }}>
+                      <RefreshCw size={10} className={backupStatus?.loading ? 'animate-spin' : ''} /> {backupStatus?.loading ? 'Backing up…' : 'Backup Now'}
                     </button>
-                  )}
+                    {data.participants.some(p => p.email) && (
+                      <button onClick={exportEmails} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#3D9B5C' }}>
+                        <Download size={10} /> Export emails (.csv)
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {backupStatus && !backupStatus.loading && (
+                  <div className="font-mono text-[10px] mb-2" style={{ color: backupStatus.ok ? '#7FCB98' : '#E28A82' }}>
+                    {backupStatus.ok ? `Backed up all 3 pools to Google Sheets at ${new Date(backupStatus.syncedAt).toLocaleTimeString()}.` : `Backup failed: ${backupStatus.error}`}
+                  </div>
+                )}
                 {data.participants.length === 0 ? (
                   <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No entrants yet.</div>
                 ) : (
@@ -619,7 +690,11 @@ export default function SurvivorPool() {
                           {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}
                         </button>
-                        {p.email && <span style={{ color: '#5C6862', fontSize: '9px' }}>({p.email})</span>}
+                        {(p.realName || p.email) && (
+                          <span style={{ color: '#5C6862', fontSize: '9px' }}>
+                            ({p.realName || '?'}{p.email ? ` — ${p.email}` : ''})
+                          </span>
+                        )}
                         {p.pin && (
                           <button
                             onClick={() => resetPin(p.id)}

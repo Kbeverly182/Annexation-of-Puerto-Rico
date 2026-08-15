@@ -349,11 +349,17 @@ export default function SurvivorPool() {
   };
 
   // Backs up all three pools at once (not just this one) to the connected Google Sheet — same
-  // endpoint the daily automatic backup uses, just triggered on demand.
+  // endpoint the daily automatic backup uses, just triggered on demand. If CRON_SECRET is set
+  // on the server, VITE_BACKUP_SECRET (same value, safe to expose client-side) is sent along so
+  // this button keeps working alongside the protected automatic backup.
   const runBackup = async () => {
     setBackupStatus({ loading: true });
     try {
-      const res = await fetch('/api/backup-to-sheets');
+      const headers = {};
+      if (import.meta.env.VITE_BACKUP_SECRET) {
+        headers['Authorization'] = `Bearer ${import.meta.env.VITE_BACKUP_SECRET}`;
+      }
+      const res = await fetch('/api/backup-to-sheets', { headers });
       const json = await res.json();
       setBackupStatus({ loading: false, ...json });
     } catch (e) {

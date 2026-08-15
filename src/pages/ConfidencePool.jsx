@@ -261,7 +261,11 @@ export default function ConfidencePool() {
   const runBackup = async () => {
     setBackupStatus({ loading: true });
     try {
-      const res = await fetch('/api/backup-to-sheets');
+      const headers = {};
+      if (import.meta.env.VITE_BACKUP_SECRET) {
+        headers['Authorization'] = `Bearer ${import.meta.env.VITE_BACKUP_SECRET}`;
+      }
+      const res = await fetch('/api/backup-to-sheets', { headers });
       const json = await res.json();
       setBackupStatus({ loading: false, ...json });
     } catch (e) {

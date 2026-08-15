@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download } from 'lucide-react';
+import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download, DollarSign } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -553,7 +553,18 @@ export default function SurvivorPool() {
           <div className="flex items-center gap-2 mb-1.5">
             <div className="font-mono text-[20px] uppercase" style={{ color: '#5C6862' }}>Create new entry?</div>
           </div>
-          <div className="font-mono text-xs mb-3" style={{ color: '#E8A23D' }}>Entry fee: {SURVIVOR_ENTRY_FEE} units</div>
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 font-head text-sm uppercase tracking-wide"
+            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'entry-fee-pulse 2.4s ease-in-out infinite' }}
+          >
+            <DollarSign size={15} /> Entry Fee: {SURVIVOR_ENTRY_FEE} units
+          </div>
+          <style>{`
+            @keyframes entry-fee-pulse {
+              0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
+              50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+            }
+          `}</style>
           {joinClosed && !isAdmin ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
               Entries closed — Week 1 picks have locked, no new entrants can join this season.
@@ -997,7 +1008,6 @@ export default function SurvivorPool() {
                 {sortedParticipants.map(p => {
                   const elimWeek = eliminatedAtWeek(p.id);
                   const isOutByNow = elimWeek !== null && elimWeek < viewWeek;
-                  const wins = weeksForSeason(viewWeek).filter(w => data.picks[w]?.[p.id]?.result === 'win').length;
                   const isMe = myId === p.id;
                   const currentPick = data.picks[viewWeek]?.[p.id];
                   const currentLocked = isPickLocked(viewWeek, currentPick?.team);
@@ -1026,7 +1036,34 @@ export default function SurvivorPool() {
                           {p.name}
                           <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                         </button>
-                        <div className="font-mono text-xs" style={{ color: '#5C6862' }}>{wins}-{elimWeek ? 1 : 0}</div>
+                        {(() => {
+                          if (!currentPick?.team) {
+                            return <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No pick this week</div>;
+                          }
+                          if (!isRevealed(viewWeek, p.id, currentPick.team)) {
+                            return (
+                              <div className="font-mono text-xs flex items-center gap-1" style={{ color: '#5C6862' }}>
+                                <Lock size={10} /> Hidden
+                              </div>
+                            );
+                          }
+                          const game = (schedule[viewWeek]?.games || []).find(g => g.away.abbr === currentPick.team || g.home.abbr === currentPick.team);
+                          if (!game) {
+                            return <div className="font-mono text-xs" style={{ color: '#F0EDE4' }}>{currentPick.team}</div>;
+                          }
+                          const awayPicked = game.away.abbr === currentPick.team;
+                          return (
+                            <div className="font-mono text-xs flex items-center gap-1">
+                              <span style={{ color: awayPicked ? '#F0EDE4' : '#8A9A90', fontWeight: awayPicked ? 700 : 400 }}>
+                                {game.away.abbr}{game.away.score != null ? ` ${game.away.score}` : ''}
+                              </span>
+                              <span style={{ color: '#5C6862' }}>@</span>
+                              <span style={{ color: !awayPicked ? '#F0EDE4' : '#8A9A90', fontWeight: !awayPicked ? 700 : 400 }}>
+                                {game.home.abbr}{game.home.score != null ? ` ${game.home.score}` : ''}
+                              </span>
+                            </div>
+                          );
+                        })()}
                         {isAdmin && (
                           <button onClick={() => removeParticipant(p.id)} className="ml-auto shrink-0 p-1 rounded" style={{ color: '#5C6862' }}>
                             <X size={14} />

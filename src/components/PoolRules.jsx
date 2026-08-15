@@ -11,11 +11,23 @@ export default function PoolRules({ title, entryFee, sections, accent = '#8A9A90
     <>
       <button
         onClick={() => setOpen(true)}
-        className="font-mono text-[10px] uppercase underline flex items-center gap-1"
-        style={{ color: accent }}
+        className="font-head text-xs uppercase tracking-wide flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+        style={{
+          color: accent,
+          background: `${accent}22`,
+          border: `1.5px solid ${accent}`,
+          boxShadow: `0 0 10px ${accent}55, 0 0 2px ${accent}`,
+          animation: 'pool-rules-pulse 2.4s ease-in-out infinite',
+        }}
       >
-        <BookOpen size={11} /> Rules
+        <BookOpen size={13} /> Rules
       </button>
+      <style>{`
+        @keyframes pool-rules-pulse {
+          0%, 100% { box-shadow: 0 0 8px ${accent}44, 0 0 2px ${accent}; }
+          50% { box-shadow: 0 0 16px ${accent}99, 0 0 5px ${accent}; }
+        }
+      `}</style>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0" style={{ background: '#0F1614cc' }}>

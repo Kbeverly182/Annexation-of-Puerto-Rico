@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, DollarSign } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -729,7 +729,18 @@ export default function LineupPool() {
           </div>
 
           <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
-          <div className="font-mono text-xs mb-3" style={{ color: '#E8A23D' }}>Entry fee: {LINEUP_ENTRY_FEE} units</div>
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 font-head text-sm uppercase tracking-wide"
+            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'entry-fee-pulse 2.4s ease-in-out infinite' }}
+          >
+            <DollarSign size={15} /> Entry Fee: {LINEUP_ENTRY_FEE} units
+          </div>
+          <style>{`
+            @keyframes entry-fee-pulse {
+              0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
+              50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+            }
+          `}</style>
           {!showCreateForm ? (
             <button
               onClick={() => setShowCreateForm(true)}

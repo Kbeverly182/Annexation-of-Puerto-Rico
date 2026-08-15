@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download, DollarSign } from 'lucide-react';
+import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download, Coins } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -71,10 +71,10 @@ export default function SurvivorPool() {
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
-  const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
-  // Pinned independently of viewWeek so these checks work no matter what week someone's looking at.
+  const { schedule, ensureSchedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
+  // Pinned independently of viewWeek so the join-deadline check works no matter what week
+  // someone's currently looking at.
   const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(1, seasonYear);
-  const { lockTimeForPick: lockTimeForPickCurrentWeek } = useEspnSchedule(data?.currentWeek || 1, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
 
   // Initial load
@@ -111,6 +111,17 @@ export default function SurvivorPool() {
     return () => clearInterval(t);
   }, []);
 
+  // Eagerly load schedule data for every week up to and including whichever one is being viewed
+  // — not just the viewed week itself. This matters when someone browses ahead to a future week
+  // to plan picks in advance: without this, we'd have no live kickoff data for the weeks in
+  // between, and could only guess whether they're "over" based on position rather than fact.
+  useEffect(() => {
+    const seasonWeeks = weeksForSeason(viewWeek);
+    const viewIdx = seasonWeeks.indexOf(viewWeek);
+    const weeksToLoad = viewIdx >= 0 ? seasonWeeks.slice(0, viewIdx + 1) : [viewWeek];
+    weeksToLoad.forEach(w => ensureSchedule(w));
+  }, [viewWeek, seasonYear, ensureSchedule]);
+
   // Poll for changes other people make, so the shared leaderboard stays live
   useEffect(() => {
     const t = setInterval(async () => {
@@ -133,26 +144,17 @@ export default function SurvivorPool() {
     );
   }
 
-  // A week counts as "over" if it's strictly earlier than the week actually being viewed (within
-  // the same season — preseason and regular season are checked separately), or if it's the viewed
-  // week itself and its own 1pm-Sunday-style deadline has passed. Deliberately does NOT compare
-  // against data.currentWeek, since that defaults to plain "1" until a commissioner manually
-  // advances it — comparing against that default would wrongly treat every preseason week as
-  // "already over" the moment the pool is created, before any games have even been played.
+  // A week counts as "over" once its own 1pm-Sunday-style deadline has actually passed —
+  // checked against real, live kickoff data for that specific week (eagerly loaded above for
+  // every week up to the one being viewed). Deliberately NOT based on relative position to
+  // data.currentWeek or viewWeek: position-based comparisons break in two different ways —
+  // comparing to data.currentWeek wrongly treats every preseason week as "over" the moment the
+  // pool is created (since that defaults to plain "1" until manually advanced), and comparing
+  // to viewWeek wrongly treats earlier not-yet-played weeks as "over" whenever someone browses
+  // ahead to plan a future week's pick. Checking each week's actual deadline avoids both.
   const isWeekDefinitivelyOver = (w) => {
-    const seasonWeeks = weeksForSeason(w);
-    const wIdx = seasonWeeks.indexOf(w);
-    const viewIdx = seasonWeeks.indexOf(viewWeek);
-    if (wIdx !== -1 && viewIdx !== -1 && wIdx < viewIdx) return true;
-    if (w === viewWeek) {
-      const lockTime = lockTimeForPick(w, undefined);
-      return lockTime !== null && now >= lockTime;
-    }
-    if (w === data.currentWeek) {
-      const lockTime = lockTimeForPickCurrentWeek(w, undefined);
-      return lockTime !== null && now >= lockTime;
-    }
-    return false;
+    const lockTime = lockTimeForPick(w, undefined);
+    return lockTime !== null && now >= lockTime;
   };
 
   // Only ever checks weeks up to and including the one being viewed — future weeks within the
@@ -557,7 +559,7 @@ export default function SurvivorPool() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 font-head text-sm uppercase tracking-wide"
             style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'entry-fee-pulse 2.4s ease-in-out infinite' }}
           >
-            <DollarSign size={15} /> Entry Fee: {SURVIVOR_ENTRY_FEE} units
+            <Coins size={15} /> Entry Fee: {SURVIVOR_ENTRY_FEE} units
           </div>
           <style>{`
             @keyframes entry-fee-pulse {

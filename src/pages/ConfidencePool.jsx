@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, DollarSign } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -543,7 +543,7 @@ export default function ConfidencePool() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 font-head text-sm uppercase tracking-wide"
             style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'entry-fee-pulse 2.4s ease-in-out infinite' }}
           >
-            <DollarSign size={15} /> Entry Fee: {CONFIDENCE_ENTRY_FEE} units
+            <Coins size={15} /> Entry Fee: {CONFIDENCE_ENTRY_FEE} units
           </div>
           <style>{`
             @keyframes entry-fee-pulse {

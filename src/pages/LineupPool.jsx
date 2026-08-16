@@ -34,6 +34,7 @@ const LINEUP_RULES = [
     heading: 'How it works',
     body: [
       'Every week, build a lineup: 1 QB, 2 RB, 2 WR, 1 TE, 1 K, and 1 D/ST — 8 slots total.',
+      'You must fill all 8 slots every week. If any slot is left empty, you score zero for the entire week — not just that slot — so there\'s no benefit to skipping a position to save a good player for a later week.',
       'Once you\'ve started a player in any week, they\'re off-limits to you for the rest of the season — no repeats, ever.',
       'Other people can still use a player you\'ve already used — the no-repeat rule is personal to you only.',
       'Bye-week players don\'t show up as options that week.',
@@ -99,6 +100,10 @@ export default function LineupPool() {
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
+  // Pinned independently of viewWeek so the join-deadline check below works no matter what
+  // week someone's currently looking at. PRE 1 (week 101) is the actual start of the season
+  // here, not regular week 1, since preseason comes first.
+  const { lockTimeForPick: lockTimeForPickWeek101 } = useEspnSchedule(101, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
   const { rosters, loading: rostersLoading, progress: rostersProgress, missingTeams, retry: retryRosters } = useNflRosters();
 
@@ -181,7 +186,11 @@ export default function LineupPool() {
     }, 250);
   };
 
+  const week101JoinDeadline = lockTimeForPickWeek101(101, undefined);
+  const joinClosed = !isAdmin && week101JoinDeadline !== null && now >= week101JoinDeadline;
+
   const addParticipant = () => {
+    if (joinClosed) return;
     const name = newName.trim();
     const realName = newRealName.trim();
     const email = newEmail.trim();
@@ -340,9 +349,16 @@ export default function LineupPool() {
   const isSlotLocked = (position, value) => {
     if (isAdmin) return false;
     const team = slotTeamAbbr(value, position);
-    if (!team) return false;
-    const lockTime = lockTimeForPick(viewWeek, team);
-    return lockTime !== null && now >= lockTime;
+    if (team) {
+      const lockTime = lockTimeForPick(viewWeek, team);
+      return lockTime !== null && now >= lockTime;
+    }
+    // No pick made yet for this slot — without this, an empty slot would never lock at all
+    // (there's no team to check a kickoff against), letting someone sneak in a brand new pick
+    // long after the deadline just because they happened to skip that slot. Once the week's
+    // overall deadline has passed, empty slots lock too, same as a filled one would.
+    const massLockTime = lockTimeForPick(viewWeek, undefined);
+    return massLockTime !== null && now >= massLockTime;
   };
   const isPickRevealed = (pid) => {
     if (isAdmin) return true;
@@ -391,11 +407,21 @@ export default function LineupPool() {
   // Reflects whichever season is currently being viewed — preseason weeks accumulate their own
   // running total while you're on a PRE tab, regular season weeks accumulate separately once
   // the real season starts. They never mix, so nothing from beta testing carries over later.
+  // A full lineup means all 8 slots have a real pick in them — no skipping a position to
+  // "save" a good player for a later week. An incomplete lineup scores zero for the entire
+  // week, not just the missing slot(s).
+  const isLineupComplete = (pid, w) => {
+    const weekPicks = data.picks[w]?.[pid];
+    if (!weekPicks) return false;
+    return SLOTS.every(s => !!weekPicks[s.key]);
+  };
+
   const seasonTotal = (pid) => {
     let total = 0;
     for (const w of weeksForSeason(viewWeek)) {
       const weekPicks = data.picks[w]?.[pid];
       if (!weekPicks) continue;
+      if (!isLineupComplete(pid, w)) continue;
       SLOTS.forEach(s => {
         const val = weekPicks[s.key];
         if (val && data.playerScores?.[w]?.[val] != null) total += data.playerScores[w][val];
@@ -508,7 +534,7 @@ export default function LineupPool() {
   // PPR scoring per the pool's rules doc. Kicking is a known-approximate area: aggregate
   // box score stats don't include per-kick distance, so field goals use a flat estimate
   // until we can pull play-by-play data — flagged clearly wherever it shows up.
-  const computeFantasyPoints = (category, stats) => {
+  const computeFantasyPoints = (category, stats, exactFieldGoals) => {
     const cat = (category || '').toLowerCase();
     if (cat.includes('pass')) {
       const yds = pickStat(stats, ['YDS', 'PASS YDS', 'PASSING YARDS']);
@@ -532,15 +558,21 @@ export default function LineupPool() {
       return { points: lost * -2, approximate: false };
     }
     if (cat.includes('kick')) {
+      const xpMade = pickStat(stats, ['XP', 'PAT']);
+      const xpPoints = xpMade * 1;
+      // Exact distances available (from play-by-play, one entry per made kick) — use those
+      // directly instead of estimating, since this is the real per-kick data.
+      if (exactFieldGoals && exactFieldGoals.length > 0) {
+        const fgPoints = exactFieldGoals.reduce((sum, yards) => sum + Math.max(yards / 10, 3.0), 0);
+        return { points: fgPoints + xpPoints, approximate: false };
+      }
+      // Fallback: the aggregated box score only gives the longest FG made, not each individual
+      // kick's distance — accurate for a single made FG, an approximation (applying the longest
+      // kick's value to every make) when more than one FG was made.
       const fgMade = pickStat(stats, ['FG', 'FGM']);
       const longFg = pickStat(stats, ['LONG']);
-      const xpMade = pickStat(stats, ['XP', 'PAT']);
-      // Distance/10 per made FG, minimum 3.0. The box score only gives the longest FG made,
-      // not each individual kick's distance — accurate for a single made FG, an approximation
-      // (applying the longest kick's value to every make) when more than one FG was made.
       const perFgPoints = longFg > 0 ? Math.max(longFg / 10, 3.0) : 3.0;
       const fgPoints = fgMade * perFgPoints;
-      const xpPoints = xpMade * 1;
       return { points: fgPoints + xpPoints, approximate: fgMade > 1 };
     }
     return { points: 0, approximate: false };
@@ -587,11 +619,21 @@ export default function LineupPool() {
   // unless a real match is found for that exact player.
   const applyTestScoresToLineup = (results) => {
     const allPlayerRows = results.flatMap(r => r.players || []);
+    // Exact per-kick distances, when the backend was able to find them in play-by-play data —
+    // keyed by playerId, one entry per made field goal that game.
+    const fieldGoalsByPlayerId = {};
+    results.forEach(r => {
+      (r.fieldGoals || []).forEach(fg => {
+        if (!fg.playerId) return;
+        (fieldGoalsByPlayerId[fg.playerId] = fieldGoalsByPlayerId[fg.playerId] || []).push(fg.yards);
+      });
+    });
     const totalsByPlayerId = {};
     const anyApprox = {};
     allPlayerRows.forEach(row => {
       if (!row.playerId) return;
-      const { points, approximate } = computeFantasyPoints(row.category, row.stats);
+      const exactFGs = (row.category || '').toLowerCase().includes('kick') ? fieldGoalsByPlayerId[row.playerId] : undefined;
+      const { points, approximate } = computeFantasyPoints(row.category, row.stats, exactFGs);
       totalsByPlayerId[row.playerId] = (totalsByPlayerId[row.playerId] || 0) + points;
       if (approximate) anyApprox[row.playerId] = true;
     });
@@ -742,7 +784,11 @@ export default function LineupPool() {
               50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
             }
           `}</style>
-          {!showCreateForm ? (
+          {joinClosed ? (
+            <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+              Entries closed — PRE 1 picks have locked, no new entrants can join this season.
+            </div>
+          ) : !showCreateForm ? (
             <button
               onClick={() => setShowCreateForm(true)}
               className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1 mb-4"
@@ -1215,10 +1261,14 @@ export default function LineupPool() {
               <div className="space-y-1.5">
                 {standingsRows.map(p => {
                   const weekPicks = data.picks[viewWeek]?.[p.id] || {};
-                  const weekTotal = SLOTS.reduce((sum, s) => {
-                    const val = weekPicks[s.key];
-                    return sum + (val && data.playerScores?.[viewWeek]?.[val] != null ? data.playerScores[viewWeek][val] : 0);
-                  }, 0);
+                  const filledCount = SLOTS.filter(s => weekPicks[s.key]).length;
+                  const lineupComplete = filledCount === SLOTS.length;
+                  const weekTotal = lineupComplete
+                    ? SLOTS.reduce((sum, s) => {
+                        const val = weekPicks[s.key];
+                        return sum + (val && data.playerScores?.[viewWeek]?.[val] != null ? data.playerScores[viewWeek][val] : 0);
+                      }, 0)
+                    : 0;
                   let ytpCount = 0;
                   let ipCount = 0;
                   SLOTS.forEach(s => {
@@ -1233,6 +1283,11 @@ export default function LineupPool() {
                   const isMe = myId === p.id;
                   return (
                     <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#1C2823', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                      {filledCount > 0 && !lineupComplete && (
+                        <div className="font-mono text-[9px] uppercase mb-1.5 px-2 py-1 rounded flex items-center gap-1.5" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#E28A82' }}>
+                          <AlertTriangle size={10} /> Incomplete lineup ({filledCount}/{SLOTS.length} filled) — scores zero for the week
+                        </div>
+                      )}
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-3">
                         <span className="font-head text-sm flex-1 text-left truncate">{p.name}</span>
                         {(ytpCount > 0 || ipCount > 0) && (

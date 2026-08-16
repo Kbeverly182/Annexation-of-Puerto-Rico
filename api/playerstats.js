@@ -107,6 +107,69 @@ export default async function handler(req, res) {
     // fall through — scores stays []
   }
 
+  // Individual field goal distances, best-effort. The aggregated boxscore.players stats only
+  // give a kicker's LONGEST field goal for the game, not each one — so a kicker who made two
+  // field goals of different distances can't be scored exactly from that alone. This looks at
+  // ESPN's play-by-play data instead, where each field goal is its own entry with its own
+  // yardage. Unofficial/reverse-engineered like the rest of this file: several plausible response
+  // shapes are tried, and if none of them yield anything, fieldGoals just comes back empty and
+  // the caller falls back to the existing LONG-based estimate — nothing breaks either way.
+  const fieldGoals = [];
+  let fieldGoalsSource = 'none';
+  try {
+    const candidatePlaySets = [
+      { source: 'scoringPlays', plays: json?.scoringPlays || [] },
+      {
+        source: 'drives',
+        plays: [
+          ...(json?.drives?.previous || []),
+          ...(json?.drives?.current ? [json.drives.current] : []),
+        ].flatMap(drive => drive?.plays || []),
+      },
+      { source: 'plays', plays: json?.plays || [] },
+    ];
+
+    for (const { source, plays } of candidatePlaySets) {
+      if (!plays || plays.length === 0) continue;
+      plays.forEach(play => {
+        const typeText = (play?.type?.text || play?.type?.abbreviation || '').toLowerCase();
+        const text = play?.text || '';
+        const isFieldGoalPlay = typeText.includes('field goal');
+        if (!isFieldGoalPlay) return;
+        // Only count made field goals — a blocked/missed kick still shows up as a "Field Goal"
+        // type play but shouldn't score anything.
+        const isGood = play?.scoringPlay === true || /is good/i.test(text) || /field goal good/i.test(text);
+        if (!isGood) return;
+
+        let yards = typeof play?.statYardage === 'number' ? play.statYardage : null;
+        if (yards == null) {
+          const m = text.match(/(\d+)\s*yd\.?\s*field\s*goal/i);
+          if (m) yards = Number(m[1]);
+        }
+        if (yards == null || Number.isNaN(yards)) return;
+
+        // Attribute to a specific kicker where possible; if we can't tell who kicked it, we
+        // still record the team + distance so the caller can decide what to do with it, but
+        // per-player scoring needs the athlete id specifically.
+        const kicker = (play?.participants || []).find(p => (p?.type || p?.athleteType || '').toLowerCase().includes('kick'))
+          || (play?.participants || [])[0]
+          || null;
+        const playerId = kicker?.athlete?.id || null;
+        const team = play?.team?.abbreviation || null;
+
+        if (playerId) {
+          fieldGoals.push({ playerId, team, yards });
+        }
+      });
+      if (fieldGoals.length > 0) {
+        fieldGoalsSource = source;
+        break;
+      }
+    }
+  } catch (e) {
+    // fall through — fieldGoals stays [], caller uses the existing LONG-based estimate
+  }
+
   return res.status(200).json({
     ok: true,
     gameId,
@@ -115,8 +178,10 @@ export default async function handler(req, res) {
     players,
     teams,
     scores,
-    // Only include the raw payload when parsing found nothing, so we can see the real shape —
-    // keeps the response small on the (hopefully common) success path.
+    fieldGoals,
+    fieldGoalsSource,
+    // Only include the raw payload when the main player parse found nothing, so we can see the
+    // real shape — keeps the response small on the (hopefully common) success path.
     raw: players.length === 0 ? json : undefined,
   });
 }

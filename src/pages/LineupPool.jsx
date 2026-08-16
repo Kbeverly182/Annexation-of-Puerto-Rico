@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -81,6 +81,7 @@ export default function LineupPool() {
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
   const [clearWeekConfirm, setClearWeekConfirm] = useState(false);
@@ -1194,9 +1195,23 @@ export default function LineupPool() {
                 total (alphabetical by last name before anyone has scores). Tap a name to reveal
                 their picks — only the slots whose games have actually locked. */}
             <div>
-              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 <Trophy size={14} /> Week {weekLabel(viewWeek)} Standings
+                <button
+                  onClick={() => setShowYtpIpInfo(v => !v)}
+                  className="flex items-center justify-center rounded-full shrink-0"
+                  style={{ width: '16px', height: '16px', background: '#5C686233', color: '#8A9A90' }}
+                  title="What do YTP and IP mean?"
+                >
+                  <Info size={11} />
+                </button>
               </div>
+              {showYtpIpInfo && (
+                <div className="font-mono text-[10px] mb-3 px-3 py-2 rounded" style={{ background: '#1C2823', border: '1px solid #2A3830', color: '#8A9A90' }}>
+                  <span style={{ color: '#8A9A90' }}>YTP</span> = Yet To Play — that player's game hasn't kicked off yet.{' '}
+                  <span style={{ color: '#E8A23D' }}>IP</span> = In Progress — their game has started but isn't final yet.
+                </div>
+              )}
               <div className="space-y-1.5">
                 {standingsRows.map(p => {
                   const weekPicks = data.picks[viewWeek]?.[p.id] || {};
@@ -1204,11 +1219,36 @@ export default function LineupPool() {
                     const val = weekPicks[s.key];
                     return sum + (val && data.playerScores?.[viewWeek]?.[val] != null ? data.playerScores[viewWeek][val] : 0);
                   }, 0);
+                  let ytpCount = 0;
+                  let ipCount = 0;
+                  SLOTS.forEach(s => {
+                    const val = weekPicks[s.key];
+                    if (!val) return;
+                    const team = slotTeamAbbr(val, s.position);
+                    const game = games.find(g => g.away.abbr === team || g.home.abbr === team);
+                    if (!game || game.completed) return;
+                    if (now < new Date(game.kickoff).getTime()) ytpCount++;
+                    else ipCount++;
+                  });
                   const isMe = myId === p.id;
                   return (
                     <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#1C2823', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-3">
                         <span className="font-head text-sm flex-1 text-left truncate">{p.name}</span>
+                        {(ytpCount > 0 || ipCount > 0) && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {ytpCount > 0 && (
+                              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#5C686222', border: '1px solid #5C6862', color: '#8A9A90' }} title={`${ytpCount} player${ytpCount === 1 ? '' : 's'} yet to play`}>
+                                {ytpCount} YTP
+                              </span>
+                            )}
+                            {ipCount > 0 && (
+                              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#E8A23D22', border: '1px solid #E8A23D', color: '#E8A23D' }} title={`${ipCount} player${ipCount === 1 ? '' : 's'} in progress`}>
+                                {ipCount} IP
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div className="text-right shrink-0 leading-tight">
                           <div className="font-head text-base" style={{ color: '#E8A23D' }}>
                             {weekTotal.toFixed(1)} <span className="font-mono text-[9px] uppercase" style={{ color: '#5C6862' }}>this wk</span>

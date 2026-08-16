@@ -422,6 +422,30 @@ export default function ConfidencePool() {
     return total;
   };
 
+  // The most points still mathematically reachable this week: already-correct picks (locked
+  // in) plus every pick whose game hasn't been decided yet (optimistic — still possible to go
+  // their way). A wrong pick, a tie, or a missed pick can never score, so those are excluded
+  // even before their game finishes, same as they're excluded from the real total.
+  const weeklyBestPossible = (pid, w) => {
+    const entry = data.picks[w]?.[pid];
+    if (!entry?.order?.length) return 0;
+    const weekResults = data.results?.[w] || {};
+    const effOrder = repositionMissed(entry.order, entry.winners || {}, closedCheckForWeek(w));
+    const n = effOrder.length;
+    let total = 0;
+    effOrder.forEach((gid, idx) => {
+      const winner = entry.winners?.[gid];
+      if (!winner) return;
+      const res = weekResults[gid];
+      if (res?.completed) {
+        if (res.winnerAbbr === winner) total += (n - idx);
+      } else {
+        total += (n - idx);
+      }
+    });
+    return total;
+  };
+
   // Reflects whichever season is currently being viewed — preseason weeks accumulate their own
   // running total while you're on a PRE tab, regular season weeks accumulate separately once
   // the real season starts. They never mix, so nothing from beta testing carries over later.
@@ -1039,7 +1063,15 @@ export default function ConfidencePool() {
                         <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                         <div className="font-head text-xs flex-1 text-left truncate">{p.name}</div>
                         {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
-                        <div className="font-head text-sm w-12 text-right shrink-0" style={{ color: '#E8A23D' }}>{p.points}</div>
+                        <div className="text-right shrink-0 leading-tight">
+                          <div className="font-head text-sm" style={{ color: '#E8A23D' }}>{p.points}</div>
+                          {(() => {
+                            const best = weeklyBestPossible(p.id, viewWeek);
+                            return best > p.points ? (
+                              <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>best: {best}</div>
+                            ) : null;
+                          })()}
+                        </div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>
                       {expandedId === p.id && (

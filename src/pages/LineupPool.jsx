@@ -1265,12 +1265,12 @@ export default function LineupPool() {
                             return (
                               <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
                                 <span className="w-9 shrink-0 font-head" style={{ color: '#8A9A90' }}>{s.label}</span>
-                                {!revealed ? (
+                                {!value ? (
+                                  <span className="flex-1" style={{ color: '#5C6862' }}>— no pick —</span>
+                                ) : !revealed ? (
                                   <span className="flex-1 flex items-center gap-1.5" style={{ color: '#5C6862' }}>
                                     <Lock size={10} /> Hidden until kickoff
                                   </span>
-                                ) : !value ? (
-                                  <span className="flex-1" style={{ color: '#5C6862' }}>— no pick —</span>
                                 ) : (
                                   <>
                                     <span className="flex-1" style={{ color: '#F0EDE4' }}>{playerLabel(value, s.position)}</span>

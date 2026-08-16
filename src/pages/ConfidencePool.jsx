@@ -1068,7 +1068,7 @@ export default function ConfidencePool() {
                           {(() => {
                             const best = weeklyBestPossible(p.id, viewWeek);
                             return best > p.points ? (
-                              <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>best: {best}</div>
+                              <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>Best Possible Total: {best}</div>
                             ) : null;
                           })()}
                         </div>

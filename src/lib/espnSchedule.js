@@ -70,10 +70,18 @@ export function useEspnSchedule(week, seasonYear) {
           });
         }
         const etHour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(d));
-        kickoffTimes.push({ date: d, etHour });
+        const etDay = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'America/New_York' }).format(d);
+        kickoffTimes.push({ date: d, etHour, etDay });
       });
       games.sort((x, y) => new Date(x.kickoff) - new Date(y.kickoff));
-      const windowGames = kickoffTimes.filter(k => k.etHour >= 12).sort((a, b) => a.date - b.date);
+      // The "mass lock" window is specifically Sunday 1pm ET or later, and Monday Night Football
+      // — never Wednesday, Thursday, Friday, or Saturday, no matter what time those kick off.
+      // Checking hour alone isn't enough: an evening game on any of those days would also read
+      // as "hour >= 12" and, being earlier in the week than Sunday, could wrongly become the
+      // reference point every other game's lock time gets compared against.
+      const windowGames = kickoffTimes
+        .filter(k => k.etDay === 'Mon' || (k.etDay === 'Sun' && k.etHour >= 12))
+        .sort((a, b) => a.date - b.date);
       const massThreshold = windowGames.length
         ? windowGames[0].date.toISOString()
         : (kickoffTimes.length ? kickoffTimes.sort((a, b) => a.date - b.date)[0].date.toISOString() : null);

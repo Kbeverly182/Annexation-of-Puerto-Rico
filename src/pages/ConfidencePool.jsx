@@ -84,6 +84,7 @@ export default function ConfidencePool() {
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [tiebreakerReminder, setTiebreakerReminder] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
@@ -344,6 +345,14 @@ export default function ConfidencePool() {
     const order = (prevEntry.order && prevEntry.order.length) ? prevEntry.order : getOrder(pid);
     next.picks[week][pid] = { ...prevEntry, winners, order };
     persist(next);
+
+    // Just picked the last remaining game for the week — if the tiebreaker isn't filled in yet,
+    // it's easy to forget since there's nothing left prompting for it otherwise.
+    const allPicked = games.length > 0 && games.every(g => winners[g.id]);
+    const tiebreakerMissing = prevEntry.tiebreaker == null || prevEntry.tiebreaker === '';
+    if (allPicked && tiebreakerMissing) {
+      setTiebreakerReminder(pid);
+    }
   };
 
   const setTiebreaker = (week, pid, value) => {
@@ -993,22 +1002,22 @@ export default function ConfidencePool() {
                         </div>
 
                         {/* Tiebreaker */}
-                        <div className="flex items-center gap-2 font-mono text-xs">
-                          <span style={{ color: '#5C6862' }}>MNF tiebreaker (combined final score):</span>
+                        <div className="flex items-center gap-2 font-mono text-base flex-wrap">
+                          <span style={{ color: '#8A9A90' }}>MNF tiebreaker (combined final score):</span>
                           {tiebreakerRevealed ? (
                             <input
                               type="number"
                               value={weekEntry.tiebreaker ?? ''}
                               onChange={e => setTiebreaker(viewWeek, p.id, e.target.value === '' ? null : Number(e.target.value))}
                               disabled={isMassLocked()}
-                              className="w-20 px-2 py-1 rounded"
+                              className="w-24 px-2 py-1.5 rounded text-base"
                               style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
                             />
                           ) : (
-                            <span className="flex items-center gap-1" style={{ color: '#5C6862' }}><Lock size={10} /> Hidden until kickoff</span>
+                            <span className="flex items-center gap-1 font-mono text-xs" style={{ color: '#5C6862' }}><Lock size={10} /> Hidden until kickoff</span>
                           )}
                           {data.mnfActual?.[viewWeek] != null && (
-                            <span style={{ color: '#8A9A90' }}>(actual: {data.mnfActual[viewWeek]})</span>
+                            <span className="font-mono text-xs" style={{ color: '#8A9A90' }}>(actual: {data.mnfActual[viewWeek]})</span>
                           )}
                         </div>
                       </div>
@@ -1124,6 +1133,28 @@ export default function ConfidencePool() {
           </>
         )}
       </div>
+
+      {/* MNF tiebreaker reminder — fires once someone picks their last remaining game, in case
+          the tiebreaker field gets missed since there's nothing else prompting for it. */}
+      {tiebreakerReminder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #E8A23D' }}>
+            <div className="font-head text-base uppercase tracking-wide mb-2" style={{ color: '#E8A23D' }}>
+              One more thing
+            </div>
+            <div className="font-mono text-sm mb-4" style={{ color: '#F0EDE4' }}>
+              MNF tiebreaker is needed to complete picks — don't forget to enter your guess for the combined final score below.
+            </div>
+            <button
+              onClick={() => setTiebreakerReminder(null)}
+              className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide"
+              style={{ background: '#E8A23D', color: '#0F1614' }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Admin PIN modal */}
       {adminPrompt && (

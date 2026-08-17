@@ -73,6 +73,7 @@ export default function SurvivorPool() {
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
+  const bombTriggeredRef = useRef(false);
   const { schedule, ensureSchedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check works no matter what week
   // someone's currently looking at.
@@ -146,6 +147,13 @@ export default function SurvivorPool() {
   // check (rather than calling eliminatedAtWeek directly) since that function is declared below
   // the loading guard and so isn't safely available up here alongside the other hooks.
   useEffect(() => {
+    // Gate on a ref (not just the sessionStorage flag below) checked first, before anything
+    // else. The app polls for updates periodically, which hands this effect a new `data` object
+    // every time and makes it re-run mid-animation — without this early bail, a poll landing
+    // partway through would re-execute the whole check again while a previous run's timers are
+    // still in flight, and previously this cleaned up (cancelled) those timers, including the
+    // one responsible for fading the overlay back out — leaving the screen stuck dimmed forever.
+    if (bombTriggeredRef.current) return;
     if (!data || !myId) return;
     const seasonWeeks = weeksForSeason(viewWeek);
     const viewIdx = seasonWeeks.indexOf(viewWeek);
@@ -160,16 +168,18 @@ export default function SurvivorPool() {
     if (elimWeek === null) return;
     const flagKey = `survivor-bomb-shown-${myId}`;
     try {
-      if (sessionStorage.getItem(flagKey)) return;
+      if (sessionStorage.getItem(flagKey)) { bombTriggeredRef.current = true; return; }
       sessionStorage.setItem(flagKey, '1');
     } catch (e) {
       // private browsing etc. — animation just plays every session instead of once, harmless
     }
+    // Mark as triggered before scheduling anything, so any re-run of this effect from here on
+    // (e.g. from the next poll) hits the guard above and never touches these timers again.
+    bombTriggeredRef.current = true;
     setBombPhase('pulse');
-    const t1 = setTimeout(() => setBombPhase('explode'), 2400);
-    const t2 = setTimeout(() => setBombPhase('skull'), 2800);
-    const t3 = setTimeout(() => setBombPhase(null), 4800);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    setTimeout(() => setBombPhase('explode'), 2400);
+    setTimeout(() => setBombPhase('skull'), 2800);
+    setTimeout(() => setBombPhase(null), 4800);
   }, [data, myId, viewWeek]);
 
   if (loading || !data) {

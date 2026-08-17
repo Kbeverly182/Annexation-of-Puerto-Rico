@@ -83,6 +83,7 @@ export default function ConfidencePool() {
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createEntryError, setCreateEntryError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [tiebreakerReminder, setTiebreakerReminder] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
@@ -95,6 +96,10 @@ export default function ConfidencePool() {
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
+  // Pinned independently of viewWeek so the join-deadline check works no matter what week
+  // someone's currently looking at. PRE 1 (week 101) is the actual start of the season here,
+  // not regular week 1, since preseason comes first.
+  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(101, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
 
   useEffect(() => {
@@ -174,11 +179,22 @@ export default function ConfidencePool() {
     }, 250);
   };
 
+  const week1JoinDeadline = lockTimeForPickWeek1(101, undefined);
+  const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
+
   const addParticipant = () => {
+    if (joinClosed && !isAdmin) return;
     const name = newName.trim();
     const realName = newRealName.trim();
     const email = newEmail.trim();
     if (!name || !realName || !email) return;
+    const norm = s => (s || '').trim().toLowerCase();
+    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName) || norm(p.email) === norm(email));
+    if (isDuplicate) {
+      setCreateEntryError('This pool only allows one entry per person — that name or email is already registered.');
+      return;
+    }
+    setCreateEntryError('');
     const newP = { id: uid(), name, realName, pin: null, email };
     persist({ ...data, participants: [...data.participants, newP] });
     setNewName('');
@@ -584,7 +600,11 @@ export default function ConfidencePool() {
               50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
             }
           `}</style>
-          {!showCreateForm ? (
+          {joinClosed ? (
+            <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+              Entries closed — PRE 1 picks have locked, no new entrants can join this season.
+            </div>
+          ) : !showCreateForm ? (
             <button
               onClick={() => setShowCreateForm(true)}
               className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1 mb-4"
@@ -630,13 +650,18 @@ export default function ConfidencePool() {
                   <Plus size={16} /> Create
                 </button>
                 <button
-                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); }}
+                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); setCreateEntryError(''); }}
                   className="px-3 rounded font-mono text-xs underline"
                   style={{ color: '#5C6862' }}
                 >
                   Cancel
                 </button>
               </div>
+            </div>
+          )}
+          {showCreateForm && createEntryError && (
+            <div className="font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+              {createEntryError}
             </div>
           )}
           {showCreateForm && (

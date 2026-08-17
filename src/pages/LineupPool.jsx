@@ -81,6 +81,7 @@ export default function LineupPool() {
   const [myIdLoaded, setMyIdLoaded] = useState(false);
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createEntryError, setCreateEntryError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
@@ -195,6 +196,13 @@ export default function LineupPool() {
     const realName = newRealName.trim();
     const email = newEmail.trim();
     if (!name || !realName || !email) return;
+    const norm = s => (s || '').trim().toLowerCase();
+    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName) || norm(p.email) === norm(email));
+    if (isDuplicate) {
+      setCreateEntryError('This pool only allows one entry per person — that name or email is already registered.');
+      return;
+    }
+    setCreateEntryError('');
     const newP = { id: uid(), name, realName, pin: null, email };
     persist({ ...data, participants: [...data.participants, newP] });
     setNewName('');
@@ -834,13 +842,18 @@ export default function LineupPool() {
                   <Plus size={16} /> Create
                 </button>
                 <button
-                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); }}
+                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); setCreateEntryError(''); }}
                   className="px-3 rounded font-mono text-xs underline"
                   style={{ color: '#5C6862' }}
                 >
                   Cancel
                 </button>
               </div>
+            </div>
+          )}
+          {showCreateForm && createEntryError && (
+            <div className="font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+              {createEntryError}
             </div>
           )}
           {showCreateForm && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, Check, Minus, Skull, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download, Coins } from 'lucide-react';
+import { Plus, X, Check, Minus, Skull, Bomb, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download, Coins } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -58,6 +58,7 @@ export default function SurvivorPool() {
   const [syncMsg, setSyncMsg] = useState('');
   const [myId, setMyId] = useState(null);
   const [myIdLoaded, setMyIdLoaded] = useState(false);
+  const [bombPhase, setBombPhase] = useState(null); // null | 'pulse' | 'explode' | 'skull'
   const [claimPrompt, setClaimPrompt] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createEntryError, setCreateEntryError] = useState('');
@@ -139,6 +140,37 @@ export default function SurvivorPool() {
     }, POLL_MS);
     return () => clearInterval(t);
   }, []);
+
+  // Fires the "you're eliminated" bomb animation once per person per browser session, the first
+  // time we can tell they're out. This has to duplicate a small piece of the real elimination
+  // check (rather than calling eliminatedAtWeek directly) since that function is declared below
+  // the loading guard and so isn't safely available up here alongside the other hooks.
+  useEffect(() => {
+    if (!data || !myId) return;
+    const seasonWeeks = weeksForSeason(viewWeek);
+    const viewIdx = seasonWeeks.indexOf(viewWeek);
+    const weeksToCheck = viewIdx >= 0 ? seasonWeeks.slice(0, viewIdx + 1) : seasonWeeks;
+    let elimWeek = null;
+    for (const w of weeksToCheck) {
+      const p = data.picks?.[w]?.[myId];
+      if (p && p.result === 'loss') { elimWeek = w; break; }
+      const lockTime = lockTimeForPick(w, undefined);
+      if ((!p || !p.team) && lockTime !== null && now >= lockTime) { elimWeek = w; break; }
+    }
+    if (elimWeek === null) return;
+    const flagKey = `survivor-bomb-shown-${myId}`;
+    try {
+      if (sessionStorage.getItem(flagKey)) return;
+      sessionStorage.setItem(flagKey, '1');
+    } catch (e) {
+      // private browsing etc. — animation just plays every session instead of once, harmless
+    }
+    setBombPhase('pulse');
+    const t1 = setTimeout(() => setBombPhase('explode'), 2400);
+    const t2 = setTimeout(() => setBombPhase('skull'), 2800);
+    const t3 = setTimeout(() => setBombPhase(null), 4800);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [data, myId, viewWeek]);
 
   if (loading || !data) {
     return (
@@ -1217,6 +1249,43 @@ export default function SurvivorPool() {
           </>
         )}
       </div>
+
+      {/* Elimination animation — bomb pulsates, "explodes", then a skull holds for a couple
+          seconds before the whole thing fades away. Purely cosmetic, fires once per session. */}
+      {bombPhase && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(15,22,20,0.85)' }}>
+          {bombPhase === 'pulse' && (
+            <Bomb size={120} color="#E8A23D" style={{ animation: 'bomb-pulse 0.8s ease-in-out 3' }} />
+          )}
+          {bombPhase === 'explode' && (
+            <Bomb size={120} color="#E8A23D" style={{ animation: 'bomb-explode 0.4s ease-out forwards' }} />
+          )}
+          {bombPhase === 'skull' && (
+            <div className="flex flex-col items-center gap-3" style={{ animation: 'skull-appear 2s ease-in-out forwards' }}>
+              <Skull size={140} color="#C1443A" />
+              <div className="font-head text-2xl uppercase tracking-widest" style={{ color: '#C1443A' }}>Eliminated</div>
+            </div>
+          )}
+          <style>{`
+            @keyframes bomb-pulse {
+              0%, 100% { transform: scale(1); }
+              50% { transform: scale(1.5); }
+            }
+            @keyframes bomb-explode {
+              0% { transform: scale(1); opacity: 1; }
+              60% { transform: scale(3); opacity: 1; }
+              100% { transform: scale(4); opacity: 0; }
+            }
+            @keyframes skull-appear {
+              0% { transform: scale(0.4); opacity: 0; }
+              15% { transform: scale(1.15); opacity: 1; }
+              25% { transform: scale(1); opacity: 1; }
+              88% { transform: scale(1); opacity: 1; }
+              100% { transform: scale(1); opacity: 0; }
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* Admin PIN modal */}
       {adminPrompt && (

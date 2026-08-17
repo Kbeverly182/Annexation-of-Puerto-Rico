@@ -83,6 +83,7 @@ export default function LineupPool() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createEntryError, setCreateEntryError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [showSeasonLeaderboard, setShowSeasonLeaderboard] = useState(false);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
@@ -1373,6 +1374,34 @@ export default function LineupPool() {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Season leaderboard */}
+            <div>
+              <button onClick={() => setShowSeasonLeaderboard(v => !v)} className="w-full flex items-center gap-2 mb-1">
+                <div className="font-head uppercase text-sm tracking-[0.2em] flex items-center gap-2" style={{ color: '#8A9A90' }}>
+                  <Trophy size={14} /> Season Leaderboard
+                </div>
+                <span style={{ color: '#5C6862', fontSize: '10px' }}>{showSeasonLeaderboard ? '▾' : '▸'}</span>
+                <span className="font-mono text-[10px] ml-auto" style={{ color: '#5C6862' }}>
+                  {showSeasonLeaderboard ? 'tap to collapse' : `${standingsRows.length} entrants — tap to expand`}
+                </span>
+              </button>
+              {showSeasonLeaderboard && (
+                <div className="space-y-1.5">
+                  {standingsRows.map((p, i) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 rounded px-3 py-2"
+                      style={{ background: '#1C2823', border: '1px solid #2A3830' }}
+                    >
+                      <div className="font-mono text-xs w-6" style={{ color: '#5C6862' }}>{i + 1}</div>
+                      <div className="font-head text-sm flex-1">{p.name}</div>
+                      <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total.toFixed(1)} pts</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}

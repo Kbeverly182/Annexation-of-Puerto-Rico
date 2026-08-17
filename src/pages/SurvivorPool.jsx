@@ -142,17 +142,19 @@ export default function SurvivorPool() {
     return () => clearInterval(t);
   }, []);
 
-  // Fires the "you're eliminated" bomb animation once per person per browser session, the first
-  // time we can tell they're out. This has to duplicate a small piece of the real elimination
-  // check (rather than calling eliminatedAtWeek directly) since that function is declared below
-  // the loading guard and so isn't safely available up here alongside the other hooks.
+  // Fires the "you're eliminated" bomb animation every time the page loads while identified as
+  // an eliminated participant — no memory of past plays, so it's not affected by cache/storage
+  // at all. This has to duplicate a small piece of the real elimination check (rather than
+  // calling eliminatedAtWeek directly) since that function is declared below the loading guard
+  // and so isn't safely available up here alongside the other hooks.
   useEffect(() => {
-    // Gate on a ref (not just the sessionStorage flag below) checked first, before anything
-    // else. The app polls for updates periodically, which hands this effect a new `data` object
-    // every time and makes it re-run mid-animation — without this early bail, a poll landing
-    // partway through would re-execute the whole check again while a previous run's timers are
-    // still in flight, and previously this cleaned up (cancelled) those timers, including the
-    // one responsible for fading the overlay back out — leaving the screen stuck dimmed forever.
+    // Gate on a ref checked first, before anything else. The app polls for updates
+    // periodically, which hands this effect a new `data` object every time and makes it re-run
+    // mid-animation — without this early bail, a poll landing partway through would re-execute
+    // the whole check again while a previous run's timers are still in flight. The ref only
+    // guards against re-firing within this one page load (it resets on every fresh load, unlike
+    // sessionStorage), so the animation still plays fresh every single time someone opens the
+    // page as an eliminated entrant.
     if (bombTriggeredRef.current) return;
     if (!data || !myId) return;
     const seasonWeeks = weeksForSeason(viewWeek);
@@ -166,13 +168,6 @@ export default function SurvivorPool() {
       if ((!p || !p.team) && lockTime !== null && now >= lockTime) { elimWeek = w; break; }
     }
     if (elimWeek === null) return;
-    const flagKey = `survivor-bomb-shown-${myId}`;
-    try {
-      if (sessionStorage.getItem(flagKey)) { bombTriggeredRef.current = true; return; }
-      sessionStorage.setItem(flagKey, '1');
-    } catch (e) {
-      // private browsing etc. — animation just plays every session instead of once, harmless
-    }
     // Mark as triggered before scheduling anything, so any re-run of this effect from here on
     // (e.g. from the next poll) hits the guard above and never touches these timers again.
     bombTriggeredRef.current = true;

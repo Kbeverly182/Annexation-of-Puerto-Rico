@@ -814,7 +814,7 @@ export default function LineupPool() {
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
                 placeholder="Your real name (private — only the commissioner sees this)…"
                 className="px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
               />
               <input
                 value={newName}
@@ -822,7 +822,7 @@ export default function LineupPool() {
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
                 placeholder="Display name (what everyone sees)…"
                 className="px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
               />
               <input
                 type="email"
@@ -831,7 +831,7 @@ export default function LineupPool() {
                 onKeyDown={e => e.key === 'Enter' && addParticipant()}
                 placeholder="Email…"
                 className="px-3 py-2 rounded outline-none font-mono text-xs"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
               />
               <div className="flex gap-2">
                 <button
@@ -945,7 +945,7 @@ export default function LineupPool() {
                     onKeyDown={e => e.key === 'Enter' && submitClaim()}
                     placeholder="••••"
                     className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
                   />
                   <button onClick={submitClaim} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#8A9A90', color: '#0F1614' }}>
                     {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
@@ -965,7 +965,7 @@ export default function LineupPool() {
                   onChange={e => setMemberSearch(e.target.value)}
                   placeholder="Start typing your name…"
                   className="w-full px-3 py-2 rounded outline-none font-head text-sm"
-                  style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                  style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
                 />
                 {memberSearch.trim() && (
                   <div className="mt-2 space-y-1">
@@ -1128,7 +1128,7 @@ export default function LineupPool() {
                                     onBlur={() => setTimeout(() => setOpenCombo(c => (c === searchKey ? null : c)), 150)}
                                     placeholder={`search ${s.label}…`}
                                     className="w-full px-1.5 py-1 rounded"
-                                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
                                   />
                                   {openCombo === searchKey && (
                                     <div
@@ -1224,7 +1224,7 @@ export default function LineupPool() {
                       onChange={e => setStatsDebugFilter(e.target.value)}
                       placeholder="Search parsed players by name…"
                       className="w-full px-2 py-1.5 rounded font-mono text-xs mb-2"
-                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
                     />
                   )}
                   {statsDebug.map(r => {
@@ -1367,7 +1367,7 @@ export default function LineupPool() {
                                         onChange={e => setPlayerScore(viewWeek, value, e.target.value)}
                                         placeholder="pts"
                                         className="w-14 px-1.5 py-1 rounded text-right"
-                                        style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
+                                        style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90', fontSize: '16px' }}
                                       />
                                     )}
                                   </>
@@ -1459,7 +1459,7 @@ export default function LineupPool() {
                 onKeyDown={e => e.key === 'Enter' && submitAdminPrompt()}
                 placeholder="••••"
                 className="w-24 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4', fontSize: '16px' }}
               />
               <button onClick={submitAdminPrompt} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#8A9A90', color: '#0F1614' }}>
                 {adminPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}

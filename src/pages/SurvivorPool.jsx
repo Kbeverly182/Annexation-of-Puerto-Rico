@@ -684,52 +684,15 @@ export default function SurvivorPool() {
           )}
 
           {myIdLoaded && (
-            myId && data.participants.some(p => p.id === myId) ? (
-              <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
-                <UserCircle size={14} color="#7FCB98" />
-                You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
-                <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
-              </div>
-            ) : claimPrompt ? (
-              <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
-                  {claimPrompt.mode === 'set'
-                    ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span> — you'll use it to switch back to this name later.</>
-                    : <>Enter the PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span>.</>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    autoFocus
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={claimPrompt.input}
-                    onChange={e => setClaimPrompt(c => ({ ...c, input: e.target.value.replace(/\D/g, '').slice(0, 4), error: '' }))}
-                    onKeyDown={e => e.key === 'Enter' && submitClaim()}
-                    placeholder="••••"
-                    className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
-                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-                  />
-                  <button
-                    onClick={submitClaim}
-                    className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
-                    style={{ background: '#3D9B5C', color: '#0F1614' }}
-                  >
-                    {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
-                  </button>
-                  <button
-                    onClick={() => setClaimPrompt(null)}
-                    className="font-mono text-xs underline"
-                    style={{ color: '#5C6862' }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-                {claimPrompt.error && (
-                  <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{claimPrompt.error}</div>
-                )}
-              </div>
-            ) : isAdmin ? (
+            isAdmin ? (
               <>
+                {myId && data.participants.some(p => p.id === myId) && (
+                  <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
+                    <UserCircle size={14} color="#7FCB98" />
+                    You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                    <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1.5">
                   <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
                   <div className="flex items-center gap-3">
@@ -792,6 +755,50 @@ export default function SurvivorPool() {
                   </div>
                 )}
               </>
+            ) : myId && data.participants.some(p => p.id === myId) ? (
+              <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
+                <UserCircle size={14} color="#7FCB98" />
+                You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
+              </div>
+            ) : claimPrompt ? (
+              <div className="px-3 py-2.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                <div className="font-mono text-xs mb-2" style={{ color: '#8A9A90' }}>
+                  {claimPrompt.mode === 'set'
+                    ? <>Set a 4-digit PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span> — you'll use it to switch back to this name later.</>
+                    : <>Enter the PIN for <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === claimPrompt.participantId)?.name}</span>.</>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={claimPrompt.input}
+                    onChange={e => setClaimPrompt(c => ({ ...c, input: e.target.value.replace(/\D/g, '').slice(0, 4), error: '' }))}
+                    onKeyDown={e => e.key === 'Enter' && submitClaim()}
+                    placeholder="••••"
+                    className="w-20 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
+                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                  />
+                  <button
+                    onClick={submitClaim}
+                    className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide"
+                    style={{ background: '#3D9B5C', color: '#0F1614' }}
+                  >
+                    {claimPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
+                  </button>
+                  <button
+                    onClick={() => setClaimPrompt(null)}
+                    className="font-mono text-xs underline"
+                    style={{ color: '#5C6862' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {claimPrompt.error && (
+                  <div className="font-mono text-xs mt-1.5" style={{ color: '#E28A82' }}>{claimPrompt.error}</div>
+                )}
+              </div>
             ) : (
               <>
                 <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Returning member?</div>

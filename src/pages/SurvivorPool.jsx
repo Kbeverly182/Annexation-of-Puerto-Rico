@@ -333,8 +333,12 @@ export default function SurvivorPool() {
   const setPick = (week, pid, team) => {
     const next = { ...data, picks: { ...data.picks } };
     next.picks[week] = { ...(next.picks[week] || {}) };
-    const prev = next.picks[week][pid] || {};
-    next.picks[week][pid] = { team, result: prev.result || 'pending' };
+    // Always reset to pending on a genuine pick change — the caller (requestPick) already only
+    // invokes this when the team is actually different, so there's never a legitimate reason to
+    // carry over the previous team's result. Keeping it (as this used to) meant changing a pick
+    // away from a team that had already lost left the stale "loss" attached to the new team too,
+    // so someone correctly moved off a loser would still show as eliminated until the next sync.
+    next.picks[week][pid] = { team, result: 'pending' };
     persist(next);
   };
   const requestPick = (week, pid, team, participantName, prevTeam) => {

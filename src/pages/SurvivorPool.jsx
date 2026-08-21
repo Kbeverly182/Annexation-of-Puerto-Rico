@@ -314,6 +314,10 @@ export default function SurvivorPool() {
   };
   const requestPick = (week, pid, team, participantName, prevTeam) => {
     if (prevTeam === team) return;
+    // Safety backstop: refuse to even open the confirmation if this specific team's game has
+    // already locked, regardless of which UI path got us here. The button-level disabled state
+    // should already prevent this, but this makes it impossible to slip through either way.
+    if (!isAdmin && isPickLocked(week, team)) return;
     setPickConfirm({ week, pid, team, participantName, prevTeam });
   };
   const confirmPickNow = () => {
@@ -935,6 +939,8 @@ export default function SurvivorPool() {
                         const homeSelected = myPick?.team === g.home.abbr;
                         const awayUsed = myUsed.has(g.away.abbr) && !isAdmin;
                         const homeUsed = myUsed.has(g.home.abbr) && !isAdmin;
+                        const awayLocked = isPickLocked(viewWeek, g.away.abbr);
+                        const homeLocked = isPickLocked(viewWeek, g.home.abbr);
                         return (
                           <div key={g.id} className="flex flex-col items-center gap-1">
                             {g.odds?.details && (
@@ -943,30 +949,30 @@ export default function SurvivorPool() {
                             <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                               <button
                                 onClick={() => requestPick(viewWeek, myId, g.away.abbr, me.name, myPick?.team)}
-                                disabled={awayUsed}
+                                disabled={awayUsed || awayLocked}
                                 className="px-2.5 py-1.5 text-center"
                                 style={{
                                   background: awaySelected ? '#3D9B5C' : '#0F1614',
-                                  color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
-                                  cursor: awayUsed ? 'not-allowed' : 'pointer',
+                                  color: awaySelected ? '#0F1614' : ((awayUsed || awayLocked) ? '#3A4A42' : '#F0EDE4'),
+                                  cursor: (awayUsed || awayLocked) ? 'not-allowed' : 'pointer',
                                 }}
                               >
                                 <div className="font-head text-xs">{g.away.abbr}</div>
-                                <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                                <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{awayLocked ? 'locked' : g.away.record}</div>
                               </button>
                               <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
                               <button
                                 onClick={() => requestPick(viewWeek, myId, g.home.abbr, me.name, myPick?.team)}
-                                disabled={homeUsed}
+                                disabled={homeUsed || homeLocked}
                                 className="px-2.5 py-1.5 text-center"
                                 style={{
                                   background: homeSelected ? '#3D9B5C' : '#0F1614',
-                                  color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
-                                  cursor: homeUsed ? 'not-allowed' : 'pointer',
+                                  color: homeSelected ? '#0F1614' : ((homeUsed || homeLocked) ? '#3A4A42' : '#F0EDE4'),
+                                  cursor: (homeUsed || homeLocked) ? 'not-allowed' : 'pointer',
                                 }}
                               >
                                 <div className="font-head text-xs">{g.home.abbr}</div>
-                                <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                                <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{homeLocked ? 'locked' : g.home.record}</div>
                               </button>
                             </div>
                           </div>
@@ -1172,6 +1178,8 @@ export default function SurvivorPool() {
                               const homeSelected = currentPick?.team === g.home.abbr;
                               const awayUsed = used.has(g.away.abbr) && !isAdmin;
                               const homeUsed = used.has(g.home.abbr) && !isAdmin;
+                              const awayLocked = currentLocked || isPickLocked(viewWeek, g.away.abbr);
+                              const homeLocked = currentLocked || isPickLocked(viewWeek, g.home.abbr);
                               return (
                                 <div key={g.id} className="flex flex-col items-center gap-1">
                                   {g.odds?.details && (
@@ -1180,30 +1188,30 @@ export default function SurvivorPool() {
                                   <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                                     <button
                                       onClick={() => requestPick(viewWeek, p.id, g.away.abbr, p.name, currentPick?.team)}
-                                      disabled={currentLocked || awayUsed}
+                                      disabled={awayLocked || awayUsed}
                                       className="px-2.5 py-1.5 text-center"
                                       style={{
                                         background: awaySelected ? '#3D9B5C' : '#0F1614',
-                                        color: awaySelected ? '#0F1614' : (awayUsed ? '#3A4A42' : '#F0EDE4'),
-                                        cursor: (currentLocked || awayUsed) ? 'not-allowed' : 'pointer',
+                                        color: awaySelected ? '#0F1614' : ((awayLocked || awayUsed) ? '#3A4A42' : '#F0EDE4'),
+                                        cursor: (awayLocked || awayUsed) ? 'not-allowed' : 'pointer',
                                       }}
                                     >
                                       <div className="font-head text-xs">{g.away.abbr}</div>
-                                      <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.away.record}</div>
+                                      <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{awayLocked ? 'locked' : g.away.record}</div>
                                     </button>
                                     <div className="flex items-center px-1 font-mono text-[10px]" style={{ color: '#5C6862', background: '#1C2823' }}>@</div>
                                     <button
                                       onClick={() => requestPick(viewWeek, p.id, g.home.abbr, p.name, currentPick?.team)}
-                                      disabled={currentLocked || homeUsed}
+                                      disabled={homeLocked || homeUsed}
                                       className="px-2.5 py-1.5 text-center"
                                       style={{
                                         background: homeSelected ? '#3D9B5C' : '#0F1614',
-                                        color: homeSelected ? '#0F1614' : (homeUsed ? '#3A4A42' : '#F0EDE4'),
-                                        cursor: (currentLocked || homeUsed) ? 'not-allowed' : 'pointer',
+                                        color: homeSelected ? '#0F1614' : ((homeLocked || homeUsed) ? '#3A4A42' : '#F0EDE4'),
+                                        cursor: (homeLocked || homeUsed) ? 'not-allowed' : 'pointer',
                                       }}
                                     >
                                       <div className="font-head text-xs">{g.home.abbr}</div>
-                                      <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{g.home.record}</div>
+                                      <div className="font-mono" style={{ fontSize: '9px', opacity: 0.8 }}>{homeLocked ? 'locked' : g.home.record}</div>
                                     </button>
                                   </div>
                                 </div>

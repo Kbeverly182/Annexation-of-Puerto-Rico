@@ -334,6 +334,14 @@ export default function LineupPool() {
   // Selecting a player doesn't commit right away — it opens a confirmation prompt first, same
   // pattern as Survivor, so a stray tap doesn't silently overwrite an existing pick.
   const requestSlotPick = (pid, slotKey, position, value, label, participantName) => {
+    // Safety backstop: refuse to even open the confirmation if this player/team's game has
+    // already locked, regardless of which UI path got us here. The options-list filtering
+    // should already keep this from showing up as selectable, but this makes it impossible to
+    // slip through either way.
+    if (!isAdmin) {
+      const team = slotTeamAbbr(value, position);
+      if (team && isTeamGameLocked(team)) return;
+    }
     const oldValue = data.picks[viewWeek]?.[pid]?.[slotKey];
     setSlotPickConfirm({
       pid, slotKey, position, value, label, participantName,
@@ -368,6 +376,15 @@ export default function LineupPool() {
     // overall deadline has passed, empty slots lock too, same as a filled one would.
     const massLockTime = lockTimeForPick(viewWeek, undefined);
     return massLockTime !== null && now >= massLockTime;
+  };
+  // Whether a specific team's own game has already locked - used to keep already-played teams
+  // out of the picker entirely, not just to lock a slot once something's already sitting in it.
+  // Without this, an empty (and therefore still "unlocked") slot would show every team playing
+  // this week as selectable, including ones whose game already happened.
+  const isTeamGameLocked = (team) => {
+    if (isAdmin) return false;
+    const lockTime = lockTimeForPick(viewWeek, team);
+    return lockTime !== null && now >= lockTime;
   };
   const isPickRevealed = (pid) => {
     if (isAdmin) return true;
@@ -1106,12 +1123,12 @@ export default function LineupPool() {
                           const searchText = playerSearch[searchKey] || '';
                           const options = s.position === 'DST'
                             ? TEAMS
-                              .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr))
+                              .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr) && !isTeamGameLocked(abbr))
                               .filter(([abbr, name]) => !searchText || name.toLowerCase().includes(searchText.toLowerCase()) || abbr.toLowerCase().includes(searchText.toLowerCase()))
                               .map(([abbr, name]) => ({ value: abbr, label: `${abbr} — ${name}`, avail: availabilityPct(abbr) }))
                               .sort((a, b) => a.label.localeCompare(b.label))
                             : rosters
-                              .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id))
+                              .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id) && !isTeamGameLocked(r.team))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
                               .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
                               .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id) }));
@@ -1239,6 +1256,13 @@ export default function LineupPool() {
                         <div className="mb-1" style={{ color: r.ok ? '#7FCB98' : '#E28A82' }}>
                           {r.matchup} — {r.ok ? `parsed ${r.playersParsed} player stat rows` : `error: ${r.error}`}
                         </div>
+                        {r.ok && (
+                          <div className="mb-1" style={{ color: r.fieldGoals?.length > 0 ? '#7FCB98' : '#E8A23D' }}>
+                            {r.fieldGoals?.length > 0
+                              ? `Field goals: exact per-kick distances found (source: ${r.fieldGoalsSource}) — ${r.fieldGoals.map(fg => `${fg.yards}yd`).join(', ')}`
+                              : 'Field goals: none found in play-by-play — any kicker in this game used the LONG-based estimate instead, not exact distances'}
+                          </div>
+                        )}
                         {filtered.length > 0 && (
                           <div className="max-h-64 overflow-y-auto space-y-1">
                             {filtered.map((p, i) => (

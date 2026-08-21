@@ -381,6 +381,17 @@ export default function ConfidencePool() {
     persist(next);
   };
 
+  // Records "I've checked my picks as of this exact state" server-side, so the Submit button's
+  // grey/orange status is consistent no matter which device someone checks from — same shared
+  // data every other pick already lives in, not device-local storage.
+  const confirmSubmission = (week, pid, signature) => {
+    const next = { ...data, picks: { ...data.picks } };
+    next.picks[week] = { ...(next.picks[week] || {}) };
+    const prevEntry = next.picks[week][pid] || {};
+    next.picks[week][pid] = { ...prevEntry, confirmedSignature: signature };
+    persist(next);
+  };
+
   const reorder = (week, pid, displayOrder, fromIndex, toIndex) => {
     const arr = [...displayOrder];
     const [moved] = arr.splice(fromIndex, 1);
@@ -1055,19 +1066,24 @@ export default function ConfidencePool() {
                           )}
                         </div>
 
-                        {isMe && !isMassLocked() && (
-                          <button
-                            onClick={() => {
-                              const missingGames = games.filter(g => !winners[g.id]);
-                              const missingTiebreaker = weekEntry.tiebreaker == null || weekEntry.tiebreaker === '';
-                              setSubmitCheck({ missingGames, missingTiebreaker, participantName: p.name });
-                            }}
-                            className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1.5 self-start"
-                            style={{ background: '#E8A23D', color: '#0F1614' }}
-                          >
-                            <Check size={16} /> Submit My Picks
-                          </button>
-                        )}
+                        {isMe && !isMassLocked() && (() => {
+                          const signature = JSON.stringify({ winners: weekEntry.winners || {}, tiebreaker: weekEntry.tiebreaker ?? null });
+                          const hasUnsubmittedChanges = weekEntry.confirmedSignature !== signature;
+                          return (
+                            <button
+                              onClick={() => {
+                                const missingGames = games.filter(g => !winners[g.id]);
+                                const missingTiebreaker = weekEntry.tiebreaker == null || weekEntry.tiebreaker === '';
+                                setSubmitCheck({ missingGames, missingTiebreaker, participantName: p.name });
+                                confirmSubmission(viewWeek, p.id, signature);
+                              }}
+                              className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1.5 self-start"
+                              style={{ background: hasUnsubmittedChanges ? '#E8A23D' : '#2A3830', color: hasUnsubmittedChanges ? '#0F1614' : '#8A9A90', border: hasUnsubmittedChanges ? 'none' : '1px solid #3A4A42' }}
+                            >
+                              <Check size={16} /> {hasUnsubmittedChanges ? 'Submit My Picks' : 'Picks Saved'}
+                            </button>
+                          );
+                        })()}
                       </div>
                     )}
                     <button onClick={() => removeParticipant(p.id)} className="mt-3 font-mono text-[10px] underline" style={{ color: '#5C6862' }}>

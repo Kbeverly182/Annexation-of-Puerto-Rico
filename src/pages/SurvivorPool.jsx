@@ -52,6 +52,9 @@ export default function SurvivorPool() {
   const [newRealName, setNewRealName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
+  const titleContainerRef = useRef(null);
+  const titleTextRef = useRef(null);
+  const [titleFontSize, setTitleFontSize] = useState(30);
   const [titleDraft, setTitleDraft] = useState('');
   const [seasonYear, setSeasonYear] = useState(defaultSeasonYear());
   const [syncing, setSyncing] = useState(false);
@@ -116,6 +119,28 @@ export default function SurvivorPool() {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // Shrinks the pool title's font size until it actually fits on one line, by measuring the
+  // real rendered width rather than guessing from character count (a character-count estimate
+  // can't account for how wide any given letter actually renders in this font, so it can still
+  // overflow for some names while being unnecessarily small for others).
+  useEffect(() => {
+    const measure = () => {
+      const container = titleContainerRef.current;
+      const el = titleTextRef.current;
+      if (!container || !el) return;
+      let size = 30;
+      el.style.fontSize = `${size}px`;
+      while (el.scrollWidth > container.clientWidth && size > 12) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+      setTitleFontSize(size);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [data?.name, isAdmin]);
 
   // Eagerly load schedule data for every week up to and including whichever one is being viewed
   // — not just the viewed week itself. This matters when someone browses ahead to a future week
@@ -565,20 +590,21 @@ export default function SurvivorPool() {
                 style={{ borderColor: '#3D9B5C', color: '#F0EDE4' }}
               />
             ) : (
-              <div className="min-w-0">
+              <div className="min-w-0" ref={titleContainerRef} style={{ overflow: 'hidden' }}>
                 {isAdmin ? (
                   <button
                     onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
                     className="font-head tracking-wide flex items-center gap-2 min-w-0 text-left w-full"
-                    style={{ letterSpacing: '0.02em', fontSize: `${Math.max(14, Math.min(30, 620 / Math.max((data.name || '').length, 1)))}px` }}
+                    style={{ letterSpacing: '0.02em' }}
                   >
-                    <span className="whitespace-nowrap uppercase">{data.name}</span>
+                    <span ref={titleTextRef} className="whitespace-nowrap uppercase" style={{ fontSize: `${titleFontSize}px` }}>{data.name}</span>
                     <Pencil size={14} color="#8A9A90" className="shrink-0" />
                   </button>
                 ) : (
                   <div
+                    ref={titleTextRef}
                     className="font-head tracking-wide whitespace-nowrap uppercase min-w-0"
-                    style={{ letterSpacing: '0.02em', fontSize: `${Math.max(14, Math.min(30, 620 / Math.max((data.name || '').length, 1)))}px` }}
+                    style={{ letterSpacing: '0.02em', fontSize: `${titleFontSize}px` }}
                   >
                     {data.name}
                   </div>
@@ -1103,7 +1129,7 @@ export default function SurvivorPool() {
                   const currentPick = data.picks[viewWeek]?.[p.id];
                   const currentLocked = isPickLocked(viewWeek, currentPick?.team);
                   const scheduleReady = schedule[viewWeek]?.loaded;
-                  const canEditCurrent = isAdmin && !currentLocked && elimWeek === null;
+                  const canEditCurrent = isAdmin && !currentLocked;
                   const used = usedTeams(p.id, viewWeek - 1);
                   if (currentPick?.team) used.delete(currentPick.team);
 

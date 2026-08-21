@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info, Pencil } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -219,6 +219,7 @@ export default function LineupPool() {
   };
   const setCurrentWeek = (w) => persist({ ...data, currentWeek: w });
   const saveTitle = () => {
+    if (!isAdmin) { setEditingTitle(false); return; }
     const t = titleDraft.trim() || "Lineup Pick'em";
     persist({ ...data, name: t });
     setEditingTitle(false);
@@ -764,12 +765,26 @@ export default function LineupPool() {
                 style={{ borderColor: '#8A9A90', color: '#F0EDE4' }}
               />
             ) : (
-              <button
-                onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
-                className="font-head text-xl sm:text-2xl tracking-wide flex items-center gap-2 min-w-0 text-left" style={{ letterSpacing: "0.02em" }}
-              >
-                <span className="truncate uppercase">{data.name}</span>
-              </button>
+              <div className="min-w-0">
+                {isAdmin ? (
+                  <button
+                    onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
+                    className="font-head tracking-wide flex items-center gap-2 min-w-0 text-left w-full"
+                    style={{ letterSpacing: '0.02em', fontSize: `${Math.max(13, Math.min(24, 500 / Math.max((data.name || '').length, 1)))}px` }}
+                  >
+                    <span className="whitespace-nowrap uppercase">{data.name}</span>
+                    <Pencil size={14} color="#8A9A90" className="shrink-0" />
+                  </button>
+                ) : (
+                  <div
+                    className="font-head tracking-wide whitespace-nowrap uppercase min-w-0"
+                    style={{ letterSpacing: '0.02em', fontSize: `${Math.max(13, Math.min(24, 500 / Math.max((data.name || '').length, 1)))}px` }}
+                  >
+                    {data.name}
+                  </div>
+                )}
+                <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#5C6862' }}>Lineup Pool</div>
+              </div>
             )}
           </div>
           <div className="text-right shrink-0">

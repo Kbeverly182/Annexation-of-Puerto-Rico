@@ -34,13 +34,14 @@ async function fetchWeekGameStatus(week, seasonYear) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`scoreboard fetch failed: ${res.status}`);
   const json = await res.json();
-  const byTeam = {}; // teamAbbr -> { gameId, completed }
+  const byTeam = {}; // teamAbbr -> { gameId, completed, started }
   (json.events || []).forEach(ev => {
     const comp = ev.competitions?.[0];
     const completed = !!comp?.status?.type?.completed;
+    const started = ev.date ? Date.now() >= new Date(ev.date).getTime() : completed;
     (comp?.competitors || []).forEach(c => {
       const abbr = c.team?.abbreviation;
-      if (abbr) byTeam[abbr] = { gameId: ev.id, completed };
+      if (abbr) byTeam[abbr] = { gameId: ev.id, completed, started };
     });
   });
   return byTeam;
@@ -284,7 +285,7 @@ export default async function handler(req, res) {
         const team = kind === 'DST' ? value : playerTeamMap[value];
         if (!team) continue;
         const status = gameStatus[team];
-        if (!status || !status.completed) continue;
+        if (!status || !status.started) continue;
 
         if (!gameStatsCache[status.gameId]) gameStatsCache[status.gameId] = await fetchGameStats(status.gameId);
         const gameData = gameStatsCache[status.gameId];

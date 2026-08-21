@@ -535,6 +535,15 @@ export default function SurvivorPool() {
             </button>
           )}
         </div>
+
+        <div className="max-w-5xl mx-auto flex justify-center py-2">
+          <img
+            src="/survivor-hero.jpeg"
+            alt=""
+            className="w-full max-w-[260px] sm:max-w-[340px] h-auto object-contain"
+          />
+        </div>
+
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center" style={{ background: '#3D9B5C22', border: '2px solid #3D9B5C' }}>

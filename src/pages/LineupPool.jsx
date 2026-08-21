@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -496,14 +496,17 @@ export default function LineupPool() {
     setStatsDebugLoading(true);
     setStatsDebug(null);
     try {
-      const completedThisWeek = games.filter(g => g.completed);
-      if (completedThisWeek.length === 0) {
-        setStatsDebug([{ gameId: '—', matchup: 'No completed games yet', ok: false, error: `None of Week ${weekLabel(viewWeek)}'s games have finished yet. Try again once at least one has.` }]);
+      // Include games that have started (even if still in progress), not just fully completed
+      // ones — ESPN's box score updates live throughout the game, so waiting for "completed"
+      // meant nothing synced until well after the action was actually over.
+      const relevantThisWeek = games.filter(g => g.completed || now >= new Date(g.kickoff).getTime());
+      if (relevantThisWeek.length === 0) {
+        setStatsDebug([{ gameId: '—', matchup: 'No games have started yet', ok: false, error: `None of Week ${weekLabel(viewWeek)}'s games have kicked off yet. Try again once at least one has.` }]);
         return;
       }
 
       const results = [];
-      for (const g of completedThisWeek) {
+      for (const g of relevantThisWeek) {
         const matchup = `${g.away.abbr} @ ${g.home.abbr}`;
         try {
           const res = await fetch(`/api/playerstats?gameId=${g.id}`);
@@ -1116,7 +1119,7 @@ export default function LineupPool() {
                             <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
                               <span className="w-9 shrink-0 font-head" style={{ color: '#8A9A90' }}>{s.label}</span>
                               {locked ? (
-                                <span className="flex-1 flex items-center gap-1.5" style={{ color: '#F0EDE4' }}>
+                                <span className="flex-1 flex items-center gap-1.5" style={{ color: '#F0EDE4', fontSize: '16px' }}>
                                   <Lock size={10} color="#5C6862" /> {value ? playerLabel(value, s.position) : '— no pick —'}
                                 </span>
                               ) : (
@@ -1389,7 +1392,7 @@ export default function LineupPool() {
                 <div className="font-head uppercase text-sm tracking-[0.2em] flex items-center gap-2" style={{ color: '#8A9A90' }}>
                   <Trophy size={14} /> Season Leaderboard
                 </div>
-                <span style={{ color: '#5C6862', fontSize: '10px' }}>{showSeasonLeaderboard ? '▾' : '▸'}</span>
+                {showSeasonLeaderboard ? <ChevronDown size={20} color="#8A9A90" /> : <ChevronRight size={20} color="#8A9A90" />}
                 <span className="font-mono text-[10px] ml-auto" style={{ color: '#5C6862' }}>
                   {showSeasonLeaderboard ? 'tap to collapse' : `${standingsRows.length} entrants — tap to expand`}
                 </span>

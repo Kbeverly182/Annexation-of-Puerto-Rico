@@ -335,6 +335,7 @@ export default function SurvivorPool() {
   const setCurrentWeek = (w) => persist({ ...data, currentWeek: w });
 
   const saveTitle = () => {
+    if (!isAdmin) { setEditingTitle(false); return; }
     const t = titleDraft.trim() || 'Survivor Pool';
     persist({ ...data, name: t });
     setEditingTitle(false);
@@ -564,13 +565,26 @@ export default function SurvivorPool() {
                 style={{ borderColor: '#3D9B5C', color: '#F0EDE4' }}
               />
             ) : (
-              <button
-                onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
-                className="font-head text-2xl sm:text-3xl tracking-wide flex items-center gap-2 min-w-0 text-left" style={{ letterSpacing: "0.02em" }}
-              >
-                <span className="truncate uppercase">{data.name}</span>
-                <Pencil size={14} color="#8A9A90" className="shrink-0" />
-              </button>
+              <div className="min-w-0">
+                {isAdmin ? (
+                  <button
+                    onClick={() => { setTitleDraft(data.name); setEditingTitle(true); }}
+                    className="font-head tracking-wide flex items-center gap-2 min-w-0 text-left w-full"
+                    style={{ letterSpacing: '0.02em', fontSize: `${Math.max(14, Math.min(30, 620 / Math.max((data.name || '').length, 1)))}px` }}
+                  >
+                    <span className="whitespace-nowrap uppercase">{data.name}</span>
+                    <Pencil size={14} color="#8A9A90" className="shrink-0" />
+                  </button>
+                ) : (
+                  <div
+                    className="font-head tracking-wide whitespace-nowrap uppercase min-w-0"
+                    style={{ letterSpacing: '0.02em', fontSize: `${Math.max(14, Math.min(30, 620 / Math.max((data.name || '').length, 1)))}px` }}
+                  >
+                    {data.name}
+                  </div>
+                )}
+                <div className="font-mono text-xs uppercase tracking-widest" style={{ color: '#5C6862' }}>Survivor Pool</div>
+              </div>
             )}
           </div>
           <div className="text-right shrink-0">

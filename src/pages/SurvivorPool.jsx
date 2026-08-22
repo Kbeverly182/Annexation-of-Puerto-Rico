@@ -572,7 +572,7 @@ export default function SurvivorPool() {
 
         <div className="max-w-5xl mx-auto flex justify-center py-2">
           <img
-            src="/survivor-hero.jpeg"
+            src="/survivor-hero.png"
             alt=""
             className="w-full max-w-[260px] sm:max-w-[340px] h-auto object-contain"
           />

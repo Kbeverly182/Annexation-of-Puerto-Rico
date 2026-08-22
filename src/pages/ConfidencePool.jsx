@@ -1228,7 +1228,7 @@ export default function ConfidencePool() {
                 <div className="font-head uppercase text-sm tracking-[0.2em] flex items-center gap-2" style={{ color: '#8A9A90' }}>
                   <Trophy size={14} /> Season Leaderboard
                 </div>
-                <span style={{ color: '#5C6862', fontSize: '10px' }}>{showSeasonLeaderboard ? '▾' : '▸'}</span>
+                {showSeasonLeaderboard ? <ChevronDown size={20} color="#8A9A90" /> : <ChevronRight size={20} color="#8A9A90" />}
                 <span className="font-mono text-[10px] ml-auto" style={{ color: '#5C6862' }}>
                   {showSeasonLeaderboard ? 'tap to collapse' : `${leaderboard.length} entrants — tap to expand`}
                 </span>

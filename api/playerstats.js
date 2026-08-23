@@ -138,7 +138,12 @@ export default async function handler(req, res) {
         if (!isFieldGoalPlay) return;
         // Only count made field goals — a blocked/missed kick still shows up as a "Field Goal"
         // type play but shouldn't score anything.
-        const isGood = play?.scoringPlay === true || /is good/i.test(text) || /field goal good/i.test(text);
+        // A scoring play, by definition, only lists kicks that actually counted - ESPN's real
+        // text is plainly "[Kicker] 51 Yd Field Goal" with no "is good"/"field goal good"
+        // qualifier at all, so requiring that wording (as this used to) meant every single
+        // field goal was silently discarded before ever being counted. Only exclude a kick if
+        // it's explicitly marked as failed - anything else here already scored.
+        const isGood = play?.scoringPlay === true || !/no good|missed|blocked/i.test(text);
         if (!isGood) return;
 
         let yards = typeof play?.statYardage === 'number' ? play.statYardage : null;
@@ -156,9 +161,14 @@ export default async function handler(req, res) {
           || null;
         const playerId = kicker?.athlete?.id || null;
         const team = play?.team?.abbreviation || null;
+        // Confirmed-reliable fallback: ESPN's real text is literally "[Kicker Name] 51 Yd Field
+        // Goal", so the name can be read directly from the text even when participants isn't
+        // populated - callers without a playerId can still match this against a roster by name.
+        const nameMatch = text.match(/^([A-Za-z.''\-\s]+?)\s+\d+\s*Yd\s*Field\s*Goal/i);
+        const kickerName = nameMatch ? nameMatch[1].trim() : null;
 
-        if (playerId) {
-          fieldGoals.push({ playerId, team, yards });
+        if (playerId || kickerName) {
+          fieldGoals.push({ playerId, kickerName, team, yards });
         }
       });
       if (fieldGoals.length > 0) {

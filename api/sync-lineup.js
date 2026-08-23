@@ -56,7 +56,8 @@ const TEAM_IDS = {
 };
 
 async function fetchPlayerTeamMap() {
-  const map = {}; // athlete id -> team abbr
+  const teamMap = {}; // athlete id -> team abbr
+  const nameMap = {}; // athlete id -> full name
   const entries = Object.entries(TEAM_IDS);
   const BATCH_SIZE = 8;
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
@@ -67,12 +68,25 @@ async function fetchPlayerTeamMap() {
         if (!r.ok) return;
         const json = await r.json();
         (json.athletes || []).forEach(group => {
-          (group.items || []).forEach(a => { if (a.id) map[a.id] = abbr; });
+          (group.items || []).forEach(a => {
+            if (a.id) {
+              teamMap[a.id] = abbr;
+              nameMap[a.id] = a.fullName || a.displayName || null;
+            }
+          });
         });
       } catch (e) { /* best-effort — that team's players just won't be findable this run */ }
     }));
   }
-  return map;
+  return { teamMap, nameMap };
+}
+
+// Case/punctuation-insensitive name comparison, since ESPN's play-by-play text formatting
+// (e.g. apostrophes, periods) doesn't always exactly match the roster's own name formatting.
+function namesMatch(a, b) {
+  if (!a || !b) return false;
+  const norm = s => s.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+  return norm(a) === norm(b);
 }
 
 // Ported from api/playerstats.js — kept in sync with that file's parsing logic.
@@ -147,7 +161,12 @@ async function fetchGameStats(gameId) {
         const typeText = (play?.type?.text || play?.type?.abbreviation || '').toLowerCase();
         if (!typeText.includes('field goal')) return;
         const text = play?.text || '';
-        const isGood = play?.scoringPlay === true || /is good/i.test(text) || /field goal good/i.test(text);
+        // A scoring play, by definition, only lists kicks that actually counted - ESPN's real
+        // text is plainly "[Kicker] 51 Yd Field Goal" with no "is good"/"field goal good"
+        // qualifier at all, so requiring that wording (as this used to) meant every single
+        // field goal was silently discarded before ever being counted. Only exclude a kick if
+        // it's explicitly marked as failed - anything else here already scored.
+        const isGood = play?.scoringPlay === true || !/no good|missed|blocked/i.test(text);
         if (!isGood) return;
         let yards = typeof play?.statYardage === 'number' ? play.statYardage : null;
         if (yards == null) {
@@ -158,7 +177,11 @@ async function fetchGameStats(gameId) {
         const kicker = (play?.participants || []).find(p => (p?.type || p?.athleteType || '').toLowerCase().includes('kick'))
           || (play?.participants || [])[0] || null;
         const playerId = kicker?.athlete?.id || null;
-        if (playerId) fieldGoals.push({ playerId, yards });
+        // Confirmed-reliable fallback: ESPN's real text is literally "[Kicker Name] 51 Yd Field
+        // Goal", so the name can be read directly even when participants isn't populated.
+        const nameMatch = text.match(/^([A-Za-z.''\-\s]+?)\s+\d+\s*Yd\s*Field\s*Goal/i);
+        const kickerName = nameMatch ? nameMatch[1].trim() : null;
+        if (playerId || kickerName) fieldGoals.push({ playerId, kickerName, yards });
       });
       if (fieldGoals.length > 0) break;
     }
@@ -262,7 +285,7 @@ export default async function handler(req, res) {
     const weeks = Object.keys(data.picks || {});
     if (weeks.length === 0) return res.status(200).json({ ok: true, updated: 0, note: 'no picks yet' });
 
-    const playerTeamMap = await fetchPlayerTeamMap();
+    const { teamMap: playerTeamMap, nameMap: playerNameMap } = await fetchPlayerTeamMap();
     const gameStatsCache = {};
     const next = { ...data, playerScores: { ...(data.playerScores || {}) } };
     let updated = 0;
@@ -296,7 +319,12 @@ export default async function handler(req, res) {
         } else {
           const rows = gameData.players.filter(p => p.playerId === value);
           if (rows.length === 0) continue;
-          const exactFGs = gameData.fieldGoals.filter(fg => fg.playerId === value).map(fg => fg.yards);
+          // Match by playerId first; fall back to matching the kicker's name directly against
+          // this player's roster name, since participants isn't always reliably populated.
+          const rosterName = playerNameMap[value];
+          const exactFGs = gameData.fieldGoals
+            .filter(fg => fg.playerId === value || (rosterName && namesMatch(fg.kickerName, rosterName)))
+            .map(fg => fg.yards);
           let total = 0;
           rows.forEach(row => {
             total += computeFantasyPoints(row.category, row.stats, (row.category || '').toLowerCase().includes('kick') ? exactFGs : undefined);

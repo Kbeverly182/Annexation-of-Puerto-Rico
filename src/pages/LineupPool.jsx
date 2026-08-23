@@ -675,19 +675,31 @@ export default function LineupPool() {
   const applyTestScoresToLineup = (results) => {
     const allPlayerRows = results.flatMap(r => r.players || []);
     // Exact per-kick distances, when the backend was able to find them in play-by-play data —
-    // keyed by playerId, one entry per made field goal that game.
+    // keyed by playerId, one entry per made field goal that game. Also indexed by kicker name
+    // (normalized), since participants isn't always reliably populated but ESPN's scoring-play
+    // text always includes the kicker's name directly.
+    const norm = s => (s || '').toLowerCase().replace(/[^a-z\s]/g, '').trim();
     const fieldGoalsByPlayerId = {};
+    const fieldGoalsByName = {};
     results.forEach(r => {
       (r.fieldGoals || []).forEach(fg => {
-        if (!fg.playerId) return;
-        (fieldGoalsByPlayerId[fg.playerId] = fieldGoalsByPlayerId[fg.playerId] || []).push(fg.yards);
+        if (fg.playerId) {
+          (fieldGoalsByPlayerId[fg.playerId] = fieldGoalsByPlayerId[fg.playerId] || []).push(fg.yards);
+        }
+        if (fg.kickerName) {
+          const key = norm(fg.kickerName);
+          (fieldGoalsByName[key] = fieldGoalsByName[key] || []).push(fg.yards);
+        }
       });
     });
     const totalsByPlayerId = {};
     const anyApprox = {};
     allPlayerRows.forEach(row => {
       if (!row.playerId) return;
-      const exactFGs = (row.category || '').toLowerCase().includes('kick') ? fieldGoalsByPlayerId[row.playerId] : undefined;
+      const isKicker = (row.category || '').toLowerCase().includes('kick');
+      const exactFGs = isKicker
+        ? (fieldGoalsByPlayerId[row.playerId] || fieldGoalsByName[norm(row.name)])
+        : undefined;
       const { points, approximate } = computeFantasyPoints(row.category, row.stats, exactFGs);
       totalsByPlayerId[row.playerId] = (totalsByPlayerId[row.playerId] || 0) + points;
       if (approximate) anyApprox[row.playerId] = true;

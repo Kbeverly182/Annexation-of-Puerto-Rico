@@ -85,9 +85,9 @@ export default function Landing() {
         {/* Logo — the focal visual */}
         <div className="flex-1 flex items-center justify-center p-6 sm:p-10 order-1 md:order-2" style={{ background: 'linear-gradient(180deg,#17211D,#0F1614)' }}>
           <img
-            src="/logo.webp"
+            src="/logo.png"
             alt="Grade A Beef Pools"
-            className="w-full object-contain rounded-lg"
+            className="w-full object-contain"
             style={{ maxWidth: '520px', maxHeight: '80vh' }}
           />
         </div>

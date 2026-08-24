@@ -102,9 +102,9 @@ export default function ConfidencePool() {
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check works no matter what week
-  // someone's currently looking at. PRE 1 (week 101) is the actual start of the season here,
-  // not regular week 1, since preseason comes first.
-  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(101, seasonYear);
+  // someone's currently looking at. Regular season Week 1 is the actual start of the season
+  // now that preseason beta-testing is over.
+  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(1, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
 
   // Shrinks the pool title's font size until it actually fits on one line, by measuring the
@@ -206,7 +206,7 @@ export default function ConfidencePool() {
     }, 250);
   };
 
-  const week1JoinDeadline = lockTimeForPickWeek1(101, undefined);
+  const week1JoinDeadline = lockTimeForPickWeek1(1, undefined);
   const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
 
   const addParticipant = () => {
@@ -665,7 +665,7 @@ export default function ConfidencePool() {
           `}</style>
           {joinClosed ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
-              Entries closed — PRE 1 picks have locked, no new entrants can join this season.
+              Entries closed — Week 1 picks have locked, no new entrants can join this season.
             </div>
           ) : !showCreateForm ? (
             <button

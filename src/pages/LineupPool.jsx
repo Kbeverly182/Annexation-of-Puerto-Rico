@@ -106,9 +106,9 @@ export default function LineupPool() {
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check below works no matter what
-  // week someone's currently looking at. PRE 1 (week 101) is the actual start of the season
-  // here, not regular week 1, since preseason comes first.
-  const { lockTimeForPick: lockTimeForPickWeek101 } = useEspnSchedule(101, seasonYear);
+  // week someone's currently looking at. Regular season Week 1 is the actual start of the
+  // season now that preseason beta-testing is over.
+  const { lockTimeForPick: lockTimeForPickWeek101 } = useEspnSchedule(1, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
   const { rosters, loading: rostersLoading, progress: rostersProgress, missingTeams, retry: retryRosters } = useNflRosters();
 
@@ -213,8 +213,8 @@ export default function LineupPool() {
     }, 250);
   };
 
-  const week101JoinDeadline = lockTimeForPickWeek101(101, undefined);
-  const joinClosed = !isAdmin && week101JoinDeadline !== null && now >= week101JoinDeadline;
+  const week1JoinDeadline = lockTimeForPickWeek101(1, undefined);
+  const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
 
   const addParticipant = () => {
     if (joinClosed) return;

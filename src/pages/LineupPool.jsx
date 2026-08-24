@@ -106,9 +106,9 @@ export default function LineupPool() {
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check below works no matter what
-  // week someone's currently looking at. Regular season Week 1 is the actual start of the
-  // season now that preseason beta-testing is over.
-  const { lockTimeForPick: lockTimeForPickWeek101 } = useEspnSchedule(1, seasonYear);
+  // week someone's currently looking at. PRE 1 (week 101) is the actual start of the season
+  // here, not regular week 1, since preseason comes first.
+  const { lockTimeForPick: lockTimeForPickWeek101 } = useEspnSchedule(101, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
   const { rosters, loading: rostersLoading, progress: rostersProgress, missingTeams, retry: retryRosters } = useNflRosters();
 
@@ -213,8 +213,8 @@ export default function LineupPool() {
     }, 250);
   };
 
-  const week1JoinDeadline = lockTimeForPickWeek101(1, undefined);
-  const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
+  const week101JoinDeadline = lockTimeForPickWeek101(101, undefined);
+  const joinClosed = !isAdmin && week101JoinDeadline !== null && now >= week101JoinDeadline;
 
   const addParticipant = () => {
     if (joinClosed) return;
@@ -771,7 +771,7 @@ export default function LineupPool() {
 
       <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #8A9A9033', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
-          <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+          <img src="/logo.png" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
@@ -877,7 +877,7 @@ export default function LineupPool() {
           `}</style>
           {joinClosed ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
-              Entries closed — Week 1 picks have locked, no new entrants can join this season.
+              Entries closed — PRE 1 picks have locked, no new entrants can join this season.
             </div>
           ) : !showCreateForm ? (
             <button
@@ -1139,7 +1139,7 @@ export default function LineupPool() {
                   className="font-mono text-xs underline block mt-1"
                   style={{ color: clearAllWeeksConfirmState ? '#E28A82' : '#5C6862' }}
                 >
-                  {clearAllWeeksConfirmState ? 'Confirm: erase ALL weeks\' picks & scores (everything)?' : 'Clear ALL weeks\' data (full reset)'}
+                  {clearAllWeeksConfirmState ? 'Confirm: erase ALL weeks\' picks & scores (everything)?' : 'Clear ALL weeks\' data (e.g. old test data before PRE 1 existed)'}
                 </button>
               )}
               {rostersLoading && (

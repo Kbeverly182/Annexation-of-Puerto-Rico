@@ -79,9 +79,11 @@ export default function SurvivorPool() {
   const bombTriggeredRef = useRef(false);
   const { schedule, ensureSchedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check works no matter what week
-  // someone's currently looking at. Regular season Week 1 is the actual start of the season
-  // now that preseason beta-testing is over.
-  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(1, seasonYear);
+  // someone's currently looking at.
+  // Pinned independently of viewWeek so the join-deadline check works no matter what week
+  // someone's currently looking at. PRE 1 (week 101) is the actual start of the season here,
+  // not regular week 1, since preseason comes first.
+  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(101, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
 
   // Initial load
@@ -222,7 +224,7 @@ export default function SurvivorPool() {
   };
 
   // Only ever checks weeks up to and including the one being viewed — future weeks within the
-  // same season (e.g. Week 3 while looking at Week 1) are never examined, so nobody gets falsely
+  // same season (e.g. PRE 2/3 while looking at PRE 1) are never examined, so nobody gets falsely
   // eliminated for not yet having a pick in a week that hasn't opened up yet.
   const eliminatedAtWeek = (pid) => {
     const seasonWeeks = weeksForSeason(viewWeek);
@@ -299,7 +301,7 @@ export default function SurvivorPool() {
     }, 250);
   };
 
-  const week1JoinDeadline = lockTimeForPickWeek1(1, undefined);
+  const week1JoinDeadline = lockTimeForPickWeek1(101, undefined);
   const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
 
   const addParticipant = () => {
@@ -552,7 +554,7 @@ export default function SurvivorPool() {
       {/* Scoreboard header */}
       <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #3D9B5C33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
-          <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+          <img src="/logo.png" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
@@ -1149,7 +1151,7 @@ export default function SurvivorPool() {
                       <div className="flex items-center gap-3 mb-1.5">
                         <button
                           onClick={() => setExpandedId(id => id === p.id ? null : p.id)}
-                          className="w-28 shrink-0 font-head text-sm truncate flex items-center gap-1.5 text-left"
+                          className="flex-1 min-w-0 font-head text-sm truncate flex items-center gap-1.5 text-left"
                         >
                           {elimWeek !== null && <Skull size={12} color="#C1443A" />}
                           {p.name}
@@ -1157,22 +1159,22 @@ export default function SurvivorPool() {
                         </button>
                         {(() => {
                           if (!currentPick?.team) {
-                            return <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No pick this week</div>;
+                            return <div className="font-mono text-xs shrink-0" style={{ color: '#5C6862' }}>No pick this week</div>;
                           }
                           if (!isRevealed(viewWeek, p.id, currentPick.team)) {
                             return (
-                              <div className="font-mono text-xs flex items-center gap-1" style={{ color: '#5C6862' }}>
+                              <div className="font-mono text-xs shrink-0 flex items-center gap-1" style={{ color: '#5C6862' }}>
                                 <Lock size={10} /> Hidden
                               </div>
                             );
                           }
                           const game = (schedule[viewWeek]?.games || []).find(g => g.away.abbr === currentPick.team || g.home.abbr === currentPick.team);
                           if (!game) {
-                            return <div className="font-mono text-xs" style={{ color: '#F0EDE4' }}>{currentPick.team}</div>;
+                            return <div className="font-mono text-xs shrink-0" style={{ color: '#F0EDE4' }}>{currentPick.team}</div>;
                           }
                           const awayPicked = game.away.abbr === currentPick.team;
                           return (
-                            <div className="font-mono text-xs flex items-center gap-1">
+                            <div className="font-mono text-xs shrink-0 flex items-center gap-1">
                               <span style={{ color: awayPicked ? '#F0EDE4' : '#8A9A90', fontWeight: awayPicked ? 700 : 400 }}>
                                 {game.away.abbr}{game.away.score != null ? ` ${game.away.score}` : ''}
                               </span>

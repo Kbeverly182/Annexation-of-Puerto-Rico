@@ -102,9 +102,9 @@ export default function ConfidencePool() {
   const skipNextPoll = useRef(false);
   const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check works no matter what week
-  // someone's currently looking at. Regular season Week 1 is the actual start of the season
-  // now that preseason beta-testing is over.
-  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(1, seasonYear);
+  // someone's currently looking at. PRE 1 (week 101) is the actual start of the season here,
+  // not regular week 1, since preseason comes first.
+  const { lockTimeForPick: lockTimeForPickWeek1 } = useEspnSchedule(101, seasonYear);
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
 
   // Shrinks the pool title's font size until it actually fits on one line, by measuring the
@@ -206,7 +206,7 @@ export default function ConfidencePool() {
     }, 250);
   };
 
-  const week1JoinDeadline = lockTimeForPickWeek1(1, undefined);
+  const week1JoinDeadline = lockTimeForPickWeek1(101, undefined);
   const joinClosed = !isAdmin && week1JoinDeadline !== null && now >= week1JoinDeadline;
 
   const addParticipant = () => {
@@ -559,7 +559,7 @@ export default function ConfidencePool() {
 
       <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #E8A23D33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
-          <img src="/logo.webp" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+          <img src="/logo.png" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
             <ArrowLeft size={12} /> All Pools
           </Link>
@@ -665,7 +665,7 @@ export default function ConfidencePool() {
           `}</style>
           {joinClosed ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
-              Entries closed — Week 1 picks have locked, no new entrants can join this season.
+              Entries closed — PRE 1 picks have locked, no new entrants can join this season.
             </div>
           ) : !showCreateForm ? (
             <button

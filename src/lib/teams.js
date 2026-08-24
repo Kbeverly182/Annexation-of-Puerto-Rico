@@ -11,7 +11,11 @@ export const TEAMS = [
 export const TEAM_MAP = Object.fromEntries(TEAMS);
 export const WEEKS = Array.from({ length: 18 }, (_, i) => i + 1); // regular season, weeks 1-18
 export const PRESEASON_WEEKS = [101, 102, 103]; // encoded so they never collide with regular season week numbers
-export const ALL_WEEKS = [...PRESEASON_WEEKS, ...WEEKS];
+// Regular season only — preseason beta-testing is over, so PRE1/PRE2/PRE3 no longer appear
+// anywhere in the UI (week tabs, prev/next nav). PRESEASON_WEEKS and the date ranges below are
+// kept around since toEspnWeek/weeksForSeason still reference them internally, but nothing
+// public surfaces them now.
+export const ALL_WEEKS = [...WEEKS];
 export const ESPN_ABBR_FIX = { WSH: 'WAS', JAC: 'JAX' };
 
 // ESPN's own preseason week numbering doesn't line up with these dates (its "week 1" includes

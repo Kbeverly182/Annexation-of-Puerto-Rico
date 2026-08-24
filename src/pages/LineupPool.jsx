@@ -877,7 +877,7 @@ export default function LineupPool() {
           `}</style>
           {joinClosed ? (
             <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
-              Entries closed — PRE 1 picks have locked, no new entrants can join this season.
+              Entries closed — Week 1 picks have locked, no new entrants can join this season.
             </div>
           ) : !showCreateForm ? (
             <button
@@ -1139,7 +1139,7 @@ export default function LineupPool() {
                   className="font-mono text-xs underline block mt-1"
                   style={{ color: clearAllWeeksConfirmState ? '#E28A82' : '#5C6862' }}
                 >
-                  {clearAllWeeksConfirmState ? 'Confirm: erase ALL weeks\' picks & scores (everything)?' : 'Clear ALL weeks\' data (e.g. old test data before PRE 1 existed)'}
+                  {clearAllWeeksConfirmState ? 'Confirm: erase ALL weeks\' picks & scores (everything)?' : 'Clear ALL weeks\' data (full reset)'}
                 </button>
               )}
               {rostersLoading && (

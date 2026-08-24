@@ -222,7 +222,7 @@ export default function SurvivorPool() {
   };
 
   // Only ever checks weeks up to and including the one being viewed — future weeks within the
-  // same season (e.g. PRE 2/3 while looking at PRE 1) are never examined, so nobody gets falsely
+  // same season (e.g. Week 3 while looking at Week 1) are never examined, so nobody gets falsely
   // eliminated for not yet having a pick in a week that hasn't opened up yet.
   const eliminatedAtWeek = (pid) => {
     const seasonWeeks = weeksForSeason(viewWeek);

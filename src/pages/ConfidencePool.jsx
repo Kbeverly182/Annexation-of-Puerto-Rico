@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -44,7 +44,22 @@ const CONFIDENCE_RULES = [
       'Weekly standings and the season leaderboard both update automatically as results come in.',
     ],
   },
+  {
+    heading: 'Joining',
+    body: 'This pool is single entry — one entry per person.',
+  },
 ];
+
+// Formats a game's kickoff for display next to the matchup, always in Eastern time to match
+// the lock-time rules described elsewhere in the app (everything here is scheduled/compared in
+// ET regardless of the viewer's own timezone).
+function formatKickoff(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const datePart = d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'America/New_York' });
+  const timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+  return `${datePart} · ${timePart} ET`;
+}
 
 // Missed picks (game closed, no winner selected) are pulled out of the natural drag order and
 // reinserted near the middle of that week's confidence range — not the top (too harsh for a
@@ -95,7 +110,12 @@ export default function ConfidencePool() {
   const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
-  const [dragInfo, setDragInfo] = useState(null); // { pid, index }
+  // Pointer-based drag state for reordering confidence picks. Deliberately not the HTML5 drag-
+  // and-drop API — that API has no real touch support (iOS/Android won't fire its drag events at
+  // all), so it can only ever work with a mouse. Pointer Events (down/move/up) are the one API
+  // that's identical for touch and mouse, which is why this is built on those instead.
+  const [pointerDrag, setPointerDrag] = useState(null); // { pid, order: [gid,...], draggedGid, pointerId }
+  const dragRowRefs = useRef({}); // gid -> row DOM node, used to hit-test drag position against
   const [justSaved, setJustSaved] = useState(false);
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
@@ -216,9 +236,12 @@ export default function ConfidencePool() {
     const email = newEmail.trim();
     if (!name || !realName || !email) return;
     const norm = s => (s || '').trim().toLowerCase();
-    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName) || norm(p.email) === norm(email));
+    // Real name is the actual "one entry per person" signal — email is dropped from this check
+    // since it's common for two different people (e.g. spouses) to share one email address, and
+    // that shouldn't block a second legitimate entrant.
+    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName));
     if (isDuplicate) {
-      setCreateEntryError('This pool only allows one entry per person — that name or email is already registered.');
+      setCreateEntryError('This pool only allows one entry per person — that name is already registered.');
       return;
     }
     setCreateEntryError('');
@@ -418,31 +441,51 @@ export default function ConfidencePool() {
     persist(next);
   };
 
-  const reorder = (week, pid, displayOrder, fromIndex, toIndex) => {
-    const arr = [...displayOrder];
-    const [moved] = arr.splice(fromIndex, 1);
-    arr.splice(toIndex, 0, moved);
+  // Persists a fully-formed new order for one entrant/week directly (used once a pointer drag
+  // finishes, since by then we already have the exact final array rather than a from/to index pair).
+  const commitOrder = (week, pid, newOrder) => {
     const next = { ...data, picks: { ...data.picks } };
     next.picks[week] = { ...(next.picks[week] || {}) };
     const prevEntry = next.picks[week][pid] || {};
-    next.picks[week][pid] = { ...prevEntry, order: arr };
+    next.picks[week][pid] = { ...prevEntry, order: newOrder };
     persist(next);
   };
 
-  const handleDragStart = (pid, index) => setDragInfo({ pid, index });
-  const handleDropOn = (pid, index) => {
-    if (!dragInfo || dragInfo.pid !== pid || dragInfo.index === index) { setDragInfo(null); return; }
-    const displayOrder = getDisplayOrder(pid);
-    reorder(viewWeek, pid, displayOrder, dragInfo.index, index);
-    setDragInfo(null);
+  // Starts a drag on pointerdown. setPointerCapture keeps sending this same element the move/up
+  // events for the rest of the gesture even once the finger/cursor leaves it — required for a
+  // reliable drag on touch, where the pointer routinely strays off the small handle.
+  const beginPointerDrag = (e, pid, order, gid) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setPointerDrag({ pid, order: [...order], draggedGid: gid, pointerId: e.pointerId });
   };
-  // Tap-based reordering — native HTML5 drag-and-drop doesn't work on touchscreens at all, so
-  // this is the mobile-friendly way to reorder; works fine as an alternative on desktop too.
-  const moveInDisplayOrder = (pid, index, direction) => {
-    const displayOrder = getDisplayOrder(pid);
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= displayOrder.length) return;
-    reorder(viewWeek, pid, displayOrder, index, targetIndex);
+
+  // Live-reorders as the pointer moves, by comparing its position against the vertical midpoint
+  // of every other row — once it crosses a row's midpoint, the dragged item jumps to that spot,
+  // same feel as most sortable lists.
+  const onPointerMoveDrag = (e) => {
+    if (!pointerDrag || e.pointerId !== pointerDrag.pointerId) return;
+    const { order, draggedGid } = pointerDrag;
+    const pointerY = e.clientY;
+    const others = order.filter(gid => gid !== draggedGid);
+    let targetIndex = others.length;
+    for (let i = 0; i < others.length; i++) {
+      const node = dragRowRefs.current[others[i]];
+      if (!node) continue;
+      const rect = node.getBoundingClientRect();
+      if (pointerY < rect.top + rect.height / 2) { targetIndex = i; break; }
+    }
+    const newOrder = [...others];
+    newOrder.splice(targetIndex, 0, draggedGid);
+    if (newOrder.join('|') !== order.join('|')) {
+      setPointerDrag(pd => (pd ? { ...pd, order: newOrder } : pd));
+    }
+  };
+
+  const endPointerDrag = (e) => {
+    if (!pointerDrag || e.pointerId !== pointerDrag.pointerId) return;
+    commitOrder(viewWeek, pointerDrag.pid, pointerDrag.order);
+    setPointerDrag(null);
   };
 
   const syncResults = async (week) => {
@@ -950,6 +993,7 @@ export default function ConfidencePool() {
                 const weekEntry = data.picks[viewWeek]?.[p.id] || {};
                 const winners = weekEntry.winners || {};
                 const order = getDisplayOrder(p.id);
+                const liveOrder = (pointerDrag && pointerDrag.pid === p.id) ? pointerDrag.order : order;
                 const total = seasonTotal(p.id);
                 const tiebreakerRevealed = isTiebreakerRevealed(p.id);
                 const weekFullyLocked = games.length > 0 && games.every(g => isGameLocked(g));
@@ -981,12 +1025,12 @@ export default function ConfidencePool() {
                             Pick a winner in each matchup, then rank your confidence — most confident on top
                           </div>
                           <div className="space-y-1">
-                            {order.map((gid, idx) => {
+                            {liveOrder.map((gid, idx) => {
                               const g = games.find(gm => gm.id === gid);
                               if (!g) return null;
                               const gLocked = isGameLocked(g);
                               const gRevealed = isGameRevealed(p.id, g);
-                              const confidence = order.length - idx;
+                              const confidence = liveOrder.length - idx;
                               if (!gRevealed) {
                                 return (
                                   <div key={gid} className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#5C6862' }}>
@@ -1002,18 +1046,20 @@ export default function ConfidencePool() {
                               const isTie = result?.completed && result.winnerAbbr === null;
                               const correct = result?.completed && !isTie && winner && result.winnerAbbr === winner;
                               const wrong = result?.completed && !isTie && ((winner && result.winnerAbbr !== winner) || (!winner && gLocked));
+                              const isBeingDragged = pointerDrag && pointerDrag.pid === p.id && pointerDrag.draggedGid === gid;
                               return (
                                 <div
                                   key={gid}
-                                  draggable={!gLocked}
-                                  onDragStart={() => handleDragStart(p.id, idx)}
-                                  onDragOver={e => e.preventDefault()}
-                                  onDrop={() => handleDropOn(p.id, idx)}
+                                  ref={el => { dragRowRefs.current[gid] = el; }}
                                   className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs flex-wrap"
                                   style={{
-                                    background: '#0F1614',
-                                    border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
-                                    cursor: gLocked ? 'default' : 'grab',
+                                    background: isBeingDragged ? '#243328' : '#0F1614',
+                                    border: `1px solid ${isBeingDragged ? '#E8A23D' : '#2A3830'}`,
+                                    boxShadow: isBeingDragged
+                                      ? '0 8px 20px rgba(0,0,0,0.6)'
+                                      : 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)',
+                                    position: 'relative',
+                                    zIndex: isBeingDragged ? 10 : 1,
                                   }}
                                 >
                                   <span className="w-6 text-center font-head shrink-0" style={{ color: '#E8A23D' }}>{confidence}</span>
@@ -1049,46 +1095,31 @@ export default function ConfidencePool() {
                                       </button>
                                     </div>
                                   </div>
+                                  <div className="font-mono text-[9px] shrink-0" style={{ color: '#5C6862' }}>{formatKickoff(g.kickoff)}</div>
                                   {missed && <span style={{ color: '#5C6862' }}>Missed pick</span>}
                                   {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
                                   {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}
                                   {!gLocked && (
-                                    <div className="flex gap-1.5 shrink-0 ml-auto">
-                                      <button
-                                        type="button"
-                                        onClick={() => moveInDisplayOrder(p.id, idx, -1)}
-                                        disabled={idx === 0}
-                                        title="Move up"
-                                        className="flex items-center justify-center rounded"
-                                        style={{
-                                          width: '38px',
-                                          height: '38px',
-                                          background: idx === 0 ? '#0F1614' : '#1F2B25',
-                                          border: `1px solid ${idx === 0 ? '#2A3830' : '#E8A23D66'}`,
-                                          color: idx === 0 ? '#2A3830' : '#E8A23D',
-                                          cursor: idx === 0 ? 'default' : 'pointer',
-                                        }}
-                                      >
-                                        <ChevronUp size={20} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => moveInDisplayOrder(p.id, idx, 1)}
-                                        disabled={idx === order.length - 1}
-                                        title="Move down"
-                                        className="flex items-center justify-center rounded"
-                                        style={{
-                                          width: '38px',
-                                          height: '38px',
-                                          background: idx === order.length - 1 ? '#0F1614' : '#1F2B25',
-                                          border: `1px solid ${idx === order.length - 1 ? '#2A3830' : '#E8A23D66'}`,
-                                          color: idx === order.length - 1 ? '#2A3830' : '#E8A23D',
-                                          cursor: idx === order.length - 1 ? 'default' : 'pointer',
-                                        }}
-                                      >
-                                        <ChevronDown size={20} />
-                                      </button>
-                                    </div>
+                                    <button
+                                      type="button"
+                                      title="Drag to reorder"
+                                      onPointerDown={e => beginPointerDrag(e, p.id, liveOrder, gid)}
+                                      onPointerMove={onPointerMoveDrag}
+                                      onPointerUp={endPointerDrag}
+                                      onPointerCancel={endPointerDrag}
+                                      className="flex items-center justify-center rounded shrink-0 ml-auto"
+                                      style={{
+                                        width: '38px',
+                                        height: '38px',
+                                        background: isBeingDragged ? '#E8A23D' : '#1F2B25',
+                                        border: `1px solid ${isBeingDragged ? '#E8A23D' : '#E8A23D66'}`,
+                                        color: isBeingDragged ? '#0F1614' : '#E8A23D',
+                                        cursor: isBeingDragged ? 'grabbing' : 'grab',
+                                        touchAction: 'none', // stops the page from scrolling while dragging on touch
+                                      }}
+                                    >
+                                      <GripVertical size={18} />
+                                    </button>
                                   )}
                                 </div>
                               );

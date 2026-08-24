@@ -58,6 +58,10 @@ const LINEUP_RULES = [
     heading: 'Locking & privacy',
     body: 'Each player locks individually, based on their own team\'s kickoff — not the whole week at once. Your lineup stays hidden from everyone else until each pick locks.',
   },
+  {
+    heading: 'Joining',
+    body: 'This pool is single entry — one entry per person.',
+  },
 ];
 
 const lastNameOf = (fullName) => {
@@ -223,9 +227,12 @@ export default function LineupPool() {
     const email = newEmail.trim();
     if (!name || !realName || !email) return;
     const norm = s => (s || '').trim().toLowerCase();
-    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName) || norm(p.email) === norm(email));
+    // Real name is the actual "one entry per person" signal — email is dropped from this check
+    // since it's common for two different people (e.g. spouses) to share one email address, and
+    // that shouldn't block a second legitimate entrant.
+    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName));
     if (isDuplicate) {
-      setCreateEntryError('This pool only allows one entry per person — that name or email is already registered.');
+      setCreateEntryError('This pool only allows one entry per person — that name is already registered.');
       return;
     }
     setCreateEntryError('');
@@ -357,18 +364,31 @@ export default function LineupPool() {
     setClearAllWeeksConfirmState(false);
   };
 
-  // Selecting a player doesn't commit right away — it opens a confirmation prompt first, same
-  // pattern as Survivor, so a stray tap doesn't silently overwrite an existing pick.
+  // A canonical snapshot of just the 8 roster slots (ignoring confirmedSignature itself), used
+  // to tell whether the current lineup matches what was last explicitly submitted.
+  const lineupSignature = (weekPicks) => JSON.stringify(SLOTS.map(s => weekPicks?.[s.key] || null));
+
+  // Confirmation is only needed when someone is about to change a lineup that was already
+  // submitted — a brand new pick, or any edit before the first submission, applies immediately.
+  // Once a change like that is confirmed, the lineup naturally falls out of "submitted" status
+  // (its signature no longer matches confirmedSignature), so further edits before the next
+  // Submit press don't keep re-prompting on every single pick.
   const requestSlotPick = (pid, slotKey, position, value, label, participantName) => {
-    // Safety backstop: refuse to even open the confirmation if this player/team's game has
-    // already locked, regardless of which UI path got us here. The options-list filtering
-    // should already keep this from showing up as selectable, but this makes it impossible to
-    // slip through either way.
+    // Safety backstop: refuse to even apply the pick if this player/team's game has already
+    // locked, regardless of which UI path got us here. The options-list filtering should
+    // already keep this from showing up as selectable, but this makes it impossible to slip
+    // through either way.
     if (!isAdmin) {
       const team = slotTeamAbbr(value, position);
       if (team && isTeamGameLocked(team)) return;
     }
-    const oldValue = data.picks[viewWeek]?.[pid]?.[slotKey];
+    const weekPicks = data.picks[viewWeek]?.[pid] || {};
+    const oldValue = weekPicks[slotKey];
+    const wasSubmitted = weekPicks.confirmedSignature != null && weekPicks.confirmedSignature === lineupSignature(weekPicks);
+    if (!wasSubmitted) {
+      setSlot(viewWeek, pid, slotKey, value);
+      return;
+    }
     setSlotPickConfirm({
       pid, slotKey, position, value, label, participantName,
       oldValue, oldLabel: oldValue ? playerLabel(oldValue, position) : null,
@@ -380,9 +400,28 @@ export default function LineupPool() {
     setSlotPickConfirm(null);
   };
 
+  // Persists "I've explicitly submitted this exact lineup" server-side, same pattern as the
+  // Submit button on the other two pools, so the button's grey/orange state is consistent no
+  // matter which device someone checks from.
+  const confirmLineupSubmission = (week, pid, signature) => {
+    const next = { ...data, picks: { ...data.picks } };
+    next.picks[week] = { ...(next.picks[week] || {}) };
+    const prev = next.picks[week][pid] || {};
+    next.picks[week][pid] = { ...prev, confirmedSignature: signature };
+    persist(next);
+  };
+
   const games = schedule[viewWeek]?.games || [];
   const teamsPlayingThisWeek = new Set(games.flatMap(g => [g.away.abbr, g.home.abbr]));
   const rosterById = Object.fromEntries(rosters.map(r => [r.id, r]));
+  // Who each team plays this week, for showing an opponent next to players in the picker and
+  // in the roster itself — same schedule data source the lock times themselves come from.
+  const weekMatchups = schedule[viewWeek]?.matchups || {};
+  const opponentLabel = (team) => {
+    const m = team && weekMatchups[team];
+    if (!m || !m.opponent) return '';
+    return m.home ? `vs ${m.opponent}` : `@ ${m.opponent}`;
+  };
 
   const slotTeamAbbr = (value, position) => {
     if (!value) return null;
@@ -410,6 +449,13 @@ export default function LineupPool() {
   const isTeamGameLocked = (team) => {
     if (isAdmin) return false;
     const lockTime = lockTimeForPick(viewWeek, team);
+    return lockTime !== null && now >= lockTime;
+  };
+  // Whether the week's mass lock threshold has passed — used to hide the Submit button once
+  // there's nothing left to submit, same idea as isMassLocked on the Confidence pool.
+  const isMassLocked = () => {
+    if (isAdmin) return false;
+    const lockTime = lockTimeForPick(viewWeek, undefined);
     return lockTime !== null && now >= lockTime;
   };
   const isPickRevealed = (pid) => {
@@ -1187,66 +1233,95 @@ export default function LineupPool() {
                             ? TEAMS
                               .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr) && !isTeamGameLocked(abbr))
                               .filter(([abbr, name]) => !searchText || name.toLowerCase().includes(searchText.toLowerCase()) || abbr.toLowerCase().includes(searchText.toLowerCase()))
-                              .map(([abbr, name]) => ({ value: abbr, label: `${abbr} — ${name}`, avail: availabilityPct(abbr) }))
+                              .map(([abbr, name]) => ({ value: abbr, label: `${abbr} — ${name}`, avail: availabilityPct(abbr), opponent: opponentLabel(abbr) }))
                               .sort((a, b) => a.label.localeCompare(b.label))
                             : rosters
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id) && !isTeamGameLocked(r.team))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
                               .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
-                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id) }));
+                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id), opponent: opponentLabel(r.team) }));
+                          const selectedOpponent = value ? opponentLabel(slotTeamAbbr(value, s.position)) : '';
                           return (
                             <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
                               <span className="w-9 shrink-0 font-head" style={{ color: '#8A9A90' }}>{s.label}</span>
                               {locked ? (
-                                <span className="flex-1 flex items-center gap-1.5" style={{ color: '#F0EDE4', fontSize: '16px' }}>
+                                <span className="flex-1 flex items-center gap-1.5 flex-wrap" style={{ color: '#F0EDE4', fontSize: '16px' }}>
                                   <Lock size={10} color="#5C6862" /> {value ? playerLabel(value, s.position) : '— no pick —'}
+                                  {value && selectedOpponent && (
+                                    <span className="font-mono" style={{ fontSize: '11px', color: '#5C6862' }}>{selectedOpponent}</span>
+                                  )}
                                 </span>
                               ) : (
-                                <div className="relative flex-1">
-                                  <input
-                                    value={openCombo === searchKey ? searchText : (value ? playerLabel(value, s.position) : '')}
-                                    onFocus={() => setOpenCombo(searchKey)}
-                                    onChange={e => setPlayerSearch(ps => ({ ...ps, [searchKey]: e.target.value }))}
-                                    onBlur={() => setTimeout(() => setOpenCombo(c => (c === searchKey ? null : c)), 150)}
-                                    placeholder={`search ${s.label}…`}
-                                    className="w-full px-1.5 py-1 rounded"
-                                    style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
-                                  />
-                                  {openCombo === searchKey && (
-                                    <div
-                                      className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded"
-                                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
-                                    >
-                                      {options.length === 0 ? (
-                                        <div className="px-2 py-1.5" style={{ color: '#5C6862' }}>No matches</div>
-                                      ) : (
-                                        options.map(o => (
-                                          <button
-                                            key={o.value}
-                                            type="button"
-                                            onMouseDown={e => e.preventDefault()}
-                                            onClick={() => {
-                                              requestSlotPick(p.id, s.key, s.position, o.value, o.label, p.name);
-                                              setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
-                                              setOpenCombo(null);
-                                            }}
-                                            className="w-full text-left px-2 py-1.5 flex items-center justify-between gap-2"
-                                            style={{ color: '#F0EDE4' }}
-                                          >
-                                            <span>{o.label}</span>
-                                            <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
-                                          </button>
-                                        ))
-                                      )}
-                                    </div>
+                                <>
+                                  <div className="relative flex-1">
+                                    <input
+                                      value={openCombo === searchKey ? searchText : (value ? playerLabel(value, s.position) : '')}
+                                      onFocus={() => setOpenCombo(searchKey)}
+                                      onChange={e => setPlayerSearch(ps => ({ ...ps, [searchKey]: e.target.value }))}
+                                      onBlur={() => setTimeout(() => setOpenCombo(c => (c === searchKey ? null : c)), 150)}
+                                      placeholder={`search ${s.label}…`}
+                                      className="w-full px-1.5 py-1 rounded"
+                                      style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
+                                    />
+                                    {openCombo === searchKey && (
+                                      <div
+                                        className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded"
+                                        style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
+                                      >
+                                        {options.length === 0 ? (
+                                          <div className="px-2 py-1.5" style={{ color: '#5C6862' }}>No matches</div>
+                                        ) : (
+                                          options.map(o => (
+                                            <button
+                                              key={o.value}
+                                              type="button"
+                                              onMouseDown={e => e.preventDefault()}
+                                              onClick={() => {
+                                                requestSlotPick(p.id, s.key, s.position, o.value, o.label, p.name);
+                                                setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
+                                                setOpenCombo(null);
+                                              }}
+                                              className="w-full text-left px-2 py-1.5 flex items-center justify-between gap-2"
+                                              style={{ color: '#F0EDE4' }}
+                                            >
+                                              <span className="flex flex-col items-start">
+                                                <span>{o.label}</span>
+                                                {o.opponent && (
+                                                  <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{o.opponent}</span>
+                                                )}
+                                              </span>
+                                              <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
+                                            </button>
+                                          ))
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {value && selectedOpponent && openCombo !== searchKey && (
+                                    <span className="shrink-0 font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{selectedOpponent}</span>
                                   )}
-                                </div>
+                                </>
                               )}
                             </div>
                           );
                         })}
                       </div>
                     )}
+                    {isMe && revealed && !isMassLocked() && (() => {
+                      const signature = lineupSignature(weekPicks);
+                      const hasUnsubmittedChanges = weekPicks.confirmedSignature !== signature;
+                      const filledCount = SLOTS.filter(s => weekPicks[s.key]).length;
+                      return (
+                        <button
+                          onClick={() => confirmLineupSubmission(viewWeek, p.id, signature)}
+                          className="mt-3 px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1.5"
+                          style={{ background: hasUnsubmittedChanges ? '#E8A23D' : '#2A3830', color: hasUnsubmittedChanges ? '#0F1614' : '#8A9A90', border: hasUnsubmittedChanges ? 'none' : '1px solid #3A4A42' }}
+                        >
+                          <Check size={16} />
+                          {hasUnsubmittedChanges ? `Submit My Lineup (${filledCount}/8 filled)` : 'Lineup Saved'}
+                        </button>
+                      );
+                    })()}
                     <button onClick={() => removeParticipant(p.id)} className="mt-2 font-mono text-[10px] underline" style={{ color: '#5C6862' }}>
                       Remove entrant
                     </button>
@@ -1508,6 +1583,7 @@ export default function LineupPool() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
           <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
             <div className="font-mono text-sm mb-4" style={{ color: '#F0EDE4' }}>
+              <div className="font-mono text-[10px] uppercase mb-2" style={{ color: '#E8A23D' }}>This lineup was already submitted</div>
               {slotPickConfirm.oldValue ? (
                 <>Change <span style={{ color: '#8A9A90' }}>{slotPickConfirm.participantName}'s</span> pick from <span style={{ color: '#E28A82' }}>{slotPickConfirm.oldLabel}</span> to <span style={{ color: '#7FCB98' }}>{slotPickConfirm.label}</span>?</>
               ) : (

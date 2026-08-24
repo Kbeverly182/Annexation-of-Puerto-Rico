@@ -39,7 +39,10 @@ const SURVIVOR_RULES = [
   },
   {
     heading: 'Joining',
-    body: 'Entries close once Week 1\'s picks lock. No new entrants can join after that point for the rest of the season.',
+    body: [
+      'This pool is single entry — one entry per person.',
+      'Entries close once Week 1\'s picks lock. No new entrants can join after that point for the rest of the season.',
+    ],
   },
 ];
 
@@ -309,9 +312,12 @@ export default function SurvivorPool() {
     const email = newEmail.trim();
     if (!name || !realName || !email) return;
     const norm = s => (s || '').trim().toLowerCase();
-    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName) || norm(p.email) === norm(email));
+    // Real name is the actual "one entry per person" signal — email is dropped from this check
+    // since it's common for two different people (e.g. spouses) to share one email address, and
+    // that shouldn't block a second legitimate entrant.
+    const isDuplicate = data.participants.some(p => norm(p.realName) === norm(realName));
     if (isDuplicate) {
-      setCreateEntryError('This pool only allows one entry per person — that name or email is already registered.');
+      setCreateEntryError('This pool only allows one entry per person — that name is already registered.');
       return;
     }
     setCreateEntryError('');

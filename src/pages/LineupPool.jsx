@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info, Pencil } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, Lock, UserCircle, ArrowLeft, Trophy, Check, AlertTriangle, Download, RefreshCw, Coins, Info, Pencil, BarChart3 } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -1300,10 +1300,10 @@ export default function LineupPool() {
                                       type="button"
                                       title="View weekly scores"
                                       onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position) })}
-                                      className="shrink-0"
-                                      style={{ color: '#5C6862' }}
+                                      className="shrink-0 flex items-center gap-1 rounded-full font-mono uppercase"
+                                      style={{ fontSize: '9px', padding: '3px 7px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}
                                     >
-                                      <Info size={13} />
+                                      <BarChart3 size={11} /> Scores
                                     </button>
                                   )}
                                 </span>
@@ -1340,14 +1340,17 @@ export default function LineupPool() {
                                               className="w-full text-left px-2 py-1.5 flex items-center justify-between gap-2"
                                               style={{ color: '#F0EDE4' }}
                                             >
-                                              <span className="flex flex-col items-start">
-                                                <span>{o.label}</span>
-                                                {(o.opponent || o.ppg != null) && (
-                                                  <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>
-                                                    {o.opponent}
-                                                    {o.opponent && o.ppg != null ? ' · ' : ''}
-                                                    {o.ppg != null ? `${o.ppg.toFixed(1)} ppg` : ''}
-                                                  </span>
+                                              <span className="flex flex-col items-start min-w-0 flex-1">
+                                                <span className="flex items-center gap-1.5 flex-wrap">
+                                                  <span>{o.label}</span>
+                                                  {o.ppg != null && (
+                                                    <span className="shrink-0 font-mono rounded-full" style={{ fontSize: '9px', padding: '1px 6px', background: '#7FCB9822', border: '1px solid #7FCB9866', color: '#7FCB98', fontWeight: 600 }}>
+                                                      {o.ppg.toFixed(1)} PPG
+                                                    </span>
+                                                  )}
+                                                </span>
+                                                {o.opponent && (
+                                                  <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{o.opponent}</span>
                                                 )}
                                               </span>
                                               <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
@@ -1358,15 +1361,18 @@ export default function LineupPool() {
                                     )}
                                   </div>
                                   {value && openCombo !== searchKey && (
-                                    <span className="shrink-0 font-mono flex items-center gap-1" style={{ fontSize: '10px', color: '#5C6862' }}>
-                                      {selectedOpponent}
+                                    <span className="shrink-0 flex items-center gap-1.5">
+                                      {selectedOpponent && (
+                                        <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{selectedOpponent}</span>
+                                      )}
                                       <button
                                         type="button"
                                         title="View weekly scores"
                                         onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position) })}
-                                        style={{ color: '#5C6862' }}
+                                        className="flex items-center gap-1 rounded-full font-mono uppercase"
+                                        style={{ fontSize: '9px', padding: '3px 7px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}
                                       >
-                                        <Info size={13} />
+                                        <BarChart3 size={11} /> Scores
                                       </button>
                                     </span>
                                   )}

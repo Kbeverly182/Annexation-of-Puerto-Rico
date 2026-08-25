@@ -108,7 +108,7 @@ export default function LineupPool() {
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
-  const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
+  const { schedule } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check below works no matter what
   // week someone's currently looking at. Regular season Week 1 is the actual start of the
   // season now that preseason beta-testing is over.
@@ -428,19 +428,38 @@ export default function LineupPool() {
     if (position === 'DST') return value;
     return rosterById[value]?.team || null;
   };
+  // Unlike Survivor/Confidence, Lineup deliberately does NOT use the shared Sunday-1pm-or-later
+  // "mass" cutoff — there's no strategic reason here to force every pick to reveal at the same
+  // moment, so a player in a Sunday night or Monday night game stays swappable right up until
+  // their own kickoff, not some earlier shared deadline. This reads straight from the schedule's
+  // own per-team kickoff time, bypassing the shared hook's mass-threshold capping entirely.
+  const teamOwnKickoffLockTime = (team) => {
+    const sch = schedule[viewWeek];
+    if (!sch || !sch.loaded) return null;
+    return team && sch.teamKickoff[team] ? new Date(sch.teamKickoff[team]).getTime() : null;
+  };
+  // The latest kickoff of the week — the Lineup-specific equivalent of "everything's locked now"
+  // used only as a backstop for slots nobody ever filled (see isSlotLocked below), since without
+  // a per-team lock to check, an empty slot needs some real deadline or it'd never lock at all.
+  const latestKickoffTime = () => {
+    const games = schedule[viewWeek]?.games || [];
+    if (!games.length) return null;
+    const times = games.map(g => new Date(g.kickoff).getTime()).filter(t => !Number.isNaN(t));
+    return times.length ? Math.max(...times) : null;
+  };
   const isSlotLocked = (position, value) => {
     if (isAdmin) return false;
     const team = slotTeamAbbr(value, position);
     if (team) {
-      const lockTime = lockTimeForPick(viewWeek, team);
+      const lockTime = teamOwnKickoffLockTime(team);
       return lockTime !== null && now >= lockTime;
     }
     // No pick made yet for this slot — without this, an empty slot would never lock at all
     // (there's no team to check a kickoff against), letting someone sneak in a brand new pick
-    // long after the deadline just because they happened to skip that slot. Once the week's
-    // overall deadline has passed, empty slots lock too, same as a filled one would.
-    const massLockTime = lockTimeForPick(viewWeek, undefined);
-    return massLockTime !== null && now >= massLockTime;
+    // long after the deadline just because they happened to skip that slot. Once every game in
+    // the week has kicked off, empty slots lock too, same as a filled one would.
+    const latest = latestKickoffTime();
+    return latest !== null && now >= latest;
   };
   // Whether a specific team's own game has already locked - used to keep already-played teams
   // out of the picker entirely, not just to lock a slot once something's already sitting in it.
@@ -448,14 +467,7 @@ export default function LineupPool() {
   // this week as selectable, including ones whose game already happened.
   const isTeamGameLocked = (team) => {
     if (isAdmin) return false;
-    const lockTime = lockTimeForPick(viewWeek, team);
-    return lockTime !== null && now >= lockTime;
-  };
-  // Whether the week's mass lock threshold has passed — used to hide the Submit button once
-  // there's nothing left to submit, same idea as isMassLocked on the Confidence pool.
-  const isMassLocked = () => {
-    if (isAdmin) return false;
-    const lockTime = lockTimeForPick(viewWeek, undefined);
+    const lockTime = teamOwnKickoffLockTime(team);
     return lockTime !== null && now >= lockTime;
   };
   const isPickRevealed = (pid) => {
@@ -1312,7 +1324,7 @@ export default function LineupPool() {
                         })}
                       </div>
                     )}
-                    {isMe && revealed && !isMassLocked() && (() => {
+                    {isMe && revealed && (() => {
                       const signature = lineupSignature(weekPicks);
                       const hasUnsubmittedChanges = weekPicks.confirmedSignature !== signature;
                       const filledCount = SLOTS.filter(s => weekPicks[s.key]).length;

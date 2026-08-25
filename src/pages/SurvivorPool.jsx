@@ -873,14 +873,15 @@ export default function SurvivorPool() {
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}
-                  placeholder="Start typing your name…"
+                  placeholder="Start typing your real or display name…"
                   className="w-full px-3 py-2 rounded outline-none font-head text-sm"
                   style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
                 />
                 {memberSearch.trim() && (
                   <div className="mt-2 space-y-1">
                     {(() => {
-                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 8);
+                      const q = memberSearch.trim().toLowerCase();
+                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(q) || (p.realName || '').toLowerCase().includes(q)).slice(0, 8);
                       if (matches.length === 0) {
                         return <div className="font-mono text-xs px-1" style={{ color: '#5C6862' }}>No matches</div>;
                       }

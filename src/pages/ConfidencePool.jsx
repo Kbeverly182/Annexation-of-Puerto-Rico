@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
@@ -110,6 +110,8 @@ export default function ConfidencePool() {
   const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
+  const [celebrationQueue, setCelebrationQueue] = useState([]);
+  const [activeCelebration, setActiveCelebration] = useState(null);
   // Pointer-based drag state for reordering confidence picks. Deliberately not the HTML5 drag-
   // and-drop API — that API has no real touch support (iOS/Android won't fire its drag events at
   // all), so it can only ever work with a mouse. Pointer Events (down/move/up) are the one API
@@ -120,7 +122,7 @@ export default function ConfidencePool() {
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
-  const { schedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
+  const { schedule, ensureSchedule, lockTimeForPick } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check works no matter what week
   // someone's currently looking at. Regular season Week 1 is the actual start of the season
   // now that preseason beta-testing is over.
@@ -529,6 +531,89 @@ export default function ConfidencePool() {
     return total;
   };
 
+  // A week only counts as "decided" once every one of its games has a completed result — while
+  // games are still in progress, points are still moving and nobody should be told they've won.
+  const isWeekComplete = (w) => {
+    const games = schedule[w]?.games;
+    if (!games || games.length === 0) return false;
+    const weekResults = data.results?.[w] || {};
+    return games.every(g => weekResults[g.id]?.completed);
+  };
+
+  // Everyone tied for the top score that week (ties both get the win — same as a real split
+  // payout would). A max of 0 isn't treated as a real win; nobody should be congratulated for
+  // scoring nothing.
+  const weekWinnerIds = (w) => {
+    if (!data.participants.length) return [];
+    const scored = data.participants.map(p => ({ id: p.id, pts: weeklyPoints(p.id, w) }));
+    const max = Math.max(...scored.map(s => s.pts));
+    if (max <= 0) return [];
+    return scored.filter(s => s.pts === max).map(s => s.id);
+  };
+
+  const celebratedKey = (w, pid) => `confidence-celebrated-w${w}-${pid}`;
+
+  // Make sure every regular-season week's schedule has actually been fetched, not just the one
+  // currently being viewed — isWeekComplete needs each week's real game count to know whether
+  // it's actually over, and the shared schedule hook only loads whichever week is on screen.
+  useEffect(() => {
+    weeksForSeason(viewWeek).forEach(w => ensureSchedule(w));
+  }, [viewWeek]);
+
+  // Scan every completed week for a win nobody's been shown a celebration for yet. Runs whenever
+  // scores or the schedule change, since either can be what finally makes a week "complete."
+  useEffect(() => {
+    if (!myIdLoaded || !myId) return;
+    const newlyWon = [];
+    weeksForSeason(viewWeek).forEach(w => {
+      if (!isWeekComplete(w)) return;
+      if (!weekWinnerIds(w).includes(myId)) return;
+      try {
+        if (localStorage.getItem(celebratedKey(w, myId))) return;
+      } catch (e) { /* if storage is unavailable, just don't celebrate rather than repeat forever */ return; }
+      newlyWon.push(w);
+    });
+    if (newlyWon.length > 0) {
+      setCelebrationQueue(q => Array.from(new Set([...q, ...newlyWon])).sort((a, b) => a - b));
+    }
+  }, [myIdLoaded, myId, data.results, schedule]);
+
+  // Shows queued celebrations one at a time rather than all at once.
+  useEffect(() => {
+    if (activeCelebration == null && celebrationQueue.length > 0) {
+      setActiveCelebration(celebrationQueue[0]);
+      setCelebrationQueue(q => q.slice(1));
+    }
+  }, [celebrationQueue, activeCelebration]);
+
+  const dismissCelebration = () => {
+    if (activeCelebration != null && myId) {
+      try { localStorage.setItem(celebratedKey(activeCelebration, myId), '1'); } catch (e) { /* non-fatal */ }
+    }
+    setActiveCelebration(null);
+  };
+
+  useEffect(() => {
+    if (activeCelebration == null) return;
+    const t = setTimeout(dismissCelebration, 6000);
+    return () => clearTimeout(t);
+  }, [activeCelebration]);
+
+  const confettiPieces = useMemo(() => {
+    if (activeCelebration == null) return [];
+    const colors = ['#E8A23D', '#7FCB98', '#3D9B5C', '#F0EDE4', '#5EA8E8', '#E28A82'];
+    return Array.from({ length: 90 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.7,
+      duration: 2.4 + Math.random() * 1.8,
+      rotate: Math.random() * 360,
+      color: colors[i % colors.length],
+      width: 6 + Math.random() * 5,
+      height: 4 + Math.random() * 8,
+    }));
+  }, [activeCelebration]);
+
   // The most points still mathematically reachable this week: already-correct picks (locked
   // in) plus every pick whose game hasn't been decided yet (optimistic — still possible to go
   // their way). A wrong pick, a tie, or a missed pick can never score, so those are excluded
@@ -880,14 +965,15 @@ export default function ConfidencePool() {
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}
-                  placeholder="Start typing your name…"
+                  placeholder="Start typing your real or display name…"
                   className="w-full px-3 py-2 rounded outline-none font-head text-sm"
                   style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
                 />
                 {memberSearch.trim() && (
                   <div className="mt-2 space-y-1">
                     {(() => {
-                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 8);
+                      const q = memberSearch.trim().toLowerCase();
+                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(q) || (p.realName || '').toLowerCase().includes(q)).slice(0, 8);
                       if (matches.length === 0) {
                         return <div className="font-mono text-xs px-1" style={{ color: '#5C6862' }}>No matches</div>;
                       }
@@ -1408,6 +1494,66 @@ export default function ConfidencePool() {
       {justSaved && (
         <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: '#1C2823', border: '1px solid #3D9B5C', color: '#7FCB98' }}>
           <Check size={12} /> Saved
+        </div>
+      )}
+
+      {/* Weekly-win celebration — shown once, only to the winner(s), the first time they open
+          the pool after their win is fully decided. */}
+      {activeCelebration != null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" style={{ pointerEvents: 'none' }}>
+          <style>{`
+            @keyframes confetti-fall {
+              0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+              100% { transform: translateY(110vh) rotate(720deg); opacity: 0.4; }
+            }
+            @keyframes celebration-pop {
+              0% { transform: scale(0.85); opacity: 0; }
+              60% { transform: scale(1.03); opacity: 1; }
+              100% { transform: scale(1); opacity: 1; }
+            }
+          `}</style>
+          <div className="absolute inset-0 overflow-hidden">
+            {confettiPieces.map(p => (
+              <div
+                key={p.id}
+                style={{
+                  position: 'absolute',
+                  left: `${p.left}%`,
+                  top: '-5%',
+                  width: `${p.width}px`,
+                  height: `${p.height}px`,
+                  background: p.color,
+                  borderRadius: '1px',
+                  animation: `confetti-fall ${p.duration}s ${p.delay}s ease-in forwards`,
+                  transform: `rotate(${p.rotate}deg)`,
+                }}
+              />
+            ))}
+          </div>
+          <div
+            className="relative rounded-lg px-7 py-6 text-center mx-6"
+            style={{
+              background: '#1C2823',
+              border: '2px solid #E8A23D',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.65), 0 0 40px #E8A23D33',
+              pointerEvents: 'auto',
+              animation: 'celebration-pop 0.4s ease-out',
+            }}
+          >
+            <div className="font-display text-2xl uppercase leading-tight mb-2" style={{ color: '#E8A23D' }}>
+              🎉 Congrats on the big win! 🎉
+            </div>
+            <div className="font-mono text-sm mb-4" style={{ color: '#F0EDE4' }}>
+              You took the top spot in Week {weekLabel(activeCelebration)}.
+            </div>
+            <button
+              onClick={dismissCelebration}
+              className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide"
+              style={{ background: '#E8A23D', color: '#0F1614' }}
+            >
+              Nice!
+            </button>
+          </div>
         </div>
       )}
     </div>

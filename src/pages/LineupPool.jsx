@@ -65,9 +65,39 @@ const LINEUP_RULES = [
   },
 ];
 
+// Known players whose real last name is more than one word and doesn't fit the simple
+// "last word = last name" split (e.g. a "St./Van/De/..." particle that's genuinely part of the
+// surname, not a first or middle name). Add more here as they come up.
+const NAME_OVERRIDES = {
+  'amon-ra st. brown': { first: 'Amon-Ra', last: 'St. Brown' },
+};
+const nameOverride = (fullName) => NAME_OVERRIDES[(fullName || '').trim().toLowerCase()];
+
 const lastNameOf = (fullName) => {
+  const override = nameOverride(fullName);
+  if (override) return override.last.toLowerCase();
   const parts = (fullName || '').trim().split(/\s+/);
   return (parts[parts.length - 1] || '').toLowerCase();
+};
+
+// "Josh Allen" -> "Allen, Josh". Suffixes (Jr., III, etc.) stay attached to the last name rather
+// than being read as it themselves. Multi-word last names not listed in NAME_OVERRIDES above
+// aren't specially handled, same simplification lastNameOf makes for sorting — keeps display
+// order consistent with sort order rather than technically "more correct" but mismatched.
+const NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
+const lastFirstDisplay = (fullName) => {
+  const override = nameOverride(fullName);
+  if (override) return `${override.last}, ${override.first}`;
+  const parts = (fullName || '').trim().split(/\s+/);
+  if (parts.length < 2) return fullName || '';
+  const rest = [...parts];
+  let suffix = '';
+  const maybeSuffix = rest[rest.length - 1].toLowerCase().replace(/\.$/, '');
+  if (NAME_SUFFIXES.has(maybeSuffix) && rest.length > 2) {
+    suffix = ` ${rest.pop()}`;
+  }
+  const last = rest.pop();
+  return `${last}${suffix}, ${rest.join(' ')}`;
 };
 
 export default function LineupPool() {
@@ -110,7 +140,7 @@ export default function LineupPool() {
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
   const skipNextPoll = useRef(false);
-  const { schedule } = useEspnSchedule(viewWeek, seasonYear);
+  const { schedule, ensureSchedule } = useEspnSchedule(viewWeek, seasonYear);
   // Pinned independently of viewWeek so the join-deadline check below works no matter what
   // week someone's currently looking at. Regular season Week 1 is the actual start of the
   // season now that preseason beta-testing is over.
@@ -169,6 +199,16 @@ export default function LineupPool() {
   }, []);
 
   useEffect(() => { setClearWeekConfirm(false); setClearAllWeeksConfirmState(false); }, [viewWeek]);
+
+  // Pull schedule data for every week the stats modal needs (not just the currently-viewed
+  // week), so it can show who each week's opponent actually was, not just this week's.
+  useEffect(() => {
+    if (!statsModalPlayer) return;
+    const weeks = Object.keys(data.playerScores || {})
+      .filter(w => data.playerScores[w]?.[statsModalPlayer.value] != null)
+      .map(Number);
+    weeks.forEach(w => ensureSchedule(w));
+  }, [statsModalPlayer]);
 
   useEffect(() => {
     const t = setInterval(async () => {
@@ -1136,14 +1176,15 @@ export default function LineupPool() {
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}
-                  placeholder="Start typing your name…"
+                  placeholder="Start typing your real or display name…"
                   className="w-full px-3 py-2 rounded outline-none font-head text-sm"
                   style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
                 />
                 {memberSearch.trim() && (
                   <div className="mt-2 space-y-1">
                     {(() => {
-                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(memberSearch.trim().toLowerCase())).slice(0, 8);
+                      const q = memberSearch.trim().toLowerCase();
+                      const matches = data.participants.filter(p => p.name.toLowerCase().includes(q) || (p.realName || '').toLowerCase().includes(q)).slice(0, 8);
                       if (matches.length === 0) {
                         return <div className="font-mono text-xs px-1" style={{ color: '#5C6862' }}>No matches</div>;
                       }
@@ -1249,6 +1290,12 @@ export default function LineupPool() {
 
             {/* Lineups — only your own card (or all, for admin); everyone else's picks now live
                 in the Week Standings list below instead of a full hidden-placeholder card each. */}
+            <div className="flex items-center gap-1.5 mb-2 font-mono text-xs" style={{ color: '#5C6862' }}>
+              <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: '20px', height: '20px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
+                <BarChart3 size={11} />
+              </span>
+              Tap that icon next to any player to see their PPG and score from every week so far this season.
+            </div>
             <div className="space-y-4">
               {data.participants.map(p => {
                 const isMe = myId === p.id;
@@ -1284,7 +1331,7 @@ export default function LineupPool() {
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id) && !isTeamGameLocked(r.team))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
                               .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
-                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id), opponent: opponentLabel(r.team), ppg: seasonPPG(r.id) }));
+                              .map(r => ({ value: r.id, label: `${lastFirstDisplay(r.name)} (${r.team})`, avail: availabilityPct(r.id), opponent: opponentLabel(r.team), ppg: seasonPPG(r.id) }));
                           const selectedOpponent = value ? opponentLabel(slotTeamAbbr(value, s.position)) : '';
                           return (
                             <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
@@ -1298,12 +1345,12 @@ export default function LineupPool() {
                                   {value && (
                                     <button
                                       type="button"
-                                      title="View weekly scores"
-                                      onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position) })}
-                                      className="shrink-0 flex items-center gap-1 rounded-full font-mono uppercase"
-                                      style={{ fontSize: '9px', padding: '3px 7px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}
+                                      title="View weekly PPG scores"
+                                      onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position), position: s.position })}
+                                      className="shrink-0 flex items-center justify-center rounded-full"
+                                      style={{ width: '22px', height: '22px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}
                                     >
-                                      <BarChart3 size={11} /> Scores
+                                      <BarChart3 size={12} />
                                     </button>
                                   )}
                                 </span>
@@ -1367,12 +1414,12 @@ export default function LineupPool() {
                                       )}
                                       <button
                                         type="button"
-                                        title="View weekly scores"
-                                        onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position) })}
-                                        className="flex items-center gap-1 rounded-full font-mono uppercase"
-                                        style={{ fontSize: '9px', padding: '3px 7px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}
+                                        title="View weekly PPG scores"
+                                        onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position), position: s.position })}
+                                        className="flex items-center justify-center rounded-full"
+                                        style={{ width: '22px', height: '22px', background: '#E8A23D22', border: '1px solid #E8A23D66', color: '#E8A23D' }}
                                       >
-                                        <BarChart3 size={11} /> Scores
+                                        <BarChart3 size={12} />
                                       </button>
                                     </span>
                                   )}
@@ -1683,6 +1730,15 @@ export default function LineupPool() {
         const rows = weeklyScores(statsModalPlayer.value);
         const total = rows.reduce((sum, r) => sum + r.points, 0);
         const ppg = seasonPPG(statsModalPlayer.value);
+        const team = slotTeamAbbr(statsModalPlayer.value, statsModalPlayer.position);
+        // Opponent per week, read from that week's own schedule fetch (not just the currently
+        // viewed week) — approximated off the player's current team, since that's the only team
+        // association this app tracks; a mid-season trade would misattribute earlier weeks.
+        const weekOpponent = (wk) => {
+          const m = team && schedule[wk]?.matchups?.[team];
+          if (!m || !m.opponent) return null;
+          return m.home ? `vs ${m.opponent}` : `@ ${m.opponent}`;
+        };
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0" style={{ background: '#0F1614cc' }} onClick={() => setStatsModalPlayer(null)}>
             <div className="w-full max-w-sm rounded flex flex-col" style={{ background: '#1C2823', border: '1px solid #2A3830', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
@@ -1711,7 +1767,12 @@ export default function LineupPool() {
                   <div className="space-y-1.5">
                     {rows.map(r => (
                       <div key={r.week} className="flex items-center justify-between font-mono text-xs px-2 py-1.5 rounded" style={{ background: '#0F1614' }}>
-                        <span style={{ color: '#8A9A90' }}>Week {weekLabel(r.week)}</span>
+                        <span className="flex items-center gap-2">
+                          <span style={{ color: '#8A9A90' }}>Week {weekLabel(r.week)}</span>
+                          {weekOpponent(r.week) && (
+                            <span style={{ color: '#5C6862', fontSize: '10px' }}>{weekOpponent(r.week)}</span>
+                          )}
+                        </span>
                         <span style={{ color: r.points >= 0 ? '#F0EDE4' : '#E28A82' }}>{r.points.toFixed(1)} pts</span>
                       </div>
                     ))}

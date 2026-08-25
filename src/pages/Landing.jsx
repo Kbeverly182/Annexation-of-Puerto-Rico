@@ -58,6 +58,21 @@ export default function Landing() {
             </div>
             <div className="font-mono text-xs mt-1.5" style={{ color: '#7A8580' }}>Pick your pool below</div>
           </div>
+
+          <div className="rounded px-5 py-4 mb-6 font-mono text-xs leading-relaxed" style={{ background: '#F7F6F3', border: '1px solid #E5E3DD', color: '#4A544E' }}>
+            <p className="mb-3">
+              Welcome to your one stop shop for my sports pools. Choose one or more of the pools below to enter. Rules for each pool are at the top of the individual pool pages. Payouts for each will be posted on the individual sites as well after entries close. No cuts taken, all proceeds go to the winners.
+            </p>
+            <p className="font-head text-[11px] uppercase tracking-wide mb-1" style={{ color: '#1C2823' }}>Send units to the following</p>
+            <ul className="mb-3 space-y-0.5">
+              <li><span style={{ color: '#1C2823', fontWeight: 600 }}>Venmo:</span> @kenny-beverly (last four 5522)</li>
+              <li><span style={{ color: '#1C2823', fontWeight: 600 }}>PayPal:</span> Kenny.beverly@gmail.com</li>
+              <li><span style={{ color: '#1C2823', fontWeight: 600 }}>Zelle:</span> Kenny.beverly@gmail.com or email me</li>
+              <li><span style={{ color: '#1C2823', fontWeight: 600 }}>Check:</span> email me</li>
+            </ul>
+            <p className="font-head text-[11px] uppercase tracking-wide mb-1" style={{ color: '#1C2823' }}>My contact info for any questions</p>
+            <p>Kenny Beverly<br />732-586-5522</p>
+          </div>
           {POOLS.map(pool => {
             const Icon = pool.icon;
             const Wrapper = pool.comingSoon ? 'div' : Link;

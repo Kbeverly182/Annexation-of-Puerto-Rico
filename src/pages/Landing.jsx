@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Skull, ListOrdered, Users } from 'lucide-react';
+import { Skull, ListOrdered, Users, ChevronRight } from 'lucide-react';
 
 const POOLS = [
   {
@@ -37,14 +37,26 @@ export default function Landing() {
         .font-display { font-family: 'Anton', sans-serif; }
         .font-head { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
+        .pool-card {
+          transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+          border-left-width: 5px !important;
+        }
+        .pool-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+          border-color: var(--accent) !important;
+        }
       `}</style>
 
       <div className="flex flex-col md:flex-row md:min-h-screen">
         {/* Pools column */}
         <div className="w-full md:w-96 shrink-0 px-5 sm:px-8 py-8 space-y-3 order-2 md:order-1" style={{ borderTop: '1px solid #E5E3DD' }}>
-          <div className="mb-5">
-            <div className="font-display text-xl uppercase tracking-wide">Grade A Beef Pools</div>
-            <div className="font-mono text-xs" style={{ color: '#7A8580' }}>Pick your pool below</div>
+          <div className="mb-6">
+            <div className="font-display uppercase leading-none" style={{ fontSize: '30px', letterSpacing: '0.02em' }}>
+              <span style={{ color: '#1C2823' }}>Grade A </span>
+              <span style={{ color: '#1D4ED8', textShadow: '2px 2px 0 rgba(29,78,216,0.2)' }}>Beef Pools</span>
+            </div>
+            <div className="font-mono text-xs mt-1.5" style={{ color: '#7A8580' }}>Pick your pool below</div>
           </div>
           {POOLS.map(pool => {
             const Icon = pool.icon;
@@ -54,17 +66,19 @@ export default function Landing() {
               <Wrapper
                 key={pool.to}
                 {...wrapperProps}
-                className="block rounded px-5 py-4 flex items-center gap-4"
+                className="pool-card block rounded px-5 py-4 flex items-center gap-4"
                 style={{
-                  background: '#F7F6F3',
+                  '--accent': pool.color,
+                  background: `${pool.color}0d`,
                   border: '1px solid #E5E3DD',
+                  borderLeft: `5px solid ${pool.color}`,
                   boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                   opacity: pool.comingSoon ? 0.6 : 1,
                   cursor: pool.comingSoon ? 'default' : 'pointer',
                 }}
               >
-                <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${pool.color}1a`, border: `2px solid ${pool.color}` }}>
-                  <Icon size={18} color={pool.color} />
+                <div className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center" style={{ background: pool.color, boxShadow: `0 3px 8px ${pool.color}66` }}>
+                  <Icon size={20} color="#FFFFFF" />
                 </div>
                 <div className="flex-1">
                   <div className="font-head text-lg uppercase tracking-wide flex items-center gap-2">
@@ -78,6 +92,7 @@ export default function Landing() {
                   <div className="font-mono text-[10px] uppercase tracking-wide mb-0.5" style={{ color: pool.color }}>{pool.type}</div>
                   <div className="font-mono text-xs" style={{ color: '#7A8580' }}>{pool.desc}</div>
                 </div>
+                {!pool.comingSoon && <ChevronRight size={18} className="shrink-0" color={pool.color} />}
               </Wrapper>
             );
           })}

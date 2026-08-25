@@ -693,85 +693,89 @@ export default function ConfidencePool() {
             <Users size={14} /> Entrants
           </div>
 
-          <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
-          <div
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 font-head text-sm uppercase tracking-wide"
-            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'entry-fee-pulse 2.4s ease-in-out infinite' }}
-          >
-            <Coins size={15} /> Entry Fee: {CONFIDENCE_ENTRY_FEE} units
-          </div>
-          <style>{`
-            @keyframes entry-fee-pulse {
-              0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
-              50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
-            }
-          `}</style>
-          {joinClosed ? (
-            <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
-              Entries closed — Week 1 picks have locked, no new entrants can join this season.
-            </div>
-          ) : !showCreateForm ? (
-            <button
-              onClick={() => setShowCreateForm(true)}
-              className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1 mb-4"
-              style={{ background: '#E8A23D', color: '#0F1614' }}
-            >
-              <Plus size={16} /> New Entry
-            </button>
-          ) : (
-            <div className="flex flex-col gap-2 mb-1">
-              <input
-                autoFocus
-                value={newRealName}
-                onChange={e => setNewRealName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addParticipant()}
-                placeholder="Your real name (private — only the commissioner sees this)…"
-                className="px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-              />
-              <input
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addParticipant()}
-                placeholder="Display name (what everyone sees)…"
-                className="px-3 py-2 rounded outline-none font-head text-sm"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-              />
-              <input
-                type="email"
-                value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addParticipant()}
-                placeholder="Email…"
-                className="px-3 py-2 rounded outline-none font-mono text-xs"
-                style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={addParticipant}
-                  disabled={!newName.trim() || !newRealName.trim() || !newEmail.trim()}
-                  className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
-                  style={{ background: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#1F2B25' : '#E8A23D', color: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
-                >
-                  <Plus size={16} /> Create
-                </button>
-                <button
-                  onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); setCreateEntryError(''); }}
-                  className="px-3 rounded font-mono text-xs underline"
-                  style={{ color: '#5C6862' }}
-                >
-                  Cancel
-                </button>
+          {myIdLoaded && (isAdmin || !myId) && (
+            <>
+              <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
+              <div
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 font-head text-sm uppercase tracking-wide"
+                style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'entry-fee-pulse 2.4s ease-in-out infinite' }}
+              >
+                <Coins size={15} /> Entry Fee: {CONFIDENCE_ENTRY_FEE} units
               </div>
-            </div>
-          )}
-          {showCreateForm && createEntryError && (
-            <div className="font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
-              {createEntryError}
-            </div>
-          )}
-          {showCreateForm && (
-            <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>All three fields are required. Your real name and email are only ever visible to the commissioner, never shown publicly.</div>
+              <style>{`
+                @keyframes entry-fee-pulse {
+                  0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
+                  50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+                }
+              `}</style>
+              {joinClosed ? (
+                <div className="font-mono text-xs px-3 py-2 rounded mb-4" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+                  Entries closed — Week 1 picks have locked, no new entrants can join this season.
+                </div>
+              ) : !showCreateForm ? (
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1 mb-4"
+                  style={{ background: '#E8A23D', color: '#0F1614' }}
+                >
+                  <Plus size={16} /> New Entry
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2 mb-1">
+                  <input
+                    autoFocus
+                    value={newRealName}
+                    onChange={e => setNewRealName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                    placeholder="Your real name (private — only the commissioner sees this)…"
+                    className="px-3 py-2 rounded outline-none font-head text-sm"
+                    style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                  />
+                  <input
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                    placeholder="Display name (what everyone sees)…"
+                    className="px-3 py-2 rounded outline-none font-head text-sm"
+                    style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                  />
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={e => setNewEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addParticipant()}
+                    placeholder="Email…"
+                    className="px-3 py-2 rounded outline-none font-mono text-xs"
+                    style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4' }}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addParticipant}
+                      disabled={!newName.trim() || !newRealName.trim() || !newEmail.trim()}
+                      className="px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1"
+                      style={{ background: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#1F2B25' : '#E8A23D', color: (!newName.trim() || !newRealName.trim() || !newEmail.trim()) ? '#5C6862' : '#0F1614' }}
+                    >
+                      <Plus size={16} /> Create
+                    </button>
+                    <button
+                      onClick={() => { setShowCreateForm(false); setNewName(''); setNewRealName(''); setNewEmail(''); setCreateEntryError(''); }}
+                      className="px-3 rounded font-mono text-xs underline"
+                      style={{ color: '#5C6862' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showCreateForm && createEntryError && (
+                <div className="font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+                  {createEntryError}
+                </div>
+              )}
+              {showCreateForm && (
+                <div className="font-mono text-[10px] mb-4" style={{ color: '#5C6862' }}>All three fields are required. Your real name and email are only ever visible to the commissioner, never shown publicly.</div>
+              )}
+            </>
           )}
 
           {myIdLoaded && (

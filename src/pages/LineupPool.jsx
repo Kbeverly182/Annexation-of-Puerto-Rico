@@ -51,7 +51,8 @@ const LINEUP_RULES = [
       'Interception thrown: -2 · Fumble lost: -2',
       'Extra point made: 1 pt',
       'Field goal: distance ÷ 10, minimum 3.0 points (a 46-yard FG = 4.6 pts, anything under 30 yards = 3.0 flat)',
-      'D/ST: standard scoring — points allowed tiers, sacks, interceptions, fumble recoveries, defensive/special teams touchdowns, and safeties.',
+      'D/ST — points allowed: 0 = +10 pts · 1–6 = +7 · 7–13 = +4 · 14–20 = +1 · 21–27 = 0 · 28–34 = −1 · 35+ = −4',
+      'D/ST — defensive plays: sack = +1 pt · interception = +2 pts · fumble recovery = +2 pts',
     ],
   },
   {

@@ -98,6 +98,7 @@ export default function LineupPool() {
   const [clearWeekConfirm, setClearWeekConfirm] = useState(false);
   const [clearAllWeeksConfirmState, setClearAllWeeksConfirmState] = useState(false);
   const [slotPickConfirm, setSlotPickConfirm] = useState(null);
+  const [statsModalPlayer, setStatsModalPlayer] = useState(null); // { value, label }
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
   const [playerSearch, setPlayerSearch] = useState({}); // { `${pid}-${slotKey}`: searchText }
@@ -571,6 +572,32 @@ export default function LineupPool() {
     const total = data.participants.length;
     if (total === 0) return 100;
     return Math.round(((total - (seasonUsageCounts[value] || 0)) / total) * 100);
+  };
+
+  // Season points-per-game for a player: total fantasy points scored so far divided by how many
+  // weeks a score has actually been recorded for them. Note this is "games this player has
+  // scored in while on someone's roster here," not a true real-world games-played count — a
+  // week where nobody in the pool rostered this player never gets a score recorded at all, so
+  // that week can't be counted either way. Close enough for a quick gut-check in the picker,
+  // just not perfectly precise for someone who was barely used.
+  const seasonPPG = (value) => {
+    if (!value) return null;
+    let total = 0, games = 0;
+    Object.keys(data.playerScores || {}).forEach(w => {
+      const pts = data.playerScores[w]?.[value];
+      if (pts != null) { total += pts; games += 1; }
+    });
+    return games > 0 ? total / games : null;
+  };
+
+  // Every week this player has a recorded score, oldest first — same "only weeks they were
+  // actually rostered by someone" caveat as seasonPPG above, since that's the only data we have.
+  const weeklyScores = (value) => {
+    if (!value) return [];
+    return Object.keys(data.playerScores || {})
+      .filter(w => data.playerScores[w]?.[value] != null)
+      .map(w => ({ week: Number(w), points: data.playerScores[w][value] }))
+      .sort((a, b) => a.week - b.week);
   };
 
   // How many entrants drafted a given player this specific week — an aggregate count only,
@@ -1251,13 +1278,13 @@ export default function LineupPool() {
                             ? TEAMS
                               .filter(([abbr]) => teamsPlayingThisWeek.has(abbr) && !used.has(abbr) && !isTeamGameLocked(abbr))
                               .filter(([abbr, name]) => !searchText || name.toLowerCase().includes(searchText.toLowerCase()) || abbr.toLowerCase().includes(searchText.toLowerCase()))
-                              .map(([abbr, name]) => ({ value: abbr, label: `${abbr} — ${name}`, avail: availabilityPct(abbr), opponent: opponentLabel(abbr) }))
+                              .map(([abbr, name]) => ({ value: abbr, label: `${abbr} — ${name}`, avail: availabilityPct(abbr), opponent: opponentLabel(abbr), ppg: seasonPPG(abbr) }))
                               .sort((a, b) => a.label.localeCompare(b.label))
                             : rosters
                               .filter(r => r.position === s.position && teamsPlayingThisWeek.has(r.team) && !used.has(r.id) && !isTeamGameLocked(r.team))
                               .filter(r => !searchText || r.name.toLowerCase().includes(searchText.toLowerCase()))
                               .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
-                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id), opponent: opponentLabel(r.team) }));
+                              .map(r => ({ value: r.id, label: `${r.name} (${r.team})`, avail: availabilityPct(r.id), opponent: opponentLabel(r.team), ppg: seasonPPG(r.id) }));
                           const selectedOpponent = value ? opponentLabel(slotTeamAbbr(value, s.position)) : '';
                           return (
                             <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
@@ -1267,6 +1294,17 @@ export default function LineupPool() {
                                   <Lock size={10} color="#5C6862" /> {value ? playerLabel(value, s.position) : '— no pick —'}
                                   {value && selectedOpponent && (
                                     <span className="font-mono" style={{ fontSize: '11px', color: '#5C6862' }}>{selectedOpponent}</span>
+                                  )}
+                                  {value && (
+                                    <button
+                                      type="button"
+                                      title="View weekly scores"
+                                      onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position) })}
+                                      className="shrink-0"
+                                      style={{ color: '#5C6862' }}
+                                    >
+                                      <Info size={13} />
+                                    </button>
                                   )}
                                 </span>
                               ) : (
@@ -1304,8 +1342,12 @@ export default function LineupPool() {
                                             >
                                               <span className="flex flex-col items-start">
                                                 <span>{o.label}</span>
-                                                {o.opponent && (
-                                                  <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{o.opponent}</span>
+                                                {(o.opponent || o.ppg != null) && (
+                                                  <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>
+                                                    {o.opponent}
+                                                    {o.opponent && o.ppg != null ? ' · ' : ''}
+                                                    {o.ppg != null ? `${o.ppg.toFixed(1)} ppg` : ''}
+                                                  </span>
                                                 )}
                                               </span>
                                               <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
@@ -1315,8 +1357,18 @@ export default function LineupPool() {
                                       </div>
                                     )}
                                   </div>
-                                  {value && selectedOpponent && openCombo !== searchKey && (
-                                    <span className="shrink-0 font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{selectedOpponent}</span>
+                                  {value && openCombo !== searchKey && (
+                                    <span className="shrink-0 font-mono flex items-center gap-1" style={{ fontSize: '10px', color: '#5C6862' }}>
+                                      {selectedOpponent}
+                                      <button
+                                        type="button"
+                                        title="View weekly scores"
+                                        onClick={() => setStatsModalPlayer({ value, label: playerLabel(value, s.position) })}
+                                        style={{ color: '#5C6862' }}
+                                      >
+                                        <Info size={13} />
+                                      </button>
+                                    </span>
                                   )}
                                 </>
                               )}
@@ -1619,6 +1671,51 @@ export default function LineupPool() {
           </div>
         </div>
       )}
+
+      {/* Weekly scores modal */}
+      {statsModalPlayer && (() => {
+        const rows = weeklyScores(statsModalPlayer.value);
+        const total = rows.reduce((sum, r) => sum + r.points, 0);
+        const ppg = seasonPPG(statsModalPlayer.value);
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0" style={{ background: '#0F1614cc' }} onClick={() => setStatsModalPlayer(null)}>
+            <div className="w-full max-w-sm rounded flex flex-col" style={{ background: '#1C2823', border: '1px solid #2A3830', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #2A3830' }}>
+                <div className="font-head text-base uppercase tracking-wide" style={{ color: '#8A9A90' }}>{statsModalPlayer.label}</div>
+                <button onClick={() => setStatsModalPlayer(null)} style={{ color: '#5C6862' }}><X size={20} /></button>
+              </div>
+              <div className="px-5 py-3 flex items-center gap-4" style={{ borderBottom: '1px solid #2A3830' }}>
+                <div>
+                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Season total</div>
+                  <div className="font-head text-lg" style={{ color: '#F0EDE4' }}>{total.toFixed(1)}</div>
+                </div>
+                <div>
+                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>PPG</div>
+                  <div className="font-head text-lg" style={{ color: '#F0EDE4' }}>{ppg != null ? ppg.toFixed(1) : '—'}</div>
+                </div>
+                <div>
+                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Games</div>
+                  <div className="font-head text-lg" style={{ color: '#F0EDE4' }}>{rows.length}</div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                {rows.length === 0 ? (
+                  <div className="font-mono text-xs text-center py-6" style={{ color: '#5C6862' }}>No scores recorded yet this season.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {rows.map(r => (
+                      <div key={r.week} className="flex items-center justify-between font-mono text-xs px-2 py-1.5 rounded" style={{ background: '#0F1614' }}>
+                        <span style={{ color: '#8A9A90' }}>Week {weekLabel(r.week)}</span>
+                        <span style={{ color: r.points >= 0 ? '#F0EDE4' : '#E28A82' }}>{r.points.toFixed(1)} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Admin PIN modal */}
       {adminPrompt && (

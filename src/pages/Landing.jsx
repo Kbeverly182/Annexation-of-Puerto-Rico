@@ -73,6 +73,29 @@ export default function Landing() {
             <p className="font-head text-[11px] uppercase tracking-wide mb-1" style={{ color: '#1C2823' }}>My contact info for any questions</p>
             <p>Kenny Beverly<br />732-586-5522</p>
           </div>
+
+          <div className="flex justify-end items-end gap-1.5 mb-6 pr-2">
+            <svg width="46" height="46" viewBox="0 0 46 46" style={{ transform: 'rotate(6deg)', flexShrink: 0 }}>
+              <path
+                d="M6 6 C 10 4, 34 6, 36 22 C 37 30, 30 33, 24 30"
+                stroke="#E23D3D" strokeWidth="2.5" fill="none" strokeLinecap="round"
+              />
+              <path
+                d="M18 27 L24 30 L23 22"
+                stroke="#E23D3D" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"
+              />
+            </svg>
+            <a
+              href="https://wug-derby-sports-4dv3.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-head text-sm"
+              style={{ color: '#E23D3D', textDecoration: 'underline', textDecorationStyle: 'wavy', textUnderlineOffset: '3px' }}
+            >
+              Check out my brother's pool here!
+            </a>
+          </div>
+
           {POOLS.map(pool => {
             const Icon = pool.icon;
             const Wrapper = pool.comingSoon ? 'div' : Link;

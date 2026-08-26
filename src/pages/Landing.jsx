@@ -74,23 +74,17 @@ export default function Landing() {
             <p>Kenny Beverly<br />732-586-5522</p>
           </div>
 
-          <div className="flex justify-end items-end gap-1.5 mb-6 pr-2">
-            <svg width="46" height="46" viewBox="0 0 46 46" style={{ transform: 'rotate(6deg)', flexShrink: 0 }}>
-              <path
-                d="M6 6 C 10 4, 34 6, 36 22 C 37 30, 30 33, 24 30"
-                stroke="#E23D3D" strokeWidth="2.5" fill="none" strokeLinecap="round"
-              />
-              <path
-                d="M18 27 L24 30 L23 22"
-                stroke="#E23D3D" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"
-              />
+          <div className="flex justify-end items-center gap-2 mb-6 pr-2">
+            <svg width="44" height="26" viewBox="0 0 44 26" style={{ flexShrink: 0 }}>
+              <line x1="2" y1="13" x2="28" y2="13" stroke="#E23D3D" strokeWidth="8" strokeLinecap="round" />
+              <polygon points="24,2 42,13 24,24" fill="#E23D3D" />
             </svg>
             <a
               href="https://wug-derby-sports-4dv3.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-head text-sm"
-              style={{ color: '#E23D3D', textDecoration: 'underline', textDecorationStyle: 'wavy', textUnderlineOffset: '3px' }}
+              className="font-head"
+              style={{ color: '#E23D3D', fontSize: '21px', textDecoration: 'underline', textUnderlineOffset: '3px' }}
             >
               Check out my brother's pool here!
             </a>

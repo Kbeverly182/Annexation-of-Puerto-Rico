@@ -190,6 +190,81 @@ export default function ConfidencePool() {
     return () => clearInterval(t);
   }, []);
 
+  const celebratedKey = (w, pid) => `confidence-celebrated-w${w}-${pid}`;
+
+  // Make sure every regular-season week's schedule has actually been fetched, not just the one
+  // currently being viewed — isWeekComplete needs each week's real game count to know whether
+  // it's actually over, and the shared schedule hook only loads whichever week is on screen.
+  // IMPORTANT: this and the three effects below must stay ABOVE the `if (loading || !data)`
+  // return below — hooks have to run in the same order on every render, so a hook placed after
+  // an early return would be skipped entirely while loading and only start firing once data
+  // arrives, which crashes the whole page (React detects the mismatched hook count). Each one
+  // guards its own body against missing data instead, so it's always called, but safely no-ops
+  // until there's real data to work with.
+  useEffect(() => {
+    if (!data) return;
+    weeksForSeason(viewWeek).forEach(w => ensureSchedule(w));
+  }, [viewWeek, data]);
+
+  // Scan every completed week for a win nobody's been shown a celebration for yet. Runs whenever
+  // scores or the schedule change, since either can be what finally makes a week "complete."
+  // Calls isWeekComplete/weekWinnerIds (defined later in this file, after the loading guard) —
+  // safe because this effect's callback only actually runs once React commits, by which point
+  // this render will have finished executing top to bottom (and so defined them) whenever data
+  // was actually present; the `!data` check below keeps it from ever reaching that reference on
+  // a render where it wasn't.
+  useEffect(() => {
+    if (!data || !myIdLoaded || !myId) return;
+    const newlyWon = [];
+    weeksForSeason(viewWeek).forEach(w => {
+      if (!isWeekComplete(w)) return;
+      if (!weekWinnerIds(w).includes(myId)) return;
+      try {
+        if (localStorage.getItem(celebratedKey(w, myId))) return;
+      } catch (e) { return; }
+      newlyWon.push(w);
+    });
+    if (newlyWon.length > 0) {
+      setCelebrationQueue(q => Array.from(new Set([...q, ...newlyWon])).sort((a, b) => a - b));
+    }
+  }, [data, myIdLoaded, myId, schedule]);
+
+  // Shows queued celebrations one at a time rather than all at once.
+  useEffect(() => {
+    if (activeCelebration == null && celebrationQueue.length > 0) {
+      setActiveCelebration(celebrationQueue[0]);
+      setCelebrationQueue(q => q.slice(1));
+    }
+  }, [celebrationQueue, activeCelebration]);
+
+  const dismissCelebration = () => {
+    if (activeCelebration != null && myId) {
+      try { localStorage.setItem(celebratedKey(activeCelebration, myId), '1'); } catch (e) { /* non-fatal */ }
+    }
+    setActiveCelebration(null);
+  };
+
+  useEffect(() => {
+    if (activeCelebration == null) return;
+    const t = setTimeout(dismissCelebration, 6000);
+    return () => clearTimeout(t);
+  }, [activeCelebration]);
+
+  const confettiPieces = useMemo(() => {
+    if (activeCelebration == null) return [];
+    const colors = ['#E8A23D', '#7FCB98', '#3D9B5C', '#F0EDE4', '#5EA8E8', '#E28A82'];
+    return Array.from({ length: 90 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.7,
+      duration: 2.4 + Math.random() * 1.8,
+      rotate: Math.random() * 360,
+      color: colors[i % colors.length],
+      width: 6 + Math.random() * 5,
+      height: 4 + Math.random() * 8,
+    }));
+  }, [activeCelebration]);
+
   if (loading || !data) {
     return (
       <div style={{ background: '#0F1614' }} className="min-h-screen flex items-center justify-center">
@@ -550,69 +625,6 @@ export default function ConfidencePool() {
     if (max <= 0) return [];
     return scored.filter(s => s.pts === max).map(s => s.id);
   };
-
-  const celebratedKey = (w, pid) => `confidence-celebrated-w${w}-${pid}`;
-
-  // Make sure every regular-season week's schedule has actually been fetched, not just the one
-  // currently being viewed — isWeekComplete needs each week's real game count to know whether
-  // it's actually over, and the shared schedule hook only loads whichever week is on screen.
-  useEffect(() => {
-    weeksForSeason(viewWeek).forEach(w => ensureSchedule(w));
-  }, [viewWeek]);
-
-  // Scan every completed week for a win nobody's been shown a celebration for yet. Runs whenever
-  // scores or the schedule change, since either can be what finally makes a week "complete."
-  useEffect(() => {
-    if (!myIdLoaded || !myId) return;
-    const newlyWon = [];
-    weeksForSeason(viewWeek).forEach(w => {
-      if (!isWeekComplete(w)) return;
-      if (!weekWinnerIds(w).includes(myId)) return;
-      try {
-        if (localStorage.getItem(celebratedKey(w, myId))) return;
-      } catch (e) { /* if storage is unavailable, just don't celebrate rather than repeat forever */ return; }
-      newlyWon.push(w);
-    });
-    if (newlyWon.length > 0) {
-      setCelebrationQueue(q => Array.from(new Set([...q, ...newlyWon])).sort((a, b) => a - b));
-    }
-  }, [myIdLoaded, myId, data.results, schedule]);
-
-  // Shows queued celebrations one at a time rather than all at once.
-  useEffect(() => {
-    if (activeCelebration == null && celebrationQueue.length > 0) {
-      setActiveCelebration(celebrationQueue[0]);
-      setCelebrationQueue(q => q.slice(1));
-    }
-  }, [celebrationQueue, activeCelebration]);
-
-  const dismissCelebration = () => {
-    if (activeCelebration != null && myId) {
-      try { localStorage.setItem(celebratedKey(activeCelebration, myId), '1'); } catch (e) { /* non-fatal */ }
-    }
-    setActiveCelebration(null);
-  };
-
-  useEffect(() => {
-    if (activeCelebration == null) return;
-    const t = setTimeout(dismissCelebration, 6000);
-    return () => clearTimeout(t);
-  }, [activeCelebration]);
-
-  const confettiPieces = useMemo(() => {
-    if (activeCelebration == null) return [];
-    const colors = ['#E8A23D', '#7FCB98', '#3D9B5C', '#F0EDE4', '#5EA8E8', '#E28A82'];
-    return Array.from({ length: 90 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 0.7,
-      duration: 2.4 + Math.random() * 1.8,
-      rotate: Math.random() * 360,
-      color: colors[i % colors.length],
-      width: 6 + Math.random() * 5,
-      height: 4 + Math.random() * 8,
-    }));
-  }, [activeCelebration]);
 
   // The most points still mathematically reachable this week: already-correct picks (locked
   // in) plus every pick whose game hasn't been decided yet (optimistic — still possible to go

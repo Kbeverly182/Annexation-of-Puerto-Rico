@@ -1361,50 +1361,63 @@ export default function LineupPool() {
                                       value={openCombo === searchKey ? searchText : (value ? playerLabel(value, s.position) : '')}
                                       onFocus={() => setOpenCombo(searchKey)}
                                       onChange={e => setPlayerSearch(ps => ({ ...ps, [searchKey]: e.target.value }))}
-                                      onBlur={() => setTimeout(() => setOpenCombo(c => (c === searchKey ? null : c)), 150)}
                                       placeholder={`search ${s.label}…`}
                                       className="w-full px-1.5 py-1 rounded"
                                       style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#F0EDE4', fontSize: '16px' }}
                                     />
                                     {openCombo === searchKey && (
-                                      <div
-                                        className="absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded"
-                                        style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
-                                      >
-                                        {options.length === 0 ? (
-                                          <div className="px-2 py-1.5" style={{ color: '#5C6862' }}>No matches</div>
-                                        ) : (
-                                          options.map(o => (
-                                            <button
-                                              key={o.value}
-                                              type="button"
-                                              onMouseDown={e => e.preventDefault()}
-                                              onClick={() => {
-                                                requestSlotPick(p.id, s.key, s.position, o.value, o.label, p.name);
-                                                setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
-                                                setOpenCombo(null);
-                                              }}
-                                              className="w-full text-left px-2 py-1.5 flex items-center justify-between gap-2"
-                                              style={{ color: '#F0EDE4' }}
-                                            >
-                                              <span className="flex flex-col items-start min-w-0 flex-1">
-                                                <span className="flex items-center gap-1.5 flex-wrap">
-                                                  <span>{o.label}</span>
-                                                  {o.ppg != null && (
-                                                    <span className="shrink-0 font-mono rounded-full" style={{ fontSize: '9px', padding: '1px 6px', background: '#7FCB9822', border: '1px solid #7FCB9866', color: '#7FCB98', fontWeight: 600 }}>
-                                                      {o.ppg.toFixed(1)} PPG
+                                      <>
+                                        {/* Backdrop — tapping outside the results panel closes it, same as the old onBlur did */}
+                                        <div className="fixed inset-0 z-30" style={{ background: 'rgba(15,22,20,0.6)' }} onClick={() => setOpenCombo(null)} />
+                                        {/* Results pinned near the top of the viewport instead of right under the input — on
+                                            mobile, the keyboard covers roughly the bottom half of the screen, so anchoring the
+                                            list to the input itself left only a couple of rows visible above it. Pinning to the
+                                            top instead keeps the full list clear of the keyboard no matter where this slot's
+                                            input actually sits on the page. */}
+                                        <div
+                                          className="fixed left-2 right-2 z-40 rounded overflow-hidden flex flex-col"
+                                          style={{ top: '8px', maxHeight: '55vh', background: '#0F1614', border: '1px solid #2A3830', boxShadow: '0 10px 30px rgba(0,0,0,0.6)' }}
+                                        >
+                                          <div className="flex items-center justify-between px-3 py-2 shrink-0" style={{ borderBottom: '1px solid #2A3830' }}>
+                                            <span className="font-mono text-xs uppercase" style={{ color: '#8A9A90' }}>Search {s.label}</span>
+                                            <button type="button" onClick={() => setOpenCombo(null)} style={{ color: '#5C6862' }}><X size={16} /></button>
+                                          </div>
+                                          <div className="overflow-y-auto">
+                                            {options.length === 0 ? (
+                                              <div className="px-3 py-3" style={{ color: '#5C6862' }}>No matches</div>
+                                            ) : (
+                                              options.map(o => (
+                                                <button
+                                                  key={o.value}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    requestSlotPick(p.id, s.key, s.position, o.value, o.label, p.name);
+                                                    setPlayerSearch(ps => ({ ...ps, [searchKey]: '' }));
+                                                    setOpenCombo(null);
+                                                  }}
+                                                  className="w-full text-left px-3 py-2 flex items-center justify-between gap-2"
+                                                  style={{ color: '#F0EDE4', borderBottom: '1px solid #1C2823' }}
+                                                >
+                                                  <span className="flex flex-col items-start min-w-0 flex-1">
+                                                    <span className="flex items-center gap-1.5 flex-wrap">
+                                                      <span>{o.label}</span>
+                                                      {o.ppg != null && (
+                                                        <span className="shrink-0 font-mono rounded-full" style={{ fontSize: '9px', padding: '1px 6px', background: '#7FCB9822', border: '1px solid #7FCB9866', color: '#7FCB98', fontWeight: 600 }}>
+                                                          {o.ppg.toFixed(1)} PPG
+                                                        </span>
+                                                      )}
                                                     </span>
-                                                  )}
-                                                </span>
-                                                {o.opponent && (
-                                                  <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{o.opponent}</span>
-                                                )}
-                                              </span>
-                                              <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
-                                            </button>
-                                          ))
-                                        )}
-                                      </div>
+                                                    {o.opponent && (
+                                                      <span className="font-mono" style={{ fontSize: '10px', color: '#5C6862' }}>{o.opponent}</span>
+                                                    )}
+                                                  </span>
+                                                  <span className="shrink-0" style={{ color: o.avail >= 50 ? '#7FCB98' : o.avail > 0 ? '#E8A23D' : '#E28A82' }}>{o.avail}%</span>
+                                                </button>
+                                              ))
+                                            )}
+                                          </div>
+                                        </div>
+                                      </>
                                     )}
                                   </div>
                                   {value && openCombo !== searchKey && (

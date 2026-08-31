@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Skull, ListOrdered, Users, ChevronRight } from 'lucide-react';
+import { Skull, ListOrdered, Users, ChevronRight, Coins } from 'lucide-react';
 
 const POOLS = [
   {
@@ -10,6 +10,7 @@ const POOLS = [
     type: 'NFL Survivor Pool',
     desc: 'Pick one team to win each week. Lose once and you\'re out.',
     color: '#3D9B5C',
+    fee: 20,
   },
   {
     to: '/confidence',
@@ -18,6 +19,7 @@ const POOLS = [
     type: 'NFL Confidence Pool',
     desc: 'Pick every game, rank your confidence 1 to N, cumulative points all season.',
     color: '#E8A23D',
+    fee: 25,
   },
   {
     to: '/lineup',
@@ -26,6 +28,7 @@ const POOLS = [
     type: 'Fantasy One-and-Done Pool',
     desc: 'Build a weekly fantasy lineup, no repeat players all season.',
     color: '#5C6862',
+    fee: 25,
   },
 ];
 
@@ -123,6 +126,9 @@ export default function Landing() {
                   </div>
                   <div className="font-mono text-[10px] uppercase tracking-wide mb-0.5" style={{ color: pool.color }}>{pool.type}</div>
                   <div className="font-mono text-xs" style={{ color: '#7A8580' }}>{pool.desc}</div>
+                  <div className="font-mono text-[10px] uppercase tracking-wide mt-1.5 flex items-center gap-1" style={{ color: pool.color }}>
+                    <Coins size={11} /> Entry Fee: {pool.fee} units
+                  </div>
                 </div>
                 {!pool.comingSoon && <ChevronRight size={18} className="shrink-0" color={pool.color} />}
               </Wrapper>

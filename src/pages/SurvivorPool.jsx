@@ -643,6 +643,9 @@ export default function SurvivorPool() {
           <div className="px-3 py-1.5 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
             Entrants {data.participants.length}
           </div>
+          <div className="px-3 py-1.5 rounded flex items-center gap-1" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D55', color: '#E8A23D' }}>
+            <Coins size={12} /> Entry Fee: {SURVIVOR_ENTRY_FEE} units
+          </div>
           {saveError && (
             <div className="px-3 py-1.5 rounded ml-auto" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
               Sync failed — retrying

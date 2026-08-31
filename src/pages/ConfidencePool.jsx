@@ -773,6 +773,11 @@ export default function ConfidencePool() {
             </div>
           </div>
         </div>
+        <div className="max-w-5xl mx-auto mt-4 flex gap-2 font-mono text-xs uppercase">
+          <div className="px-3 py-1.5 rounded flex items-center gap-1" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D55', color: '#E8A23D' }}>
+            <Coins size={12} /> Entry Fee: {CONFIDENCE_ENTRY_FEE} units
+          </div>
+        </div>
         {saveError && (
           <div className="max-w-5xl mx-auto mt-3 font-mono text-xs px-3 py-1.5 rounded" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82', width: 'fit-content' }}>
             Sync failed — retrying

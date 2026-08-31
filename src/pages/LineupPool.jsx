@@ -73,18 +73,27 @@ const NAME_OVERRIDES = {
 };
 const nameOverride = (fullName) => NAME_OVERRIDES[(fullName || '').trim().toLowerCase()];
 
+// Suffixes that should never themselves be treated as the last name, either for sorting or
+// display — "Michael Pittman Jr." sorts (and reads) as Pittman, not Jr.
+const NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
+
 const lastNameOf = (fullName) => {
   const override = nameOverride(fullName);
   if (override) return override.last.toLowerCase();
   const parts = (fullName || '').trim().split(/\s+/);
-  return (parts[parts.length - 1] || '').toLowerCase();
+  if (parts.length === 0) return '';
+  const rest = [...parts];
+  const maybeSuffix = (rest[rest.length - 1] || '').toLowerCase().replace(/\.$/, '');
+  if (NAME_SUFFIXES.has(maybeSuffix) && rest.length > 2) {
+    rest.pop(); // drop the suffix so the real last name underneath it is what gets sorted on
+  }
+  return (rest[rest.length - 1] || '').toLowerCase();
 };
 
 // "Josh Allen" -> "Allen, Josh". Suffixes (Jr., III, etc.) stay attached to the last name rather
 // than being read as it themselves. Multi-word last names not listed in NAME_OVERRIDES above
 // aren't specially handled, same simplification lastNameOf makes for sorting — keeps display
 // order consistent with sort order rather than technically "more correct" but mismatched.
-const NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
 const lastFirstDisplay = (fullName) => {
   const override = nameOverride(fullName);
   if (override) return `${override.last}, ${override.first}`;
@@ -426,14 +435,17 @@ export default function LineupPool() {
     }
     const weekPicks = data.picks[viewWeek]?.[pid] || {};
     const oldValue = weekPicks[slotKey];
-    const wasSubmitted = weekPicks.confirmedSignature != null && weekPicks.confirmedSignature === lineupSignature(weekPicks);
-    if (!wasSubmitted) {
+    if (!oldValue) {
+      // Filling a slot that was empty — no confirmation needed, this is a first-time pick.
       setSlot(viewWeek, pid, slotKey, value);
       return;
     }
+    // Replacing a pick that was already sitting in this slot — always confirm, every time,
+    // not just the first swap. (Submission status doesn't factor in here at all anymore —
+    // that's tracked separately for the Submit button's own grey/orange state.)
     setSlotPickConfirm({
       pid, slotKey, position, value, label, participantName,
-      oldValue, oldLabel: oldValue ? playerLabel(oldValue, position) : null,
+      oldValue, oldLabel: playerLabel(oldValue, position),
     });
   };
   const confirmSlotPick = () => {
@@ -969,6 +981,11 @@ export default function LineupPool() {
                 <>{String(data.currentWeek).padStart(2, '0')}<span style={{ color: '#5C6862', fontSize: '0.5em' }}> / 18</span></>
               )}
             </div>
+          </div>
+        </div>
+        <div className="max-w-5xl mx-auto mt-4 flex gap-2 font-mono text-xs uppercase">
+          <div className="px-3 py-1.5 rounded flex items-center gap-1" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D55', color: '#E8A23D' }}>
+            <Coins size={12} /> Entry Fee: {LINEUP_ENTRY_FEE} units
           </div>
         </div>
         {saveError && (
@@ -1706,12 +1723,8 @@ export default function LineupPool() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
           <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
             <div className="font-mono text-sm mb-4" style={{ color: '#F0EDE4' }}>
-              <div className="font-mono text-[10px] uppercase mb-2" style={{ color: '#E8A23D' }}>This lineup was already submitted</div>
-              {slotPickConfirm.oldValue ? (
-                <>Change <span style={{ color: '#8A9A90' }}>{slotPickConfirm.participantName}'s</span> pick from <span style={{ color: '#E28A82' }}>{slotPickConfirm.oldLabel}</span> to <span style={{ color: '#7FCB98' }}>{slotPickConfirm.label}</span>?</>
-              ) : (
-                <>Save <span style={{ color: '#8A9A90' }}>{slotPickConfirm.participantName}'s</span> pick as <span style={{ color: '#7FCB98' }}>{slotPickConfirm.label}</span>?</>
-              )}
+              <div className="font-mono text-[10px] uppercase mb-2" style={{ color: '#E8A23D' }}>Replacing an existing pick</div>
+              Change <span style={{ color: '#8A9A90' }}>{slotPickConfirm.participantName}'s</span> pick from <span style={{ color: '#E28A82' }}>{slotPickConfirm.oldLabel}</span> to <span style={{ color: '#7FCB98' }}>{slotPickConfirm.label}</span>?
             </div>
             <div className="flex items-center gap-2">
               <button onClick={confirmSlotPick} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#8A9A90', color: '#0F1614' }}>

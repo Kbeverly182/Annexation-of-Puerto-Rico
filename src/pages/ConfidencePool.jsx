@@ -656,6 +656,11 @@ export default function ConfidencePool() {
   const seasonTotal = (pid) => weeksForSeason(viewWeek).reduce((sum, w) => sum + weeklyPoints(pid, w), 0);
 
   const numTopSpots = Math.max(1, Math.ceil(data.participants.length / 12));
+  // myId being set doesn't guarantee it still points to a real entrant — a full pool reset (or
+  // manual removal) can leave a stale id sitting in someone's localStorage. Treat that the same
+  // as not being signed in at all, everywhere it matters, rather than just where it happened to
+  // already get double-checked.
+  const myIdValid = !!(myId && data.participants.some(p => p.id === myId));
 
   const weeklyLeaderboard = (w) => {
     const actualMnf = data.mnfActual?.[w] ?? null;
@@ -795,7 +800,7 @@ export default function ConfidencePool() {
             <Users size={14} /> Entrants
           </div>
 
-          {myIdLoaded && (isAdmin || !myId) && (
+          {myIdLoaded && (isAdmin || !myIdValid) && (
             <>
               <div className="font-mono text-[20px] uppercase mb-1.5" style={{ color: '#5C6862' }}>Create new entry?</div>
               <div
@@ -883,7 +888,7 @@ export default function ConfidencePool() {
           {myIdLoaded && (
             isAdmin ? (
               <>
-                {myId && data.participants.some(p => p.id === myId) && (
+                {myIdValid && (
                   <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                     <UserCircle size={14} color="#E8A23D" />
                     You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
@@ -941,7 +946,7 @@ export default function ConfidencePool() {
                   </div>
                 )}
               </>
-            ) : myId && data.participants.some(p => p.id === myId) ? (
+            ) : myIdValid ? (
               <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                 <UserCircle size={14} color="#E8A23D" />
                 You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>

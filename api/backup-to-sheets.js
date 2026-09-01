@@ -258,12 +258,14 @@ export default async function handler(req, res) {
         .forEach(week => {
           const weekPicks = lineupData.picks[week]?.[p.id];
           if (!weekPicks) return;
-          Object.entries(weekPicks).forEach(([slot, value]) => {
-            if (!value) return;
-            const points = lineupData.playerScores?.[week]?.[value];
-            const displayValue = slot === 'DST' ? `${value} D/ST` : (playerNames[value] || `Unknown player (id ${value})`);
-            lineupRows.push([weekLabel(week), p.name || '', slot, displayValue, points != null ? points : '']);
-          });
+          Object.entries(weekPicks)
+            .filter(([slot]) => slot !== 'confirmedSignature') // metadata, not an actual roster slot
+            .forEach(([slot, value]) => {
+              if (!value) return;
+              const points = lineupData.playerScores?.[week]?.[value];
+              const displayValue = slot === 'DST' ? `${value} D/ST` : (playerNames[value] || `Unknown player (id ${value})`);
+              lineupRows.push([weekLabel(week), p.name || '', slot, displayValue, points != null ? points : '']);
+            });
         });
     });
     await sheets.spreadsheets.values.update({

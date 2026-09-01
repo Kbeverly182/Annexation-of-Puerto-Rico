@@ -107,6 +107,7 @@ export default function ConfidencePool() {
   const [tiebreakerReminder, setTiebreakerReminder] = useState(null);
   const [submitCheck, setSubmitCheck] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -385,6 +386,25 @@ export default function ConfidencePool() {
         : p),
     });
     setResetConfirmId(null);
+  };
+
+  // Keeps everyone's name, display name, email, and PIN exactly as-is — no re-registering
+  // returning players — while wiping every piece of data that's specific to the season that
+  // just ended: picks, results, the MNF tiebreaker actuals, chat, the ticker, and the
+  // current-week pointer. Deliberately does NOT touch admin-config (a separate KV key
+  // entirely), so the shared admin PIN survives this too.
+  const startNewSeason = () => {
+    if (!newSeasonConfirm) { setNewSeasonConfirm(true); return; }
+    persist({
+      ...data,
+      picks: {},
+      results: {},
+      mnfActual: {},
+      chatMessages: [],
+      tickerMessage: '',
+      currentWeek: 1,
+    });
+    setNewSeasonConfirm(false);
   };
 
   const exportEmails = () => {
@@ -906,6 +926,15 @@ export default function ConfidencePool() {
                         <Download size={10} /> Export emails (.csv)
                       </button>
                     )}
+                    <button
+                      onClick={startNewSeason}
+                      onBlur={() => setNewSeasonConfirm(false)}
+                      title="Keeps every entrant's name, display name, email, and PIN. Wipes all picks, results, the tiebreaker, chat, and the ticker, and resets the current week back to 1."
+                      className="font-mono text-[10px] uppercase underline flex items-center gap-1"
+                      style={{ color: newSeasonConfirm ? '#E28A82' : '#5C6862' }}
+                    >
+                      <RefreshCw size={10} /> {newSeasonConfirm ? 'Confirm: wipe all picks & start fresh?' : 'Start New Season'}
+                    </button>
                   </div>
                 </div>
                 {backupStatus && !backupStatus.loading && (

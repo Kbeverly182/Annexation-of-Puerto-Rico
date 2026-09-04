@@ -426,6 +426,15 @@ export default function SurvivorPool() {
     setResetConfirmId(null);
   };
 
+  // Admin-only entry-fee tracking — purely a record-keeping flag, doesn't affect picks, locks,
+  // or anything else about how the pool runs.
+  const togglePaid = (id) => {
+    persist({
+      ...data,
+      participants: data.participants.map(p => p.id === id ? { ...p, paid: !p.paid } : p),
+    });
+  };
+
   // Keeps everyone's name, display name, email, and PIN exactly as-is — no re-registering
   // returning players — while wiping every piece of data that's specific to the season that
   // just ended: picks, chat, the ticker, and the current-week pointer. Deliberately does NOT
@@ -784,7 +793,12 @@ export default function SurvivorPool() {
                   </div>
                 )}
                 <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1.5">
-                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                  <div className="flex items-center gap-3">
+                    <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>All entrants (admin view)</div>
+                    <div className="font-mono text-[10px] uppercase" style={{ color: '#7FCB98' }}>
+                      Paid {data.participants.filter(p => p.paid).length}/{data.participants.length}
+                    </div>
+                  </div>
                   <div className="flex items-center gap-3">
                     <button onClick={runBackup} disabled={backupStatus?.loading} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98', opacity: backupStatus?.loading ? 0.6 : 1 }}>
                       <RefreshCw size={10} className={backupStatus?.loading ? 'animate-spin' : ''} /> {backupStatus?.loading ? 'Backing up…' : 'Backup Now'}
@@ -818,8 +832,16 @@ export default function SurvivorPool() {
                       <div
                         key={p.id}
                         className="flex items-center gap-1.5 px-2 py-1 rounded font-mono text-xs"
-                        style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}
+                        style={{ background: p.paid ? '#3D9B5C1a' : '#1C2823', border: `1px solid ${p.paid ? '#3D9B5C66' : '#2A3830'}`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}
                       >
+                        <button
+                          onClick={() => togglePaid(p.id)}
+                          title={p.paid ? 'Mark as unpaid' : 'Mark as paid'}
+                          className="flex items-center justify-center rounded-sm shrink-0"
+                          style={{ width: '15px', height: '15px', background: p.paid ? '#3D9B5C' : 'transparent', border: `1px solid ${p.paid ? '#3D9B5C' : '#5C6862'}` }}
+                        >
+                          {p.paid && <Check size={11} color="#0F1614" />}
+                        </button>
                         <button onClick={() => handleNameTap(p)} className="flex items-center gap-1" style={{ color: '#F0EDE4' }}>
                           {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}

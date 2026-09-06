@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical, Mail, Copy } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -108,6 +108,8 @@ export default function ConfidencePool() {
   const [submitCheck, setSubmitCheck] = useState(null);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
+  const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
+  const [copied, setCopied] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -395,6 +397,41 @@ export default function ConfidencePool() {
       ...data,
       participants: data.participants.map(p => p.id === id ? { ...p, paid: !p.paid } : p),
     });
+  };
+
+  // Builds a deduplicated, comma-separated email list for this pool only, filtered by who
+  // still needs a nudge — everyone, whoever hasn't picked a single winner yet this week (not
+  // "hasn't finished," just "hasn't started"), or whoever isn't marked paid.
+  const buildEmailList = (filter) => {
+    let matching = data.participants;
+    if (filter === 'nopick') {
+      matching = data.participants.filter(p => {
+        const entry = data.picks[viewWeek]?.[p.id];
+        return !entry || Object.keys(entry.winners || {}).length === 0;
+      });
+    } else if (filter === 'unpaid') {
+      matching = data.participants.filter(p => !p.paid);
+    }
+    const seen = new Set();
+    const emails = [];
+    matching.forEach(p => {
+      const email = (p.email || '').trim();
+      if (!email || seen.has(email.toLowerCase())) return;
+      seen.add(email.toLowerCase());
+      emails.push(email);
+    });
+    const labels = { all: 'All members', nopick: `Haven't picked yet — Week ${weekLabel(viewWeek)}`, unpaid: 'Not marked paid' };
+    setEmailModal({ label: labels[filter], emails });
+  };
+
+  const copyEmails = () => {
+    if (!emailModal) return;
+    const text = emailModal.emails.join(', ');
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* non-fatal — text box below still works */ });
   };
 
   // Keeps everyone's name, display name, email, and PIN exactly as-is — no re-registering
@@ -956,6 +993,18 @@ export default function ConfidencePool() {
                     {backupStatus.ok ? `Backed up all 3 pools to Google Sheets at ${new Date(backupStatus.syncedAt).toLocaleTimeString()}.` : `Backup failed: ${backupStatus.error}`}
                   </div>
                 )}
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Email this pool's members:</div>
+                  <button onClick={() => buildEmailList('all')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98' }}>
+                    <Mail size={10} /> All
+                  </button>
+                  <button onClick={() => buildEmailList('nopick')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#E8A23D' }}>
+                    <Mail size={10} /> Haven't picked (Week {weekLabel(viewWeek)})
+                  </button>
+                  <button onClick={() => buildEmailList('unpaid')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#E28A82' }}>
+                    <Mail size={10} /> Not paid
+                  </button>
+                </div>
                 {data.participants.length === 0 ? (
                   <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No entrants yet.</div>
                 ) : (
@@ -1626,6 +1675,47 @@ export default function ConfidencePool() {
             >
               Nice!
             </button>
+          </div>
+        </div>
+      )}
+
+      {emailModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0" style={{ background: '#0F1614cc' }} onClick={() => setEmailModal(null)}>
+          <div className="w-full max-w-lg rounded flex flex-col" style={{ background: '#1C2823', border: '1px solid #2A3830', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #2A3830' }}>
+              <div>
+                <div className="font-head text-sm uppercase tracking-wide" style={{ color: '#F0EDE4' }}>{emailModal.label}</div>
+                <div className="font-mono text-[10px]" style={{ color: '#5C6862' }}>{emailModal.emails.length} email address{emailModal.emails.length === 1 ? '' : 'es'}</div>
+              </div>
+              <button onClick={() => setEmailModal(null)} style={{ color: '#5C6862' }}><X size={20} /></button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto">
+              {emailModal.emails.length === 0 ? (
+                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>No matching email addresses found.</div>
+              ) : (
+                <>
+                  <textarea
+                    readOnly
+                    value={emailModal.emails.join(', ')}
+                    onFocus={e => e.target.select()}
+                    rows={6}
+                    className="w-full px-3 py-2 rounded font-mono text-xs resize-none"
+                    style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                  />
+                  <button
+                    onClick={copyEmails}
+                    className="mt-3 px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1.5"
+                    style={{ background: copied ? '#3D9B5C' : '#1F2B25', color: copied ? '#0F1614' : '#F0EDE4', border: copied ? 'none' : '1px solid #3A4A42' }}
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? 'Copied!' : 'Copy to clipboard'}
+                  </button>
+                  <div className="font-mono text-[10px] mt-2" style={{ color: '#5C6862' }}>
+                    Paste this directly into Gmail's "To" field — it's already comma-separated.
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

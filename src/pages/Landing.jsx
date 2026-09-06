@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Skull, ListOrdered, Users, ChevronRight, Coins } from 'lucide-react';
+import { Skull, ListOrdered, Users, ChevronRight, Coins, Mail, Copy, Check, X, Loader2 } from 'lucide-react';
+import { useAdminMode } from '../lib/admin';
+import { apiGetPool } from '../lib/api';
+
+const POOL_KEYS = ['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1'];
 
 const POOLS = [
   {
@@ -33,6 +37,50 @@ const POOLS = [
 ];
 
 export default function Landing() {
+  const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
+  const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // Pulls every pool's participant list and returns one deduplicated set of email addresses
+  // across all three — someone entered in more than one pool with the same address only shows
+  // up once.
+  const buildAllMembersEmailList = async () => {
+    setEmailLoading(true);
+    setEmailError('');
+    try {
+      const pools = await Promise.all(POOL_KEYS.map(key => apiGetPool(key)));
+      const seen = new Set();
+      const emails = [];
+      pools.forEach(pool => {
+        (pool?.participants || []).forEach(p => {
+          const email = (p.email || '').trim();
+          if (!email) return;
+          const key = email.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          emails.push(email);
+        });
+      });
+      setEmailModal({ label: 'All members — every pool', emails });
+    } catch (e) {
+      setEmailError('Could not load one or more pools — try again.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const copyEmails = () => {
+    if (!emailModal) return;
+    const text = emailModal.emails.join(', ');
+    if (!navigator.clipboard) return; // text box below is still selectable/copyable by hand
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* non-fatal — text box below still works */ });
+  };
+
   return (
     <div style={{ background: '#F9F9F9', color: '#1C2823', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
@@ -54,13 +102,43 @@ export default function Landing() {
       <div className="flex flex-col md:flex-row md:min-h-screen">
         {/* Pools column */}
         <div className="w-full md:w-96 shrink-0 px-5 sm:px-8 py-8 space-y-3 order-2 md:order-1" style={{ borderTop: '1px solid #E5E3DD' }}>
-          <div className="mb-6">
-            <div className="font-display uppercase leading-none" style={{ fontSize: '30px', letterSpacing: '0.02em' }}>
-              <span style={{ color: '#1C2823' }}>Grade A </span>
-              <span style={{ color: '#1D4ED8', textShadow: '2px 2px 0 rgba(29,78,216,0.2)' }}>Beef Pools</span>
+          <div className="mb-6 flex items-start justify-between gap-3">
+            <div>
+              <div className="font-display uppercase leading-none" style={{ fontSize: '30px', letterSpacing: '0.02em' }}>
+                <span style={{ color: '#1C2823' }}>Grade A </span>
+                <span style={{ color: '#1D4ED8', textShadow: '2px 2px 0 rgba(29,78,216,0.2)' }}>Beef Pools</span>
+              </div>
+              <div className="font-mono text-xs mt-1.5" style={{ color: '#7A8580' }}>Pick your pool below</div>
             </div>
-            <div className="font-mono text-xs mt-1.5" style={{ color: '#7A8580' }}>Pick your pool below</div>
+            {isAdmin ? (
+              <button onClick={exitAdmin} className="shrink-0 font-mono text-[10px] uppercase px-2 py-1 rounded" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#C1443A' }}>
+                Exit Admin
+              </button>
+            ) : (
+              <button onClick={openAdminPrompt} className="shrink-0 font-mono text-[10px] uppercase underline" style={{ color: '#B5B0A5' }}>
+                Admin
+              </button>
+            )}
           </div>
+
+          {isAdmin && (
+            <div className="rounded px-4 py-3 mb-6" style={{ background: '#1D4ED80d', border: '1px solid #1D4ED855' }}>
+              <div className="font-head text-[11px] uppercase tracking-wide mb-2" style={{ color: '#1D4ED8' }}>Admin — Email members</div>
+              <button
+                onClick={buildAllMembersEmailList}
+                disabled={emailLoading}
+                className="font-mono text-xs px-3 py-1.5 rounded flex items-center gap-1.5"
+                style={{ background: '#1D4ED8', color: '#FFFFFF', opacity: emailLoading ? 0.6 : 1 }}
+              >
+                {emailLoading ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+                {emailLoading ? 'Loading…' : 'Email All Members (all 3 pools)'}
+              </button>
+              {emailError && <div className="font-mono text-[10px] mt-2" style={{ color: '#C1443A' }}>{emailError}</div>}
+              <div className="font-mono text-[10px] mt-2" style={{ color: '#7A8580' }}>
+                Want just one pool, or only people who haven't paid or haven't picked yet? Use the Admin section on that pool's own page instead.
+              </div>
+            </div>
+          )}
 
           <div className="rounded px-5 py-4 mb-6 font-mono text-xs leading-relaxed" style={{ background: '#F7F6F3', border: '1px solid #E5E3DD', color: '#4A544E' }}>
             <p className="mb-3">
@@ -146,6 +224,80 @@ export default function Landing() {
           />
         </div>
       </div>
+
+      {adminPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#1C2823cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#FFFFFF', border: '1px solid #E5E3DD' }}>
+            <div className="font-head text-sm uppercase tracking-wide mb-2" style={{ color: '#1C2823' }}>
+              {adminPrompt.mode === 'set' ? 'Set the admin PIN' : 'Enter admin PIN'}
+            </div>
+            <div className="font-mono text-xs mb-3" style={{ color: '#7A8580' }}>
+              {adminPrompt.mode === 'set'
+                ? 'This PIN unlocks admin mode across all three pools — lets you edit any pick even after it locks. Set once, use everywhere.'
+                : 'Same PIN you use on Survivor, Confidence, and Lineup.'}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                inputMode="numeric"
+                maxLength={8}
+                value={adminPrompt.input}
+                onChange={e => setAdminPrompt(p => ({ ...p, input: e.target.value.replace(/\D/g, '').slice(0, 8), error: '' }))}
+                onKeyDown={e => e.key === 'Enter' && submitAdminPrompt()}
+                placeholder="••••"
+                className="w-24 px-2 py-1.5 rounded font-mono text-sm tracking-widest text-center"
+                style={{ background: '#F7F6F3', border: '1px solid #E5E3DD', color: '#1C2823' }}
+              />
+              <button onClick={submitAdminPrompt} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#1D4ED8', color: '#FFFFFF' }}>
+                {adminPrompt.mode === 'set' ? 'Set PIN' : 'Unlock'}
+              </button>
+              <button onClick={() => setAdminPrompt(null)} className="font-mono text-xs underline" style={{ color: '#7A8580' }}>Cancel</button>
+            </div>
+            {adminPrompt.error && <div className="font-mono text-xs mt-1.5" style={{ color: '#C1443A' }}>{adminPrompt.error}</div>}
+          </div>
+        </div>
+      )}
+
+      {emailModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0" style={{ background: '#1C2823cc' }} onClick={() => setEmailModal(null)}>
+          <div className="w-full max-w-lg rounded flex flex-col" style={{ background: '#FFFFFF', border: '1px solid #E5E3DD', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #E5E3DD' }}>
+              <div>
+                <div className="font-head text-sm uppercase tracking-wide" style={{ color: '#1C2823' }}>{emailModal.label}</div>
+                <div className="font-mono text-[10px]" style={{ color: '#7A8580' }}>{emailModal.emails.length} email address{emailModal.emails.length === 1 ? '' : 'es'}</div>
+              </div>
+              <button onClick={() => setEmailModal(null)} style={{ color: '#7A8580' }}><X size={20} /></button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto">
+              {emailModal.emails.length === 0 ? (
+                <div className="font-mono text-xs" style={{ color: '#7A8580' }}>No matching email addresses found.</div>
+              ) : (
+                <>
+                  <textarea
+                    readOnly
+                    value={emailModal.emails.join(', ')}
+                    onFocus={e => e.target.select()}
+                    rows={6}
+                    className="w-full px-3 py-2 rounded font-mono text-xs resize-none"
+                    style={{ background: '#F7F6F3', border: '1px solid #E5E3DD', color: '#1C2823' }}
+                  />
+                  <button
+                    onClick={copyEmails}
+                    className="mt-3 px-4 py-2 rounded font-head text-sm uppercase tracking-wide flex items-center gap-1.5"
+                    style={{ background: copied ? '#3D9B5C' : '#1D4ED8', color: '#FFFFFF' }}
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? 'Copied!' : 'Copy to clipboard'}
+                  </button>
+                  <div className="font-mono text-[10px] mt-2" style={{ color: '#7A8580' }}>
+                    Paste this directly into Gmail's "To" field — it's already comma-separated.
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

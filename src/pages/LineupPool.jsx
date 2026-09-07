@@ -135,6 +135,7 @@ export default function LineupPool() {
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
   const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
+  const [renamePrompt, setRenamePrompt] = useState(null); // { participantId, value, error }
   const [copied, setCopied] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
   const [clearWeekConfirm, setClearWeekConfirm] = useState(false);
@@ -362,6 +363,28 @@ export default function LineupPool() {
       ...data,
       participants: data.participants.map(p => p.id === id ? { ...p, paid: !p.paid } : p),
     });
+  };
+
+  // Display-name editing — for someone fixing a typo in their own name, or admin fixing it on
+  // an entrant's behalf. Real name, email, and PIN are untouched either way; this only ever
+  // changes the public display name. No uniqueness check here since display names were never
+  // required to be unique at signup either — only real name is.
+  const openRenamePrompt = (participantId) => {
+    const current = data.participants.find(p => p.id === participantId)?.name || '';
+    setRenamePrompt({ participantId, value: current, error: '' });
+  };
+  const saveRename = () => {
+    if (!renamePrompt) return;
+    const trimmed = renamePrompt.value.trim();
+    if (!trimmed) {
+      setRenamePrompt(p => ({ ...p, error: 'Name cannot be empty.' }));
+      return;
+    }
+    persist({
+      ...data,
+      participants: data.participants.map(p => p.id === renamePrompt.participantId ? { ...p, name: trimmed } : p),
+    });
+    setRenamePrompt(null);
   };
 
   // Builds a deduplicated, comma-separated email list for this pool only, filtered by who
@@ -1168,6 +1191,7 @@ export default function LineupPool() {
                   <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                     <UserCircle size={14} color="#7FCB98" />
                     You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                    <button onClick={() => openRenamePrompt(myId)} title="Edit your display name" style={{ color: '#5C6862' }}><Pencil size={11} /></button>
                     <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
                   </div>
                 )}
@@ -1233,6 +1257,7 @@ export default function LineupPool() {
                           {p.pin ? <Lock size={10} color="#7FCB98" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}
                         </button>
+                        <button onClick={() => openRenamePrompt(p.id)} title="Edit display name" style={{ color: '#5C6862' }}><Pencil size={10} /></button>
                         {(p.realName || p.email) && (
                           <span style={{ color: '#5C6862', fontSize: '9px' }}>
                             ({p.realName || '?'}{p.email ? ` — ${p.email}` : ''})
@@ -1260,6 +1285,7 @@ export default function LineupPool() {
               <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                 <UserCircle size={14} color="#7FCB98" />
                 You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                <button onClick={() => openRenamePrompt(myId)} title="Edit your display name" style={{ color: '#5C6862' }}><Pencil size={11} /></button>
                 <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
               </div>
             ) : claimPrompt ? (
@@ -1949,6 +1975,29 @@ export default function LineupPool() {
       {justSaved && (
         <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: '#1C2823', border: '1px solid #3D9B5C', color: '#7FCB98' }}>
           <Check size={12} /> Saved
+        </div>
+      )}
+
+      {renamePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
+            <div className="font-head text-sm uppercase tracking-wide mb-2" style={{ color: '#F0EDE4' }}>Edit display name</div>
+            <input
+              autoFocus
+              value={renamePrompt.value}
+              onChange={e => setRenamePrompt(p => ({ ...p, value: e.target.value, error: '' }))}
+              onKeyDown={e => e.key === 'Enter' && saveRename()}
+              className="w-full px-3 py-2 rounded outline-none font-head text-sm mb-2"
+              style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4', fontSize: '16px' }}
+            />
+            {renamePrompt.error && <div className="font-mono text-xs mb-2" style={{ color: '#E28A82' }}>{renamePrompt.error}</div>}
+            <div className="flex items-center gap-2">
+              <button onClick={saveRename} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#8A9A90', color: '#0F1614' }}>
+                Save
+              </button>
+              <button onClick={() => setRenamePrompt(null)} className="font-mono text-xs underline" style={{ color: '#5C6862' }}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 

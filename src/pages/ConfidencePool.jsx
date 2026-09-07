@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical, Mail, Copy } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical, Mail, Copy, Hash } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
@@ -109,6 +109,7 @@ export default function ConfidencePool() {
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
   const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
+  const [renamePrompt, setRenamePrompt] = useState(null); // { participantId, value, error }
   const [copied, setCopied] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
@@ -121,6 +122,17 @@ export default function ConfidencePool() {
   // that's identical for touch and mouse, which is why this is built on those instead.
   const [pointerDrag, setPointerDrag] = useState(null); // { pid, order: [gid,...], draggedGid, pointerId }
   const dragRowRefs = useRef({}); // gid -> row DOM node, used to hit-test drag position against
+  // Three interchangeable ways to set confidence order — drag-and-drop doesn't work well for
+  // everyone (some touchscreens/trackpads are fussy with it), so arrows and direct number entry
+  // are offered as full equivalents, not a fallback. Remembered per-device since it's a personal
+  // preference, not something that needs to sync across devices.
+  const [rankMode, setRankMode] = useState(() => {
+    try { return localStorage.getItem('confidence-rank-mode') || 'drag'; } catch (e) { return 'drag'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('confidence-rank-mode', rankMode); } catch (e) { /* non-fatal */ }
+  }, [rankMode]);
+  const [numberDrafts, setNumberDrafts] = useState({}); // `${pid}-${gid}` -> in-progress typed text
   const [justSaved, setJustSaved] = useState(false);
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
@@ -399,6 +411,28 @@ export default function ConfidencePool() {
     });
   };
 
+  // Display-name editing — for someone fixing a typo in their own name, or admin fixing it on
+  // an entrant's behalf. Real name, email, and PIN are untouched either way; this only ever
+  // changes the public display name. No uniqueness check here since display names were never
+  // required to be unique at signup either — only real name is.
+  const openRenamePrompt = (participantId) => {
+    const current = data.participants.find(p => p.id === participantId)?.name || '';
+    setRenamePrompt({ participantId, value: current, error: '' });
+  };
+  const saveRename = () => {
+    if (!renamePrompt) return;
+    const trimmed = renamePrompt.value.trim();
+    if (!trimmed) {
+      setRenamePrompt(p => ({ ...p, error: 'Name cannot be empty.' }));
+      return;
+    }
+    persist({
+      ...data,
+      participants: data.participants.map(p => p.id === renamePrompt.participantId ? { ...p, name: trimmed } : p),
+    });
+    setRenamePrompt(null);
+  };
+
   // Builds a deduplicated, comma-separated email list for this pool only, filtered by who
   // still needs a nudge — everyone, whoever hasn't picked a single winner yet this week (not
   // "hasn't finished," just "hasn't started"), or whoever isn't marked paid.
@@ -629,6 +663,34 @@ export default function ConfidencePool() {
     if (!pointerDrag || e.pointerId !== pointerDrag.pointerId) return;
     commitOrder(viewWeek, pointerDrag.pid, pointerDrag.order);
     setPointerDrag(null);
+  };
+
+  // Arrow-button reordering — moves one game up or down a single spot in the current order.
+  const moveInOrder = (pid, order, gid, direction) => {
+    const idx = order.indexOf(gid);
+    if (idx === -1) return;
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= order.length) return;
+    const newOrder = [...order];
+    const [moved] = newOrder.splice(idx, 1);
+    newOrder.splice(targetIdx, 0, moved);
+    commitOrder(viewWeek, pid, newOrder);
+  };
+
+  // Typed-number reordering — same underlying move as drag/arrows, just driven by a number
+  // instead of a gesture. Confidence N means "the highest," so the array index is (length -
+  // confidence); moving a game to a new index shifts everything between its old and new spot
+  // by one, same as dragging it there would.
+  const setConfidenceNumber = (pid, order, gid, rawValue) => {
+    const n = order.length;
+    const parsed = parseInt(rawValue, 10);
+    if (Number.isNaN(parsed)) return;
+    const clamped = Math.max(1, Math.min(n, parsed));
+    const targetIdx = n - clamped;
+    const others = order.filter(g => g !== gid);
+    const newOrder = [...others];
+    newOrder.splice(targetIdx, 0, gid);
+    commitOrder(viewWeek, pid, newOrder);
   };
 
   const syncResults = async (week) => {
@@ -958,6 +1020,7 @@ export default function ConfidencePool() {
                   <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded mb-2" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                     <UserCircle size={14} color="#E8A23D" />
                     You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                    <button onClick={() => openRenamePrompt(myId)} title="Edit your display name" style={{ color: '#5C6862' }}><Pencil size={11} /></button>
                     <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
                   </div>
                 )}
@@ -1023,6 +1086,7 @@ export default function ConfidencePool() {
                           {p.pin ? <Lock size={10} color="#E8A23D" /> : <Lock size={10} color="#3A4A42" />}
                           {p.name}
                         </button>
+                        <button onClick={() => openRenamePrompt(p.id)} title="Edit display name" style={{ color: '#5C6862' }}><Pencil size={10} /></button>
                         {(p.realName || p.email) && (
                           <span style={{ color: '#5C6862', fontSize: '9px' }}>
                             ({p.realName || '?'}{p.email ? ` — ${p.email}` : ''})
@@ -1050,6 +1114,7 @@ export default function ConfidencePool() {
               <div className="flex items-center gap-2 font-mono text-xs px-3 py-2 rounded" style={{ background: '#1F2B25', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#8A9A90' }}>
                 <UserCircle size={14} color="#E8A23D" />
                 You're picking as <span style={{ color: '#F0EDE4' }}>{data.participants.find(p => p.id === myId)?.name}</span>
+                <button onClick={() => openRenamePrompt(myId)} title="Edit your display name" style={{ color: '#5C6862' }}><Pencil size={11} /></button>
                 <button onClick={forgetMe} className="ml-auto underline" style={{ color: '#5C6862' }}>Not you? Switch</button>
               </div>
             ) : claimPrompt ? (
@@ -1236,6 +1301,28 @@ export default function ConfidencePool() {
                           <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>
                             Pick a winner in each matchup, then rank your confidence — most confident on top
                           </div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <span className="font-mono text-[9px] uppercase mr-1" style={{ color: '#5C6862' }}>Reorder by:</span>
+                            {[
+                              { key: 'drag', label: 'Drag & Drop', icon: GripVertical },
+                              { key: 'type', label: 'Type Numbers', icon: Hash },
+                              { key: 'arrows', label: 'Arrows', icon: ChevronUp },
+                            ].map(m => (
+                              <button
+                                key={m.key}
+                                type="button"
+                                onClick={() => setRankMode(m.key)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-full font-mono text-[9px] uppercase"
+                                style={{
+                                  background: rankMode === m.key ? '#E8A23D' : '#1F2B25',
+                                  color: rankMode === m.key ? '#0F1614' : '#8A9A90',
+                                  border: `1px solid ${rankMode === m.key ? '#E8A23D' : '#2A3830'}`,
+                                }}
+                              >
+                                <m.icon size={10} /> {m.label}
+                              </button>
+                            ))}
+                          </div>
                           <div className="space-y-1">
                             {liveOrder.map((gid, idx) => {
                               const g = games.find(gm => gm.id === gid);
@@ -1274,7 +1361,26 @@ export default function ConfidencePool() {
                                     zIndex: isBeingDragged ? 10 : 1,
                                   }}
                                 >
-                                  <span className="w-6 text-center font-head shrink-0" style={{ color: '#E8A23D' }}>{confidence}</span>
+                                  {rankMode === 'type' && !gLocked ? (
+                                    <input
+                                      type="number"
+                                      inputMode="numeric"
+                                      min={1}
+                                      max={liveOrder.length}
+                                      value={numberDrafts[`${p.id}-${gid}`] ?? confidence}
+                                      onChange={e => setNumberDrafts(d => ({ ...d, [`${p.id}-${gid}`]: e.target.value }))}
+                                      onFocus={e => e.target.select()}
+                                      onBlur={e => {
+                                        setConfidenceNumber(p.id, liveOrder, gid, e.target.value);
+                                        setNumberDrafts(d => { const next = { ...d }; delete next[`${p.id}-${gid}`]; return next; });
+                                      }}
+                                      onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+                                      className="w-9 text-center font-head shrink-0 rounded"
+                                      style={{ background: '#1F2B25', border: '1px solid #E8A23D66', color: '#E8A23D', fontSize: '16px' }}
+                                    />
+                                  ) : (
+                                    <span className="w-6 text-center font-head shrink-0" style={{ color: '#E8A23D' }}>{confidence}</span>
+                                  )}
                                   <div className="flex flex-col items-center gap-0.5 shrink-0">
                                     {g.odds?.details && (
                                       <div className="font-mono text-[8px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
@@ -1311,7 +1417,7 @@ export default function ConfidencePool() {
                                   {missed && <span style={{ color: '#5C6862' }}>Missed pick</span>}
                                   {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
                                   {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}
-                                  {!gLocked && (
+                                  {!gLocked && rankMode === 'drag' && (
                                     <button
                                       type="button"
                                       title="Drag to reorder"
@@ -1332,6 +1438,30 @@ export default function ConfidencePool() {
                                     >
                                       <GripVertical size={18} />
                                     </button>
+                                  )}
+                                  {!gLocked && rankMode === 'arrows' && (
+                                    <div className="flex gap-1 shrink-0 ml-auto">
+                                      <button
+                                        type="button"
+                                        title="Move up"
+                                        onClick={() => moveInOrder(p.id, liveOrder, gid, -1)}
+                                        disabled={idx === 0}
+                                        className="flex items-center justify-center rounded"
+                                        style={{ width: '30px', height: '38px', background: idx === 0 ? '#0F1614' : '#1F2B25', border: `1px solid ${idx === 0 ? '#2A3830' : '#E8A23D66'}`, color: idx === 0 ? '#2A3830' : '#E8A23D' }}
+                                      >
+                                        <ChevronUp size={16} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Move down"
+                                        onClick={() => moveInOrder(p.id, liveOrder, gid, 1)}
+                                        disabled={idx === liveOrder.length - 1}
+                                        className="flex items-center justify-center rounded"
+                                        style={{ width: '30px', height: '38px', background: idx === liveOrder.length - 1 ? '#0F1614' : '#1F2B25', border: `1px solid ${idx === liveOrder.length - 1 ? '#2A3830' : '#E8A23D66'}`, color: idx === liveOrder.length - 1 ? '#2A3830' : '#E8A23D' }}
+                                      >
+                                        <ChevronDown size={16} />
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
                               );
@@ -1675,6 +1805,29 @@ export default function ConfidencePool() {
             >
               Nice!
             </button>
+          </div>
+        </div>
+      )}
+
+      {renamePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#0F1614cc' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
+            <div className="font-head text-sm uppercase tracking-wide mb-2" style={{ color: '#F0EDE4' }}>Edit display name</div>
+            <input
+              autoFocus
+              value={renamePrompt.value}
+              onChange={e => setRenamePrompt(p => ({ ...p, value: e.target.value, error: '' }))}
+              onKeyDown={e => e.key === 'Enter' && saveRename()}
+              className="w-full px-3 py-2 rounded outline-none font-head text-sm mb-2"
+              style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+            />
+            {renamePrompt.error && <div className="font-mono text-xs mb-2" style={{ color: '#E28A82' }}>{renamePrompt.error}</div>}
+            <div className="flex items-center gap-2">
+              <button onClick={saveRename} className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide" style={{ background: '#E8A23D', color: '#0F1614' }}>
+                Save
+              </button>
+              <button onClick={() => setRenamePrompt(null)} className="font-mono text-xs underline" style={{ color: '#5C6862' }}>Cancel</button>
+            </div>
           </div>
         </div>
       )}

@@ -1109,6 +1109,9 @@ export default function SurvivorPool() {
                   <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#7FCB98' }}>
                     <Trophy size={14} /> Make your pick — Week {weekLabel(viewWeek)}
                   </div>
+                  <div className="rounded px-3 py-2 mb-2.5 font-head text-xs uppercase tracking-wide flex items-center gap-2" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
+                    <AlertCircle size={14} className="shrink-0" /> Picks are straight up — NOT against the spread
+                  </div>
                   {myLocked ? (
                     <div className="font-mono text-xs flex items-center gap-1.5" style={{ color: '#5C6862' }}>
                       <Lock size={12} />

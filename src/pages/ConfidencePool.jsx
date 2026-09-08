@@ -21,7 +21,7 @@ const CONFIDENCE_RULES = [
   {
     heading: 'How it works',
     body: [
-      'Every week, pick a winner in every single game on the slate.',
+      'Every week, pick a winner in every single game on the slate — straight up, not against the spread. Any point spread shown is just for reference; picking the "underdog" only scores if they actually win the game outright.',
       'Rank your confidence in each pick from most confident (highest points) to least confident (lowest points) — if there are 16 games, your most confident pick is worth 16 points, your least confident is worth 1.',
       'Get a pick right, you earn the confidence points you assigned it. Get it wrong, you earn zero for that game.',
       'If a game ends in a tie, nobody gets points for it either way — it\'s a wash regardless of who you picked.',
@@ -1298,6 +1298,9 @@ export default function ConfidencePool() {
                       <div className="space-y-4">
                         {/* Pick a winner and rank your confidence — most confident on top */}
                         <div>
+                          <div className="rounded px-3 py-2 mb-2.5 font-head text-xs uppercase tracking-wide flex items-center gap-2" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
+                            <AlertCircle size={14} className="shrink-0" /> Picks are straight up — NOT against the spread
+                          </div>
                           <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>
                             Pick a winner in each matchup, then rank your confidence — most confident on top
                           </div>

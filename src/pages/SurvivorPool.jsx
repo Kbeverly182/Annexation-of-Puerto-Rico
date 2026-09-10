@@ -568,23 +568,32 @@ export default function SurvivorPool() {
     return isPickLocked(week, team);
   };
 
-  const weekLocked = isPickLocked(viewWeek, undefined);
-  const picksThisWeek = data.participants
-    .map(p => data.picks[viewWeek]?.[p.id]?.team)
-    .filter(Boolean);
-  const totalPicksThisWeek = picksThisWeek.length;
+  // Revealed on a per-team basis, not per-week: once a specific team's own game has started,
+  // nobody can pick into or out of it anymore, so that count is already final and safe to show
+  // — no reason to make everyone wait for the whole week's mass lock just to see it. Anyone whose
+  // current pick hasn't locked yet, or who hasn't picked at all, gets folded into one combined
+  // "Hidden" bucket instead of its own row, so a not-yet-started team's count never leaks early.
   const totalParticipantsForDist = data.participants.length;
-  const noPickCount = totalParticipantsForDist - totalPicksThisWeek;
+  const revealedPicksThisWeek = [];
+  let hiddenCount = 0;
+  data.participants.forEach(p => {
+    const team = data.picks[viewWeek]?.[p.id]?.team;
+    if (team && isPickLocked(viewWeek, team)) {
+      revealedPicksThisWeek.push(team);
+    } else {
+      hiddenCount += 1;
+    }
+  });
   const pickDistribution = Object.entries(
-    picksThisWeek.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {})
+    revealedPicksThisWeek.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {})
   )
     .map(([abbr, count]) => ({ abbr, count, pct: totalParticipantsForDist ? Math.round((count / totalParticipantsForDist) * 100) : 0 }))
     .sort((a, b) => b.count - a.count || a.abbr.localeCompare(b.abbr));
-  if (noPickCount > 0) {
+  if (hiddenCount > 0) {
     pickDistribution.push({
-      abbr: 'No Pick',
-      count: noPickCount,
-      pct: totalParticipantsForDist ? Math.round((noPickCount / totalParticipantsForDist) * 100) : 0,
+      abbr: 'Hidden',
+      count: hiddenCount,
+      pct: totalParticipantsForDist ? Math.round((hiddenCount / totalParticipantsForDist) * 100) : 0,
       isNoPick: true,
     });
   }
@@ -1209,9 +1218,9 @@ export default function SurvivorPool() {
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
                 Week {viewWeek} Pick Distribution
               </div>
-              {!weekLocked ? (
+              {revealedPicksThisWeek.length === 0 ? (
                 <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
-                  Unlocks once this week's picks lock, so nobody can see the crowd before choosing.
+                  Unlocks team by team as each game starts, so nobody can see the crowd before choosing.
                 </div>
               ) : (
                 <div className="space-y-2">

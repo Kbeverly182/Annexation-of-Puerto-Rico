@@ -1531,7 +1531,7 @@ export default function ConfidencePool() {
                 <Trophy size={14} /> Week {weekLabel(viewWeek)} Standings
               </div>
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
-                Top {numTopSpots} of {data.participants.length} entrants (1 spot per 12) — ties broken by closest MNF guess. Reorders automatically as results come in. Tap a name to see their picks.
+                Weekly winner gets 30 units — ties broken by closest MNF guess. Reorders automatically as results come in. Tap a name to see their picks.
               </div>
               <div className="space-y-1.5">
                 {weeklyLeaderboard(viewWeek).map((p, i) => {
@@ -1556,10 +1556,10 @@ export default function ConfidencePool() {
                     <div
                       key={p.id}
                       className="rounded px-2.5 py-2"
-                      style={{ background: '#1C2823', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
+                      style={{ background: '#1C2823', border: i === 0 ? '1px solid #E8A23D88' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
                     >
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-2">
-                        <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
+                        <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i === 0 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                         <div className="font-head text-xs flex-1 text-left truncate">{p.name}</div>
                         {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
                         <div className="text-right shrink-0 leading-tight">

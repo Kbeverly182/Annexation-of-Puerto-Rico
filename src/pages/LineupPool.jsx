@@ -1772,6 +1772,21 @@ export default function LineupPool() {
                           {SLOTS.map(s => {
                             const value = weekPicks[s.key];
                             const revealed = isAdmin || isMe || (value ? isSlotLocked(s.position, value) : false);
+                            // Ownership % is a pool-wide stat ("how many people currently have this
+                            // player"), not a privacy flag about this one person's picks — it isn't
+                            // actually final until the player's own game locks, since anyone else in
+                            // the pool can still swap that same player in or out of their own roster
+                            // right up until then. isMe/isAdmin correctly bypass "revealed" so you can
+                            // always see your own picks and their scores, but that bypass shouldn't
+                            // also apply here, or this ends up showing a still-moving, not-yet-final
+                            // number early just because you happen to already know your own pick.
+                            const ownershipLocked = (() => {
+                              if (!value) return false;
+                              const team = slotTeamAbbr(value, s.position);
+                              if (!team) return false;
+                              const lockTime = teamOwnKickoffLockTime(team);
+                              return lockTime !== null && now >= lockTime;
+                            })();
                             return (
                               <div key={s.key} className="flex items-center gap-2 font-mono text-xs">
                                 <span className="w-9 shrink-0 font-head" style={{ color: '#8A9A90' }}>{s.label}</span>
@@ -1793,7 +1808,9 @@ export default function LineupPool() {
                                         return teamGame?.completed ? '0.0 pts' : '— pts';
                                       })()}
                                     </span>
-                                    <span style={{ color: '#E8A23D' }}>{ownershipPct(value)}% owned</span>
+                                    {ownershipLocked && (
+                                      <span style={{ color: '#E8A23D' }}>{ownershipPct(value)}% owned</span>
+                                    )}
                                     {isAdmin && (
                                       <input
                                         type="number"

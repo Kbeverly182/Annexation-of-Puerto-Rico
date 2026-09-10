@@ -388,15 +388,22 @@ export default function SurvivorPool() {
   const confirmPickNow = () => {
     if (!pickConfirm) return;
     setPick(pickConfirm.week, pickConfirm.pid, pickConfirm.team);
-    // Riskiness popup, based on how close that specific game's spread is — a tight spread means
-    // either team could plausibly win (a "bold" pick either way), a big spread means one team is
-    // heavily favored (a "chalk" pick), and everything in between is just a solid, reasonable
-    // pick. Only fires when a real spread is actually posted for that game; no spread yet means
-    // no popup rather than guessing.
+    // Riskiness popup. ESPN's raw spread is relative to the home team (negative = home favored),
+    // so it has to be re-signed per which team was actually picked before it means anything —
+    // taking the absolute value alone (as this used to) ignored which side of the spread the
+    // pick was actually on. Picking the underdog is bold no matter how big the gap is; only a
+    // favorite's pick gets tiered by how comfortable a favorite they actually are.
     const game = (schedule[pickConfirm.week]?.games || []).find(g => g.away.abbr === pickConfirm.team || g.home.abbr === pickConfirm.team);
-    const spread = game?.odds?.spread != null ? Math.abs(game.odds.spread) : null;
-    if (spread != null) {
-      const type = spread <= 3.5 ? 'bold' : spread <= 7.5 ? 'solid' : 'chalk';
+    if (game?.odds?.spread != null) {
+      const isHome = pickConfirm.team === game.home.abbr;
+      const teamSpread = isHome ? game.odds.spread : -game.odds.spread; // positive = this team is the underdog
+      let type;
+      if (teamSpread > 0) {
+        type = 'bold'; // underdog pick — bold regardless of the margin
+      } else {
+        const favoredBy = Math.abs(teamSpread);
+        type = favoredBy <= 3.5 ? 'bold' : favoredBy <= 7.5 ? 'solid' : 'chalk';
+      }
       setPickCelebration({ type, key: `${pickConfirm.team}-${Date.now()}` });
     }
     setPickConfirm(null);

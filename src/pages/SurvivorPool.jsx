@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X, Check, Minus, Skull, Bomb, Trophy, Pencil, ChevronLeft, ChevronRight, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, Download, Coins, Mail, Copy } from 'lucide-react';
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
@@ -78,7 +78,30 @@ export default function SurvivorPool() {
   const [expandedId, setExpandedId] = useState(null);
   const [showAvailability, setShowAvailability] = useState(false);
   const [pickConfirm, setPickConfirm] = useState(null); // { week, pid, team, participantName, prevTeam }
+  const [pickCelebration, setPickCelebration] = useState(null); // { type: 'bold'|'solid'|'chalk', label }
   const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!pickCelebration) return;
+    const duration = pickCelebration.type === 'bold' ? 1800 : pickCelebration.type === 'solid' ? 2200 : 2400;
+    const t = setTimeout(() => setPickCelebration(null), duration);
+    return () => clearTimeout(t);
+  }, [pickCelebration]);
+  const glitterPieces = useMemo(() => {
+    if (!pickCelebration || pickCelebration.type !== 'solid') return [];
+    const colors = ['#E8A23D', '#7FCB98', '#3D9B5C', '#F0EDE4', '#5EA8E8', '#E28A82'];
+    return Array.from({ length: 44 }, (_, i) => {
+      const angle = (Math.PI * 2 * i) / 44 + Math.random() * 0.3;
+      const dist = 90 + Math.random() * 120;
+      return {
+        id: i,
+        dx: Math.cos(angle) * dist,
+        dy: Math.sin(angle) * dist,
+        delay: 0.55 + Math.random() * 0.15,
+        color: colors[i % colors.length],
+        size: 4 + Math.random() * 5,
+      };
+    });
+  }, [pickCelebration]);
   const [justSaved, setJustSaved] = useState(false);
   const saveTimer = useRef(null);
   const savedTimer = useRef(null);
@@ -365,6 +388,17 @@ export default function SurvivorPool() {
   const confirmPickNow = () => {
     if (!pickConfirm) return;
     setPick(pickConfirm.week, pickConfirm.pid, pickConfirm.team);
+    // Riskiness popup, based on how close that specific game's spread is — a tight spread means
+    // either team could plausibly win (a "bold" pick either way), a big spread means one team is
+    // heavily favored (a "chalk" pick), and everything in between is just a solid, reasonable
+    // pick. Only fires when a real spread is actually posted for that game; no spread yet means
+    // no popup rather than guessing.
+    const game = (schedule[pickConfirm.week]?.games || []).find(g => g.away.abbr === pickConfirm.team || g.home.abbr === pickConfirm.team);
+    const spread = game?.odds?.spread != null ? Math.abs(game.odds.spread) : null;
+    if (spread != null) {
+      const type = spread <= 3.5 ? 'bold' : spread <= 7.5 ? 'solid' : 'chalk';
+      setPickCelebration({ type, key: `${pickConfirm.team}-${Date.now()}` });
+    }
     setPickConfirm(null);
   };
   const setResult = (week, pid, result) => {
@@ -574,20 +608,29 @@ export default function SurvivorPool() {
   // current pick hasn't locked yet, or who hasn't picked at all, gets folded into one combined
   // "Hidden" bucket instead of its own row, so a not-yet-started team's count never leaks early.
   const totalParticipantsForDist = data.participants.length;
-  const revealedPicksThisWeek = [];
+  const revealedPicksThisWeek = []; // { team, result }
   let hiddenCount = 0;
   data.participants.forEach(p => {
-    const team = data.picks[viewWeek]?.[p.id]?.team;
+    const pick = data.picks[viewWeek]?.[p.id];
+    const team = pick?.team;
     if (team && isPickLocked(viewWeek, team)) {
-      revealedPicksThisWeek.push(team);
+      revealedPicksThisWeek.push({ team, result: pick.result });
     } else {
       hiddenCount += 1;
     }
   });
-  const pickDistribution = Object.entries(
-    revealedPicksThisWeek.reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {})
+  const pickDistribution = Object.values(
+    revealedPicksThisWeek.reduce((acc, { team, result }) => {
+      if (!acc[team]) acc[team] = { abbr: team, count: 0, result: 'pending' };
+      acc[team].count += 1;
+      // Every entrant who picked the same team this week shares the same real-world outcome, so
+      // this should already agree across all of them — just take whichever decided result (not
+      // "pending") shows up, in case the sync hasn't stamped every single pick's own copy yet.
+      if (result === 'win' || result === 'loss') acc[team].result = result;
+      return acc;
+    }, {})
   )
-    .map(([abbr, count]) => ({ abbr, count, pct: totalParticipantsForDist ? Math.round((count / totalParticipantsForDist) * 100) : 0 }))
+    .map(t => ({ ...t, pct: totalParticipantsForDist ? Math.round((t.count / totalParticipantsForDist) * 100) : 0 }))
     .sort((a, b) => b.count - a.count || a.abbr.localeCompare(b.abbr));
   if (hiddenCount > 0) {
     pickDistribution.push({
@@ -631,7 +674,7 @@ export default function SurvivorPool() {
   return (
     <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@700&display=swap');
         * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
         .rounded { border-radius: 10px !important; }
         button { transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease; }
@@ -1224,17 +1267,21 @@ export default function SurvivorPool() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {pickDistribution.map(t => (
-                    <div key={t.abbr} className="flex items-center gap-3">
-                      <div className="w-16 shrink-0 font-head text-xs" style={{ color: t.isNoPick ? '#5C6862' : '#F0EDE4' }}>{t.abbr}</div>
-                      <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                        <div style={{ width: `${t.pct}%`, height: '100%', background: t.isNoPick ? '#5C6862' : '#3D9B5C' }} />
+                  {pickDistribution.map(t => {
+                    const textColor = t.isNoPick ? '#5C6862' : t.result === 'win' ? '#7FCB98' : t.result === 'loss' ? '#E28A82' : '#F0EDE4';
+                    const barColor = t.isNoPick ? '#5C6862' : t.result === 'win' ? '#3D9B5C' : t.result === 'loss' ? '#C1443A' : '#5C7A8A';
+                    return (
+                      <div key={t.abbr} className="flex items-center gap-3">
+                        <div className="w-16 shrink-0 font-head text-xs" style={{ color: textColor }}>{t.abbr}</div>
+                        <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                          <div style={{ width: `${t.pct}%`, height: '100%', background: barColor }} />
+                        </div>
+                        <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
+                          {t.pct}% ({t.count})
+                        </div>
                       </div>
-                      <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
-                        {t.pct}% ({t.count})
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1592,6 +1639,135 @@ export default function SurvivorPool() {
       {justSaved && (
         <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: '#1C2823', border: '1px solid #3D9B5C', color: '#7FCB98' }}>
           <Check size={12} /> Saved
+        </div>
+      )}
+
+      {pickCelebration && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center" style={{ pointerEvents: 'none' }} onClick={() => setPickCelebration(null)}>
+          <style>{`
+            @keyframes stamp-slam {
+              0% { transform: translate(-50%,-50%) rotate(-30deg) scale(3.2); opacity: 0; }
+              55% { transform: translate(-50%,-50%) rotate(-10deg) scale(0.92); opacity: 1; }
+              70% { transform: translate(-50%,-50%) rotate(-14deg) scale(1.06); }
+              85% { transform: translate(-50%,-50%) rotate(-11deg) scale(0.98); }
+              100% { transform: translate(-50%,-50%) rotate(-12deg) scale(1); opacity: 1; }
+            }
+            @keyframes stamp-fade { 0%, 78% { opacity: 1; } 100% { opacity: 0; } }
+            @keyframes bubble-grow {
+              0% { transform: translate(-50%,-50%) scale(0.15); opacity: 0; }
+              45% { transform: translate(-50%,-50%) scale(1.2); opacity: 1; }
+              60% { transform: translate(-50%,-50%) scale(0.92); }
+              70% { transform: translate(-50%,-50%) scale(1.04); opacity: 1; }
+              85% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+              100% { transform: translate(-50%,-50%) scale(1.05); opacity: 0; }
+            }
+            @keyframes glitter-burst {
+              0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+              100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.3); opacity: 0; }
+            }
+            @keyframes chalk-reveal { 0% { clip-path: inset(0 100% 0 0); } 100% { clip-path: inset(0 0% 0 0); } }
+            @keyframes chalk-stick-move {
+              0% { left: 0%; opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { left: 100%; opacity: 0; }
+            }
+            @keyframes chalk-fade { 0%, 82% { opacity: 1; } 100% { opacity: 0; } }
+          `}</style>
+
+          {pickCelebration.type === 'bold' && (
+            <div
+              className="absolute top-1/2 left-1/2 font-display uppercase text-center px-8 py-4"
+              style={{
+                fontSize: 'clamp(30px, 13vw, 52px)',
+                letterSpacing: '3px',
+                color: '#C1443A',
+                border: '6px solid #C1443A',
+                borderRadius: '6px',
+                background: 'rgba(15,22,20,0.2)',
+                animation: 'stamp-slam 0.5s cubic-bezier(0.2,0.8,0.3,1.4) forwards, stamp-fade 1.8s ease-in forwards',
+                textShadow: '0 0 3px #C1443A99',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Bold Pick
+            </div>
+          )}
+
+          {pickCelebration.type === 'solid' && (
+            <>
+              <div
+                className="absolute top-1/2 left-1/2 font-display uppercase text-center"
+                style={{
+                  fontSize: 'clamp(30px, 13vw, 52px)',
+                  color: '#F0EDE4',
+                  WebkitTextStroke: '2px #3D9B5C',
+                  letterSpacing: '2px',
+                  animation: 'bubble-grow 1.1s cubic-bezier(0.34,1.56,0.64,1) forwards',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Solid Pick
+              </div>
+              {glitterPieces.map(p => (
+                <div
+                  key={p.id}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    width: `${p.size}px`,
+                    height: `${p.size}px`,
+                    borderRadius: '2px',
+                    background: p.color,
+                    opacity: 0,
+                    '--dx': `${p.dx}px`,
+                    '--dy': `${p.dy}px`,
+                    animation: `glitter-burst 0.7s ease-out ${p.delay}s forwards`,
+                  }}
+                />
+              ))}
+            </>
+          )}
+
+          {pickCelebration.type === 'chalk' && (
+            <div
+              className="absolute top-1/2 left-1/2 px-8 py-6 rounded"
+              style={{
+                transform: 'translate(-50%,-50%)',
+                background: '#1C2E22',
+                border: '10px solid #6B4A32',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+                animation: 'chalk-fade 2.4s ease-in forwards',
+              }}
+            >
+              <div className="relative" style={{ height: '60px', display: 'flex', alignItems: 'center' }}>
+                <div
+                  style={{
+                    fontFamily: "'Caveat', cursive",
+                    fontWeight: 700,
+                    fontSize: '54px',
+                    color: '#F0EDE4',
+                    whiteSpace: 'nowrap',
+                    animation: 'chalk-reveal 1.3s steps(24) 0.2s forwards',
+                    clipPath: 'inset(0 100% 0 0)',
+                  }}
+                >
+                  Chalk Spot
+                </div>
+                <div
+                  className="absolute"
+                  style={{
+                    top: '20%',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '2px',
+                    background: '#F0EDE4',
+                    boxShadow: '0 0 6px rgba(255,255,255,0.6)',
+                    opacity: 0,
+                    animation: 'chalk-stick-move 1.3s linear 0.2s forwards',
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

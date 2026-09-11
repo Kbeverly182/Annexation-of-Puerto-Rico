@@ -1344,6 +1344,17 @@ export default function ConfidencePool() {
                               const awaySelected = winner === g.away.abbr;
                               const homeSelected = winner === g.home.abbr;
                               const result = data.results?.[viewWeek]?.[gid];
+                              // Pick button color reflects real status, not just "is this selected":
+                              // blue while still open to change, yellow once locked but the game
+                              // hasn't finished, green/red once it has and this team won or lost.
+                              const pickButtonColor = (teamAbbr) => {
+                                if (!gLocked) return { bg: '#3B82F6', text: '#0F1614' };
+                                if (!result?.completed) return { bg: '#E8A23D', text: '#0F1614' };
+                                if (result.winnerAbbr === null) return { bg: '#5C6862', text: '#0F1614' }; // tie
+                                return result.winnerAbbr === teamAbbr
+                                  ? { bg: '#3D9B5C', text: '#0F1614' }
+                                  : { bg: '#C1443A', text: '#F0EDE4' };
+                              };
                               const missed = gLocked && !winner;
                               const isTie = result?.completed && result.winnerAbbr === null;
                               const correct = result?.completed && !isTie && winner && result.winnerAbbr === winner;
@@ -1394,8 +1405,8 @@ export default function ConfidencePool() {
                                         disabled={gLocked}
                                         className="px-2.5 py-1.5 text-center font-mono text-xs"
                                         style={{
-                                          background: awaySelected ? '#3B82F6' : '#1C2823',
-                                          color: awaySelected ? '#0F1614' : '#F0EDE4',
+                                          background: awaySelected ? pickButtonColor(g.away.abbr).bg : '#1C2823',
+                                          color: awaySelected ? pickButtonColor(g.away.abbr).text : '#F0EDE4',
                                           cursor: gLocked ? 'not-allowed' : 'pointer',
                                         }}
                                       >
@@ -1407,8 +1418,8 @@ export default function ConfidencePool() {
                                         disabled={gLocked}
                                         className="px-2.5 py-1.5 text-center font-mono text-xs"
                                         style={{
-                                          background: homeSelected ? '#3B82F6' : '#1C2823',
-                                          color: homeSelected ? '#0F1614' : '#F0EDE4',
+                                          background: homeSelected ? pickButtonColor(g.home.abbr).bg : '#1C2823',
+                                          color: homeSelected ? pickButtonColor(g.home.abbr).text : '#F0EDE4',
                                           cursor: gLocked ? 'not-allowed' : 'pointer',
                                         }}
                                       >

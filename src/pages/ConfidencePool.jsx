@@ -4,7 +4,7 @@ import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Load
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
-import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
+import { useEspnSchedule, fetchWeekResults, fetchWeekOdds } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
@@ -96,6 +96,8 @@ export default function ConfidencePool() {
   const [titleDraft, setTitleDraft] = useState('');
   const [seasonYear, setSeasonYear] = useState(defaultSeasonYear());
   const [syncing, setSyncing] = useState(false);
+  const [oddsSyncing, setOddsSyncing] = useState(false);
+  const [oddsSyncMsg, setOddsSyncMsg] = useState('');
   const [syncMsg, setSyncMsg] = useState('');
   const [myId, setMyId] = useState(null);
   const [myIdLoaded, setMyIdLoaded] = useState(false);
@@ -692,6 +694,34 @@ export default function ConfidencePool() {
     newOrder.splice(targetIdx, 0, gid);
     commitOrder(viewWeek, pid, newOrder);
   };
+
+  // Spreads can move throughout the week (unlike results, which are final once posted), so this
+  // is a manual, anyone-can-click refresh rather than something that happens automatically — and
+  // it writes into the shared pool data (same as everything else here) so one person syncing
+  // updates what everyone sees, not just their own browser.
+  const syncOdds = async () => {
+    setOddsSyncing(true);
+    setOddsSyncMsg('');
+    try {
+      const oddsByGame = await fetchWeekOdds(viewWeek, seasonYear);
+      if (Object.keys(oddsByGame).length === 0) {
+        setOddsSyncMsg(`No spreads posted for week ${viewWeek} yet — try again closer to kickoff.`);
+        return;
+      }
+      persist({
+        ...data,
+        oddsOverride: { ...(data.oddsOverride || {}), [viewWeek]: oddsByGame },
+      });
+      setOddsSyncMsg(`Synced spreads for ${Object.keys(oddsByGame).length} game${Object.keys(oddsByGame).length === 1 ? '' : 's'}.`);
+    } catch (e) {
+      setOddsSyncMsg('Could not reach the ESPN odds feed — try again in a bit.');
+    } finally {
+      setOddsSyncing(false);
+    }
+  };
+  // Prefers a manually-synced spread over whatever was cached at page load, since that's more
+  // likely to be current — falls back to the schedule's own odds if nobody's synced yet.
+  const effectiveOdds = (g) => data.oddsOverride?.[viewWeek]?.[g.id] || g.odds;
 
   const syncResults = async (week) => {
     setSyncing(true);
@@ -1298,9 +1328,24 @@ export default function ConfidencePool() {
                       <div className="space-y-4">
                         {/* Pick a winner and rank your confidence — most confident on top */}
                         <div>
-                          <div className="rounded px-3 py-2 mb-2.5 font-head text-xs uppercase tracking-wide flex items-center gap-2" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
-                            <AlertCircle size={14} className="shrink-0" /> Picks are straight up — NOT against the spread
+                          <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
+                            <div className="rounded px-3 py-2 font-head text-xs uppercase tracking-wide flex items-center gap-2" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
+                              <AlertCircle size={14} className="shrink-0" /> Picks are straight up — NOT against the spread
+                            </div>
+                            <button
+                              onClick={syncOdds}
+                              disabled={oddsSyncing}
+                              className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide flex items-center gap-1.5 shrink-0"
+                              style={{ background: '#1F2B25', border: '1px solid #5EA8E8', color: '#5EA8E8', opacity: oddsSyncing ? 0.6 : 1 }}
+                              title="Spreads move throughout the week — sync to pull the latest, for everyone."
+                            >
+                              <RefreshCw size={12} className={oddsSyncing ? 'animate-spin' : ''} />
+                              {oddsSyncing ? 'Syncing…' : 'Sync latest spreads'}
+                            </button>
                           </div>
+                          {oddsSyncMsg && (
+                            <div className="font-mono text-[10px] mb-2.5" style={{ color: '#5EA8E8' }}>{oddsSyncMsg}</div>
+                          )}
                           <div className="font-mono text-[10px] uppercase mb-1.5" style={{ color: '#5C6862' }}>
                             Pick a winner in each matchup, then rank your confidence — most confident on top
                           </div>
@@ -1396,8 +1441,8 @@ export default function ConfidencePool() {
                                     <span className="w-6 text-center font-head shrink-0" style={{ color: '#E8A23D' }}>{confidence}</span>
                                   )}
                                   <div className="flex flex-col items-center gap-0.5 shrink-0">
-                                    {g.odds?.details && (
-                                      <div className="font-mono text-[8px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
+                                    {effectiveOdds(g)?.details && (
+                                      <div className="font-mono text-[8px]" style={{ color: '#5C6862' }}>{effectiveOdds(g).details}</div>
                                     )}
                                     <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830' }}>
                                       <button

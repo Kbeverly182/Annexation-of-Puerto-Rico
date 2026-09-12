@@ -4,7 +4,7 @@ import { Plus, X, Check, Minus, Skull, Bomb, Trophy, Pencil, ChevronLeft, Chevro
 import { TEAMS, TEAM_MAP, WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
 import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
-import { useEspnSchedule, fetchWeekResults } from '../lib/espnSchedule';
+import { useEspnSchedule, fetchWeekResults, fetchWeekOdds } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
@@ -61,6 +61,8 @@ export default function SurvivorPool() {
   const [titleDraft, setTitleDraft] = useState('');
   const [seasonYear, setSeasonYear] = useState(defaultSeasonYear());
   const [syncing, setSyncing] = useState(false);
+  const [oddsSyncing, setOddsSyncing] = useState(false);
+  const [oddsSyncMsg, setOddsSyncMsg] = useState('');
   const [syncMsg, setSyncMsg] = useState('');
   const [myId, setMyId] = useState(null);
   const [myIdLoaded, setMyIdLoaded] = useState(false);
@@ -394,9 +396,10 @@ export default function SurvivorPool() {
     // pick was actually on. Picking the underdog is bold no matter how big the gap is; only a
     // favorite's pick gets tiered by how comfortable a favorite they actually are.
     const game = (schedule[pickConfirm.week]?.games || []).find(g => g.away.abbr === pickConfirm.team || g.home.abbr === pickConfirm.team);
-    if (game?.odds?.spread != null) {
+    const gameOdds = game ? (data.oddsOverride?.[pickConfirm.week]?.[game.id] || game.odds) : null;
+    if (gameOdds?.spread != null) {
       const isHome = pickConfirm.team === game.home.abbr;
-      const teamSpread = isHome ? game.odds.spread : -game.odds.spread; // positive = this team is the underdog
+      const teamSpread = isHome ? gameOdds.spread : -gameOdds.spread; // positive = this team is the underdog
       let type;
       if (teamSpread > 0) {
         type = 'bold'; // underdog pick — bold regardless of the margin
@@ -647,6 +650,34 @@ export default function SurvivorPool() {
       isNoPick: true,
     });
   }
+
+  // Spreads can move throughout the week (unlike results, which are final once posted), so this
+  // is a manual, anyone-can-click refresh rather than something that happens automatically — and
+  // it writes into the shared pool data (same as everything else here) so one person syncing
+  // updates what everyone sees, not just their own browser.
+  const syncOdds = async () => {
+    setOddsSyncing(true);
+    setOddsSyncMsg('');
+    try {
+      const oddsByGame = await fetchWeekOdds(viewWeek, seasonYear);
+      if (Object.keys(oddsByGame).length === 0) {
+        setOddsSyncMsg(`No spreads posted for week ${viewWeek} yet — try again closer to kickoff.`);
+        return;
+      }
+      persist({
+        ...data,
+        oddsOverride: { ...(data.oddsOverride || {}), [viewWeek]: oddsByGame },
+      });
+      setOddsSyncMsg(`Synced spreads for ${Object.keys(oddsByGame).length} game${Object.keys(oddsByGame).length === 1 ? '' : 's'}.`);
+    } catch (e) {
+      setOddsSyncMsg('Could not reach the ESPN odds feed — try again in a bit.');
+    } finally {
+      setOddsSyncing(false);
+    }
+  };
+  // Prefers a manually-synced spread over whatever was cached at page load, since that's more
+  // likely to be current — falls back to the schedule's own odds if nobody's synced yet.
+  const effectiveOdds = (g) => data.oddsOverride?.[viewWeek]?.[g.id] || g.odds;
 
   const syncScores = async (week) => {
     setSyncing(true);
@@ -1168,9 +1199,24 @@ export default function SurvivorPool() {
                   <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#7FCB98' }}>
                     <Trophy size={14} /> Make your pick — Week {weekLabel(viewWeek)}
                   </div>
-                  <div className="rounded px-3 py-2 mb-2.5 font-head text-xs uppercase tracking-wide flex items-center gap-2" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
-                    <AlertCircle size={14} className="shrink-0" /> Picks are straight up — NOT against the spread
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
+                    <div className="rounded px-3 py-2 font-head text-xs uppercase tracking-wide flex items-center gap-2" style={{ background: '#E8A23D1a', border: '1px solid #E8A23D66', color: '#E8A23D' }}>
+                      <AlertCircle size={14} className="shrink-0" /> Picks are straight up — NOT against the spread
+                    </div>
+                    <button
+                      onClick={syncOdds}
+                      disabled={oddsSyncing}
+                      className="px-3 py-1.5 rounded font-head text-xs uppercase tracking-wide flex items-center gap-1.5 shrink-0"
+                      style={{ background: '#1F2B25', border: '1px solid #5EA8E8', color: '#5EA8E8', opacity: oddsSyncing ? 0.6 : 1 }}
+                      title="Spreads move throughout the week — sync to pull the latest, for everyone."
+                    >
+                      <RefreshCw size={12} className={oddsSyncing ? 'animate-spin' : ''} />
+                      {oddsSyncing ? 'Syncing…' : 'Sync latest spreads'}
+                    </button>
                   </div>
+                  {oddsSyncMsg && (
+                    <div className="font-mono text-[10px] mb-2.5" style={{ color: '#5EA8E8' }}>{oddsSyncMsg}</div>
+                  )}
                   {myLocked ? (
                     <div className="font-mono text-xs flex items-center gap-1.5" style={{ color: '#5C6862' }}>
                       <Lock size={12} />
@@ -1187,8 +1233,8 @@ export default function SurvivorPool() {
                         const homeLocked = isPickLocked(viewWeek, g.home.abbr);
                         return (
                           <div key={g.id} className="flex flex-col items-center gap-1">
-                            {g.odds?.details && (
-                              <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
+                            {effectiveOdds(g)?.details && (
+                              <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{effectiveOdds(g).details}</div>
                             )}
                             <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                               <button
@@ -1430,8 +1476,8 @@ export default function SurvivorPool() {
                               const homeLocked = currentLocked || isPickLocked(viewWeek, g.home.abbr);
                               return (
                                 <div key={g.id} className="flex flex-col items-center gap-1">
-                                  {g.odds?.details && (
-                                    <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{g.odds.details}</div>
+                                  {effectiveOdds(g)?.details && (
+                                    <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{effectiveOdds(g).details}</div>
                                   )}
                                   <div className="flex items-stretch rounded overflow-hidden" style={{ border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                                     <button

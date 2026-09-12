@@ -105,6 +105,25 @@ export function useEspnSchedule(week, seasonYear) {
   return { schedule, ensureSchedule, lockTimeForPick };
 }
 
+// Fetches just the current odds for each game in a week — spreads move throughout the week as
+// Vegas lines shift, so this is meant to be called on demand (a "sync latest spreads" button)
+// rather than once at page load like the main schedule fetch. Same underlying ESPN endpoint as
+// everything else here, just re-hit fresh instead of relying on whatever was cached at mount.
+export async function fetchWeekOdds(week, seasonYear) {
+  const url = buildScoreboardUrl(week, seasonYear);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('bad response');
+  const json = await res.json();
+  const oddsByGame = {}; // gameId -> { details, spread, overUnder }
+  (json.events || []).forEach(ev => {
+    const comp = ev.competitions?.[0];
+    const oddsRaw = comp?.odds?.[0];
+    if (!oddsRaw) return;
+    oddsByGame[ev.id] = { details: oddsRaw.details || null, spread: oddsRaw.spread ?? null, overUnder: oddsRaw.overUnder ?? null };
+  });
+  return oddsByGame;
+}
+
 // Determine the winning team abbreviation (or 'TIE') for each completed game in a week.
 // Used by both Survivor (win/loss per pick) and Confidence (correct/incorrect per game) pools.
 // Also detects the week's final (latest-kickoff) game — used as the Monday Night tiebreaker —

@@ -9,6 +9,7 @@ import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
 import PoolRules from '../components/PoolRules';
+import KickoffCountdown from '../components/KickoffCountdown';
 
 const POOL_KEY = 'survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-survivor';
@@ -834,6 +835,8 @@ export default function SurvivorPool() {
       </div>
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
+
+        <KickoffCountdown accent="#7FCB98" background="#1F2B25" border="#3D9B5C44" textColor="#F0EDE4" mutedColor="#8A9A90" />
 
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#3D9B5C" />
 

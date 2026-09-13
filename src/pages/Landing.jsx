@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Skull, ListOrdered, Users, ChevronRight, Coins, Mail, Copy, Check, X, Loader2 } from 'lucide-react';
 import { useAdminMode } from '../lib/admin';
 import { apiGetPool } from '../lib/api';
+import KickoffCountdown from '../components/KickoffCountdown';
 
 const POOL_KEYS = ['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1'];
 
@@ -119,6 +120,10 @@ export default function Landing() {
                 Admin
               </button>
             )}
+          </div>
+
+          <div className="mb-6">
+            <KickoffCountdown accent="#1D4ED8" background="#F7F6F3" border="#E5E3DD" textColor="#1C2823" mutedColor="#7A8580" />
           </div>
 
           {isAdmin && (

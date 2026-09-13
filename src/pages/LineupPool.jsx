@@ -10,6 +10,7 @@ import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
 import PoolRules from '../components/PoolRules';
+import KickoffCountdown from '../components/KickoffCountdown';
 
 const POOL_KEY = 'lineup-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-lineup';
@@ -1089,6 +1090,8 @@ export default function LineupPool() {
       </div>
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
+
+        <KickoffCountdown accent="#8A9A90" background="#1F2B25" border="#2A3830" textColor="#F0EDE4" mutedColor="#5C6862" />
 
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#8A9A90" />
 

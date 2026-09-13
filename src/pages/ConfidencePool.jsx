@@ -9,6 +9,7 @@ import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
 import PoolRules from '../components/PoolRules';
+import KickoffCountdown from '../components/KickoffCountdown';
 
 const POOL_KEY = 'confidence-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-confidence';
@@ -983,6 +984,8 @@ export default function ConfidencePool() {
       </div>
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
+
+        <KickoffCountdown accent="#E8A23D" background="#1F2B25" border="#E8A23D44" textColor="#F0EDE4" mutedColor="#8A9A90" />
 
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#E8A23D" />
 

@@ -630,6 +630,36 @@ export default function ConfidencePool() {
     persist(next);
   };
 
+  const isGidLocked = (gid) => {
+    const g = games.find(x => x.id === gid);
+    return g ? isGameLocked(g) : false;
+  };
+
+  // Locked games must never shift position just because OTHER, still-open games get reordered —
+  // once a pick is locked its confidence value is final, whether it's already won, lost, or
+  // still in progress. This pins every locked gid to its exact current index untouched, and only
+  // lets the still-open games move around each other to fill in whatever spots remain. Every
+  // reorder path (drag, arrows, typed numbers) below goes through this same function so none of
+  // them can accidentally bump a locked pick — a bug that used to be possible in all three.
+  const reorderKeepingLockedInPlace = (fullOrder, moveGid, newIndexAmongUnlocked) => {
+    const lockedEntries = [];
+    const unlockedGids = [];
+    fullOrder.forEach((gid, idx) => {
+      if (isGidLocked(gid)) lockedEntries.push({ idx, gid });
+      else unlockedGids.push(gid);
+    });
+    const withoutMoved = unlockedGids.filter(g => g !== moveGid);
+    const clampedIdx = Math.max(0, Math.min(withoutMoved.length, newIndexAmongUnlocked));
+    withoutMoved.splice(clampedIdx, 0, moveGid);
+    const result = new Array(fullOrder.length);
+    lockedEntries.forEach(({ idx, gid }) => { result[idx] = gid; });
+    let ui = 0;
+    for (let i = 0; i < result.length; i++) {
+      if (result[i] === undefined) { result[i] = withoutMoved[ui]; ui++; }
+    }
+    return result;
+  };
+
   // Starts a drag on pointerdown. setPointerCapture keeps sending this same element the move/up
   // events for the rest of the gesture even once the finger/cursor leaves it — required for a
   // reliable drag on touch, where the pointer routinely strays off the small handle.
@@ -640,13 +670,15 @@ export default function ConfidencePool() {
   };
 
   // Live-reorders as the pointer moves, by comparing its position against the vertical midpoint
-  // of every other row — once it crosses a row's midpoint, the dragged item jumps to that spot,
-  // same feel as most sortable lists.
+  // of every other still-open row — once it crosses a row's midpoint, the dragged item jumps to
+  // that spot, same feel as most sortable lists. Locked rows are deliberately excluded from the
+  // reference points here, so dragging near one just skips past it to the next open row instead
+  // of using it as a drop boundary — it can never end up bumped out of its position this way.
   const onPointerMoveDrag = (e) => {
     if (!pointerDrag || e.pointerId !== pointerDrag.pointerId) return;
     const { order, draggedGid } = pointerDrag;
     const pointerY = e.clientY;
-    const others = order.filter(gid => gid !== draggedGid);
+    const others = order.filter(gid => gid !== draggedGid && !isGidLocked(gid));
     let targetIndex = others.length;
     for (let i = 0; i < others.length; i++) {
       const node = dragRowRefs.current[others[i]];
@@ -654,8 +686,7 @@ export default function ConfidencePool() {
       const rect = node.getBoundingClientRect();
       if (pointerY < rect.top + rect.height / 2) { targetIndex = i; break; }
     }
-    const newOrder = [...others];
-    newOrder.splice(targetIndex, 0, draggedGid);
+    const newOrder = reorderKeepingLockedInPlace(order, draggedGid, targetIndex);
     if (newOrder.join('|') !== order.join('|')) {
       setPointerDrag(pd => (pd ? { ...pd, order: newOrder } : pd));
     }
@@ -667,31 +698,34 @@ export default function ConfidencePool() {
     setPointerDrag(null);
   };
 
-  // Arrow-button reordering — moves one game up or down a single spot in the current order.
+  // Arrow-button reordering — moves one still-open game up or down a single spot among the
+  // OTHER still-open games, never displacing a locked one.
   const moveInOrder = (pid, order, gid, direction) => {
-    const idx = order.indexOf(gid);
-    if (idx === -1) return;
-    const targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= order.length) return;
-    const newOrder = [...order];
-    const [moved] = newOrder.splice(idx, 1);
-    newOrder.splice(targetIdx, 0, moved);
+    if (isGidLocked(gid)) return; // shouldn't be reachable — arrows aren't rendered for a locked row — but safe regardless
+    const unlockedGids = order.filter(g => !isGidLocked(g));
+    const curIdx = unlockedGids.indexOf(gid);
+    if (curIdx === -1) return;
+    const targetIdx = curIdx + direction;
+    if (targetIdx < 0 || targetIdx >= unlockedGids.length) return;
+    const newOrder = reorderKeepingLockedInPlace(order, gid, targetIdx);
     commitOrder(viewWeek, pid, newOrder);
   };
 
   // Typed-number reordering — same underlying move as drag/arrows, just driven by a number
-  // instead of a gesture. Confidence N means "the highest," so the array index is (length -
-  // confidence); moving a game to a new index shifts everything between its old and new spot
-  // by one, same as dragging it there would.
+  // instead of a gesture. The person types an absolute confidence value (1 to N), which has to
+  // be translated into "how many open slots down" that corresponds to, since locked slots are
+  // pinned and don't count toward that — typing straight into an absolute array index (as this
+  // used to) was exactly what let a locked pick get bumped.
   const setConfidenceNumber = (pid, order, gid, rawValue) => {
+    if (isGidLocked(gid)) return; // shouldn't be reachable — the input isn't rendered for a locked row — but safe regardless
     const n = order.length;
     const parsed = parseInt(rawValue, 10);
     if (Number.isNaN(parsed)) return;
     const clamped = Math.max(1, Math.min(n, parsed));
-    const targetIdx = n - clamped;
-    const others = order.filter(g => g !== gid);
-    const newOrder = [...others];
-    newOrder.splice(targetIdx, 0, gid);
+    const targetAbsIdx = n - clamped;
+    const lockedAtOrAbove = order.slice(0, targetAbsIdx + 1).filter(isGidLocked).length;
+    const relativeIdx = targetAbsIdx - lockedAtOrAbove;
+    const newOrder = reorderKeepingLockedInPlace(order, gid, relativeIdx);
     commitOrder(viewWeek, pid, newOrder);
   };
 

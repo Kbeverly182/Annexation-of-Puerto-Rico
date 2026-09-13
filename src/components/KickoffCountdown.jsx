@@ -82,13 +82,38 @@ export default function KickoffCountdown({
   const nowDate = new Date(now);
   const kickoffNow = isInKickoffWindow(nowDate);
 
+  const styleTag = (
+    <style>{`
+      @keyframes kickoff-glow-pulse {
+        0%, 100% { box-shadow: 0 0 8px var(--kc-accent), inset 0 1px 0 rgba(255,255,255,0.08); }
+        50% { box-shadow: 0 0 24px var(--kc-accent), inset 0 1px 0 rgba(255,255,255,0.08); }
+      }
+      @keyframes kickoff-bounce {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-6px) rotate(-8deg); }
+        50% { transform: translateY(0) rotate(0deg); }
+        75% { transform: translateY(-3px) rotate(6deg); }
+      }
+    `}</style>
+  );
+
   if (kickoffNow) {
     return (
       <div
-        className={`rounded px-4 py-2.5 flex items-center justify-center gap-2 font-head text-sm uppercase tracking-wide ${className}`}
-        style={{ background: `${accent}22`, border: `1px solid ${accent}`, color: accent }}
+        className={`relative rounded-lg px-5 py-5 flex items-center justify-center gap-3 overflow-hidden ${className}`}
+        style={{
+          '--kc-accent': accent,
+          background: `linear-gradient(135deg, ${accent}33, ${accent}11)`,
+          border: `2px solid ${accent}`,
+          animation: 'kickoff-glow-pulse 1.6s ease-in-out infinite',
+        }}
       >
-        🏈 It's Kick-off Time!
+        {styleTag}
+        <span style={{ fontSize: '34px', display: 'inline-block', animation: 'kickoff-bounce 1s ease-in-out infinite' }}>🏈</span>
+        <span className="font-display uppercase" style={{ fontSize: 'clamp(20px, 5vw, 30px)', color: accent, letterSpacing: '1px', textShadow: `0 0 16px ${accent}88` }}>
+          It's Kick-off Time!
+        </span>
+        <span style={{ fontSize: '34px', display: 'inline-block', animation: 'kickoff-bounce 1s ease-in-out infinite 0.15s' }}>🏈</span>
       </div>
     );
   }
@@ -101,16 +126,45 @@ export default function KickoffCountdown({
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   const pad = (n) => String(n).padStart(2, '0');
+  const units = [
+    ['DAYS', days],
+    ['HRS', hours],
+    ['MIN', minutes],
+    ['SEC', seconds],
+  ];
 
   return (
     <div
-      className={`rounded px-4 py-2.5 flex items-center justify-center gap-2 font-mono text-xs ${className}`}
-      style={{ background, border: `1px solid ${border}`, color: textColor }}
+      className={`relative rounded-lg px-4 py-4 sm:px-6 ${className}`}
+      style={{
+        '--kc-accent': accent,
+        background: `linear-gradient(135deg, ${background}, ${background}dd)`,
+        border: `2px solid ${accent}`,
+        animation: 'kickoff-glow-pulse 3s ease-in-out infinite',
+      }}
     >
-      <span className="uppercase tracking-wide" style={{ color: mutedColor }}>Kickoff in</span>
-      <span className="font-head text-sm tabular-nums" style={{ color: accent }}>
-        {days > 0 && `${days}d `}{pad(hours)}:{pad(minutes)}:{pad(seconds)}
-      </span>
+      {styleTag}
+      <div className="flex items-center justify-center gap-1.5 mb-2.5 font-head text-[11px] uppercase tracking-[0.25em]" style={{ color: accent }}>
+        🏈 Kickoff Countdown
+      </div>
+      <div className="flex items-center justify-center gap-2 sm:gap-3">
+        {units.map(([label, val], i) => (
+          <React.Fragment key={label}>
+            <div className="flex flex-col items-center min-w-0">
+              <div
+                className="font-display tabular-nums leading-none"
+                style={{ fontSize: 'clamp(26px, 8vw, 40px)', color: textColor, textShadow: `0 0 14px ${accent}77` }}
+              >
+                {pad(val)}
+              </div>
+              <div className="font-mono text-[9px] uppercase tracking-wider mt-1" style={{ color: mutedColor }}>{label}</div>
+            </div>
+            {i < units.length - 1 && (
+              <div className="font-display" style={{ fontSize: 'clamp(20px, 6vw, 30px)', color: accent, opacity: 0.6, marginBottom: '16px' }}>:</div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 }

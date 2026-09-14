@@ -10,7 +10,6 @@ import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
 import PoolRules from '../components/PoolRules';
-import KickoffCountdown from '../components/KickoffCountdown';
 
 const POOL_KEY = 'lineup-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-lineup';
@@ -1091,8 +1090,6 @@ export default function LineupPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
-        <KickoffCountdown accent="#8A9A90" background="#1F2B25" border="#2A3830" textColor="#F0EDE4" mutedColor="#5C6862" />
-
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#8A9A90" />
 
         {/* Entrants */}
@@ -1802,15 +1799,25 @@ export default function LineupPool() {
                                 ) : (
                                   <>
                                     <span className="flex-1" style={{ color: '#F0EDE4' }}>{playerLabel(value, s.position)}</span>
-                                    <span style={{ color: '#7FCB98' }}>
-                                      {(() => {
-                                        const rawScore = data.playerScores?.[viewWeek]?.[value];
-                                        if (rawScore != null) return `${rawScore.toFixed(1)} pts`;
-                                        const team = slotTeamAbbr(value, s.position);
-                                        const teamGame = games.find(g => g.away.abbr === team || g.home.abbr === team);
-                                        return teamGame?.completed ? '0.0 pts' : '— pts';
-                                      })()}
-                                    </span>
+                                    {(() => {
+                                      const rawScore = data.playerScores?.[viewWeek]?.[value];
+                                      const team = slotTeamAbbr(value, s.position);
+                                      const teamGame = games.find(g => g.away.abbr === team || g.home.abbr === team);
+                                      const isFinal = !!teamGame?.completed;
+                                      const displayScore = rawScore != null ? `${rawScore.toFixed(1)} pts` : (isFinal ? '0.0 pts' : '— pts');
+                                      return (
+                                        <span className="flex items-center gap-1.5" style={{ color: isFinal ? '#7FCB98' : '#E8A23D' }}>
+                                          {!isFinal && (
+                                            <span
+                                              title="Game still in progress — not final yet"
+                                              className="rounded-full shrink-0"
+                                              style={{ width: '6px', height: '6px', background: '#E8A23D' }}
+                                            />
+                                          )}
+                                          {displayScore}
+                                        </span>
+                                      );
+                                    })()}
                                     {ownershipLocked && (
                                       <span style={{ color: '#E8A23D' }}>{ownershipPct(value)}% owned</span>
                                     )}

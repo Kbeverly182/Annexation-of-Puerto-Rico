@@ -9,7 +9,6 @@ import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
 import PoolRules from '../components/PoolRules';
-import KickoffCountdown from '../components/KickoffCountdown';
 
 const POOL_KEY = 'survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-survivor';
@@ -74,6 +73,8 @@ export default function SurvivorPool() {
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
   const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
+  const [resultFilter, setResultFilter] = useState('won'); // 'won' | 'lost' | 'inprogress'
+  const [expandedResultId, setExpandedResultId] = useState(null);
   const [renamePrompt, setRenamePrompt] = useState(null); // { participantId, value, error }
   const [copied, setCopied] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
@@ -836,8 +837,6 @@ export default function SurvivorPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
-        <KickoffCountdown accent="#7FCB98" background="#1F2B25" border="#3D9B5C44" textColor="#F0EDE4" mutedColor="#8A9A90" />
-
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#3D9B5C" />
 
         {/* Entrants */}
@@ -1340,6 +1339,94 @@ export default function SurvivorPool() {
                   })}
                 </div>
               )}
+            </div>
+
+            {/* Week results — everyone grouped by outcome this week, so you can jump straight to
+                "who's still alive" or "who just got knocked out" without scrolling the whole
+                Season Picks list. Same privacy rule as everywhere else: expanding a name only
+                reveals their pick once that specific team's game has actually locked. */}
+            <div>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
+                Week {viewWeek} Results
+              </div>
+              {(() => {
+                const categorized = { won: [], lost: [], inprogress: [] };
+                data.participants.forEach(p => {
+                  const pick = data.picks[viewWeek]?.[p.id];
+                  let category;
+                  if (!pick?.team) {
+                    category = isWeekDefinitivelyOver(viewWeek) ? 'lost' : 'inprogress';
+                  } else if (pick.result === 'win') {
+                    category = 'won';
+                  } else if (pick.result === 'loss') {
+                    category = 'lost';
+                  } else {
+                    category = 'inprogress';
+                  }
+                  categorized[category].push(p);
+                });
+                const tabs = [
+                  { key: 'won', label: 'Won', color: '#7FCB98', bg: '#3D9B5C1a', border: '#3D9B5C88' },
+                  { key: 'lost', label: 'Lost', color: '#E28A82', bg: '#C1443A1a', border: '#C1443A88' },
+                  { key: 'inprogress', label: 'In Progress', color: '#F0EDE4', bg: '#1F2B25', border: '#5C7A8A88' },
+                ];
+                const list = [...categorized[resultFilter]].sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
+                return (
+                  <>
+                    <div className="flex gap-2 mb-3">
+                      {tabs.map(tab => (
+                        <button
+                          key={tab.key}
+                          onClick={() => { setResultFilter(tab.key); setExpandedResultId(null); }}
+                          className="flex-1 px-2 py-2 rounded font-head text-xs uppercase tracking-wide text-center"
+                          style={{
+                            background: resultFilter === tab.key ? tab.bg : '#1C2823',
+                            border: `1px solid ${resultFilter === tab.key ? tab.border : '#2A3830'}`,
+                            color: resultFilter === tab.key ? tab.color : '#5C6862',
+                          }}
+                        >
+                          {tab.label} ({categorized[tab.key].length})
+                        </button>
+                      ))}
+                    </div>
+                    {list.length === 0 ? (
+                      <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Nobody here yet.</div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {list.map(p => {
+                          const pick = data.picks[viewWeek]?.[p.id];
+                          const revealed = isRevealed(viewWeek, p.id, pick?.team);
+                          const isExpanded = expandedResultId === p.id;
+                          return (
+                            <div key={p.id} className="rounded" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                              <button
+                                onClick={() => setExpandedResultId(id => id === p.id ? null : p.id)}
+                                className="w-full flex items-center justify-between px-3 py-2"
+                              >
+                                <span className="font-head text-sm" style={{ color: '#F0EDE4' }}>{p.name}</span>
+                                <span style={{ color: '#5C6862', fontSize: '10px' }}>{isExpanded ? '▾' : '▸'}</span>
+                              </button>
+                              {isExpanded && (
+                                <div className="px-3 pb-2.5 font-mono text-xs" style={{ color: '#8A9A90', borderTop: '1px solid #2A3830', paddingTop: '8px' }}>
+                                  {!pick?.team ? (
+                                    <span style={{ color: '#5C6862' }}>No pick made this week</span>
+                                  ) : !revealed ? (
+                                    <span className="flex items-center gap-1.5" style={{ color: '#5C6862' }}>
+                                      <Lock size={10} /> Hidden until kickoff
+                                    </span>
+                                  ) : (
+                                    <span>Picked <span className="font-head" style={{ color: '#F0EDE4' }}>{pick.team}</span></span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Season picks — one row per entrant, alive first (alphabetical by last name), eliminated

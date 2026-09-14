@@ -74,6 +74,7 @@ export default function SurvivorPool() {
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
   const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
   const [resultFilter, setResultFilter] = useState('won'); // 'won' | 'lost' | 'inprogress'
+  const [expandedDistTeam, setExpandedDistTeam] = useState(null);
   const [expandedResultId, setExpandedResultId] = useState(null);
   const [renamePrompt, setRenamePrompt] = useState(null); // { participantId, value, error }
   const [copied, setCopied] = useState(false);
@@ -1325,15 +1326,43 @@ export default function SurvivorPool() {
                   {pickDistribution.map(t => {
                     const textColor = t.isNoPick ? '#5C6862' : t.result === 'win' ? '#7FCB98' : t.result === 'loss' ? '#E28A82' : '#F0EDE4';
                     const barColor = t.isNoPick ? '#5C6862' : t.result === 'win' ? '#3D9B5C' : t.result === 'loss' ? '#C1443A' : '#5C7A8A';
+                    const isExpanded = expandedDistTeam === t.abbr;
+                    const pickers = t.isNoPick ? [] : [...data.participants]
+                      .filter(p => data.picks[viewWeek]?.[p.id]?.team === t.abbr)
+                      .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
                     return (
-                      <div key={t.abbr} className="flex items-center gap-3">
-                        <div className="w-16 shrink-0 font-head text-xs" style={{ color: textColor }}>{t.abbr}</div>
-                        <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
-                          <div style={{ width: `${t.pct}%`, height: '100%', background: barColor }} />
-                        </div>
-                        <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
-                          {t.pct}% ({t.count})
-                        </div>
+                      <div key={t.abbr} className="rounded" style={t.isNoPick ? {} : { background: isExpanded ? '#1C2823' : 'transparent' }}>
+                        <button
+                          type="button"
+                          onClick={() => !t.isNoPick && setExpandedDistTeam(id => id === t.abbr ? null : t.abbr)}
+                          disabled={t.isNoPick}
+                          className="w-full flex items-center gap-3 px-1 py-0.5"
+                          style={{ cursor: t.isNoPick ? 'default' : 'pointer' }}
+                        >
+                          <div className="w-16 shrink-0 font-head text-xs text-left" style={{ color: textColor }}>{t.abbr}</div>
+                          <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                            <div style={{ width: `${t.pct}%`, height: '100%', background: barColor }} />
+                          </div>
+                          <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
+                            {t.pct}% ({t.count})
+                          </div>
+                          {!t.isNoPick && (
+                            <span className="shrink-0" style={{ color: '#5C6862', fontSize: '10px' }}>{isExpanded ? '▾' : '▸'}</span>
+                          )}
+                        </button>
+                        {isExpanded && (
+                          <div className="px-3 pb-2.5 pt-1 flex flex-wrap gap-1.5">
+                            {pickers.map(p => (
+                              <span
+                                key={p.id}
+                                className="font-mono text-[10px] px-2 py-1 rounded-full"
+                                style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
+                              >
+                                {p.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

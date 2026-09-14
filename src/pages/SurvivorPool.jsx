@@ -618,15 +618,20 @@ export default function SurvivorPool() {
   // Revealed on a per-team basis, not per-week: once a specific team's own game has started,
   // nobody can pick into or out of it anymore, so that count is already final and safe to show
   // — no reason to make everyone wait for the whole week's mass lock just to see it. Anyone whose
-  // current pick hasn't locked yet, or who hasn't picked at all, gets folded into one combined
-  // "Hidden" bucket instead of its own row, so a not-yet-started team's count never leaks early.
+  // current pick hasn't locked yet stays in "Hidden" (nothing to reveal, no pick has been made
+  // that could leak). Anyone who genuinely never picked at all is tracked separately as "No
+  // Pick" — there's no secret pick to protect there, so unlike Hidden, that bucket is safe to
+  // name people in.
   const totalParticipantsForDist = data.participants.length;
   const revealedPicksThisWeek = []; // { team, result }
   let hiddenCount = 0;
+  let noPickCount = 0;
   data.participants.forEach(p => {
     const pick = data.picks[viewWeek]?.[p.id];
     const team = pick?.team;
-    if (team && isPickLocked(viewWeek, team)) {
+    if (!team) {
+      noPickCount += 1;
+    } else if (isPickLocked(viewWeek, team)) {
       revealedPicksThisWeek.push({ team, result: pick.result });
     } else {
       hiddenCount += 1;
@@ -645,12 +650,20 @@ export default function SurvivorPool() {
   )
     .map(t => ({ ...t, pct: totalParticipantsForDist ? Math.round((t.count / totalParticipantsForDist) * 100) : 0 }))
     .sort((a, b) => b.count - a.count || a.abbr.localeCompare(b.abbr));
+  if (noPickCount > 0) {
+    pickDistribution.push({
+      abbr: 'No Pick',
+      count: noPickCount,
+      pct: totalParticipantsForDist ? Math.round((noPickCount / totalParticipantsForDist) * 100) : 0,
+      isNoPickBucket: true, // clickable — nobody's actual pick gets revealed by naming them here
+    });
+  }
   if (hiddenCount > 0) {
     pickDistribution.push({
       abbr: 'Hidden',
       count: hiddenCount,
       pct: totalParticipantsForDist ? Math.round((hiddenCount / totalParticipantsForDist) * 100) : 0,
-      isNoPick: true,
+      isNoPick: true, // stays non-clickable — these people DID pick something, just not locked yet
     });
   }
 
@@ -1324,20 +1337,29 @@ export default function SurvivorPool() {
               ) : (
                 <div className="space-y-2">
                   {pickDistribution.map(t => {
-                    const textColor = t.isNoPick ? '#5C6862' : t.result === 'win' ? '#7FCB98' : t.result === 'loss' ? '#E28A82' : '#F0EDE4';
-                    const barColor = t.isNoPick ? '#5C6862' : t.result === 'win' ? '#3D9B5C' : t.result === 'loss' ? '#C1443A' : '#5C7A8A';
+                    const isPlaceholder = t.isNoPick || t.isNoPickBucket;
+                    const textColor = isPlaceholder ? '#5C6862' : t.result === 'win' ? '#7FCB98' : t.result === 'loss' ? '#E28A82' : '#F0EDE4';
+                    const barColor = isPlaceholder ? '#5C6862' : t.result === 'win' ? '#3D9B5C' : t.result === 'loss' ? '#C1443A' : '#5C7A8A';
                     const isExpanded = expandedDistTeam === t.abbr;
-                    const pickers = t.isNoPick ? [] : [...data.participants]
-                      .filter(p => data.picks[viewWeek]?.[p.id]?.team === t.abbr)
-                      .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
+                    // Hidden stays non-clickable — those people DID pick something, it just hasn't
+                    // locked yet, so there's nothing safe to reveal. No Pick and real teams are
+                    // both fine to expand — there's no secret pick being protected either way.
+                    const clickable = !t.isNoPick;
+                    const pickers = t.isNoPickBucket
+                      ? [...data.participants].filter(p => !data.picks[viewWeek]?.[p.id]?.team)
+                        .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
+                      : t.isNoPick
+                      ? []
+                      : [...data.participants].filter(p => data.picks[viewWeek]?.[p.id]?.team === t.abbr)
+                        .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
                     return (
-                      <div key={t.abbr} className="rounded" style={t.isNoPick ? {} : { background: isExpanded ? '#1C2823' : 'transparent' }}>
+                      <div key={t.abbr} className="rounded" style={!clickable ? {} : { background: isExpanded ? '#1C2823' : 'transparent' }}>
                         <button
                           type="button"
-                          onClick={() => !t.isNoPick && setExpandedDistTeam(id => id === t.abbr ? null : t.abbr)}
-                          disabled={t.isNoPick}
+                          onClick={() => clickable && setExpandedDistTeam(id => id === t.abbr ? null : t.abbr)}
+                          disabled={!clickable}
                           className="w-full flex items-center gap-3 px-1 py-0.5"
-                          style={{ cursor: t.isNoPick ? 'default' : 'pointer' }}
+                          style={{ cursor: clickable ? 'pointer' : 'default' }}
                         >
                           <div className="w-16 shrink-0 font-head text-xs text-left" style={{ color: textColor }}>{t.abbr}</div>
                           <div className="flex-1 h-5 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
@@ -1346,7 +1368,7 @@ export default function SurvivorPool() {
                           <div className="w-20 shrink-0 font-mono text-xs text-right" style={{ color: '#8A9A90' }}>
                             {t.pct}% ({t.count})
                           </div>
-                          {!t.isNoPick && (
+                          {clickable && (
                             <span className="shrink-0" style={{ color: '#5C6862', fontSize: '10px' }}>{isExpanded ? '▾' : '▸'}</span>
                           )}
                         </button>

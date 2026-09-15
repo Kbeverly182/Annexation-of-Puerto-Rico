@@ -131,6 +131,7 @@ export default function LineupPool() {
   const [createEntryError, setCreateEntryError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [showSeasonLeaderboard, setShowSeasonLeaderboard] = useState(false);
+  const [showTopPayouts, setShowTopPayouts] = useState(false);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
@@ -1090,26 +1091,40 @@ export default function LineupPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
-        <div className="rounded-lg px-4 py-4" style={{ background: '#1F2B25', border: '1px solid #E8A23D66' }}>
-          <div className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2" style={{ color: '#E8A23D' }}>
-            <Trophy size={14} /> Season Payouts
-          </div>
-          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
-            <span className="uppercase tracking-wide">1st place</span>
-            <span className="font-head" style={{ color: '#E8A23D' }}>325 units</span>
-          </div>
-          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
-            <span className="uppercase tracking-wide">2nd place</span>
-            <span className="font-head" style={{ color: '#E8A23D' }}>200 units</span>
-          </div>
-          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
-            <span className="uppercase tracking-wide">3rd place</span>
-            <span className="font-head" style={{ color: '#E8A23D' }}>100 units</span>
-          </div>
-          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
-            <span className="uppercase tracking-wide">4th place</span>
-            <span className="font-head" style={{ color: '#E8A23D' }}>50 units</span>
-          </div>
+        <div>
+          <button
+            onClick={() => setShowTopPayouts(v => !v)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-head text-sm uppercase tracking-wide"
+            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'top-payout-pulse 2.4s ease-in-out infinite' }}
+          >
+            <Trophy size={15} /> Payouts {showTopPayouts ? '▾' : '▸'}
+          </button>
+          <style>{`
+            @keyframes top-payout-pulse {
+              0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
+              50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+            }
+          `}</style>
+          {showTopPayouts && (
+            <div className="rounded-lg px-4 py-3 mt-2" style={{ background: '#1F2B25', border: '1px solid #E8A23D66' }}>
+              <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+                <span className="uppercase tracking-wide">1st place</span>
+                <span className="font-head" style={{ color: '#E8A23D' }}>325 units</span>
+              </div>
+              <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+                <span className="uppercase tracking-wide">2nd place</span>
+                <span className="font-head" style={{ color: '#E8A23D' }}>200 units</span>
+              </div>
+              <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+                <span className="uppercase tracking-wide">3rd place</span>
+                <span className="font-head" style={{ color: '#E8A23D' }}>100 units</span>
+              </div>
+              <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
+                <span className="uppercase tracking-wide">4th place</span>
+                <span className="font-head" style={{ color: '#E8A23D' }}>50 units</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#8A9A90" />

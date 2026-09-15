@@ -847,7 +847,7 @@ export default function ConfidencePool() {
   // the real season starts. They never mix, so nothing from beta testing carries over later.
   const seasonTotal = (pid) => weeksForSeason(viewWeek).reduce((sum, w) => sum + weeklyPoints(pid, w), 0);
 
-  const numTopSpots = Math.max(1, Math.ceil(data.participants.length / 12));
+  const SEASON_TOP_SPOTS = 3; // season-long payout goes to a fixed top 3, not scaled by entrant count
   // myId being set doesn't guarantee it still points to a real entrant — a full pool reset (or
   // manual removal) can leave a stale id sitting in someone's localStorage. Treat that the same
   // as not being signed in at all, everywhere it matters, rather than just where it happened to
@@ -983,6 +983,28 @@ export default function ConfidencePool() {
       </div>
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
+
+        <div className="rounded-lg px-4 py-4" style={{ background: '#1F2B25', border: '1px solid #E8A23D66' }}>
+          <div className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2" style={{ color: '#E8A23D' }}>
+            <Trophy size={14} /> Payouts
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">Weekly winner</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>30 units</span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">Season — 1st place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>275 units</span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">Season — 2nd place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>140 units</span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">Season — 3rd place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>70 units</span>
+          </div>
+        </div>
 
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#E8A23D" />
 
@@ -1617,11 +1639,23 @@ export default function ConfidencePool() {
 
             {/* Weekly standings grid */}
             <div>
-              <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-2 flex items-center gap-2" style={{ color: '#8A9A90' }}>
                 <Trophy size={14} /> Week {weekLabel(viewWeek)} Standings
               </div>
+              <div
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-2 font-head text-sm uppercase tracking-wide"
+                style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'weekly-payout-pulse 2.4s ease-in-out infinite' }}
+              >
+                <Coins size={15} /> Weekly winner takes 30 units
+              </div>
+              <style>{`
+                @keyframes weekly-payout-pulse {
+                  0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
+                  50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+                }
+              `}</style>
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
-                Weekly winner gets 30 units — ties broken by closest MNF guess. Reorders automatically as results come in. Tap a name to see their picks.
+                Ties broken by closest MNF guess. Reorders automatically as results come in. Tap a name to see their picks.
               </div>
               <div className="space-y-1.5">
                 {weeklyLeaderboard(viewWeek).map((p, i) => {
@@ -1664,22 +1698,27 @@ export default function ConfidencePool() {
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>
                       {expandedId === p.id && (
-                        <div className="flex gap-1.5 flex-wrap mt-2.5 pt-2.5" style={{ borderTop: '1px solid #2A3830' }}>
-                          {cells.length === 0 && <span className="font-mono text-[10px]" style={{ color: '#3A4A42' }}>No picks yet</span>}
-                          {cells.map(c => (
-                            <div
-                              key={c.gid}
-                              title={c.revealed ? c.matchup : 'Hidden until kickoff'}
-                              className="px-2 py-1 rounded font-mono text-[10px]"
-                              style={{
-                                background: !c.revealed ? '#0F1614' : c.correct ? '#3D9B5C22' : c.wrong ? '#C1443A22' : '#0F1614',
-                                border: `1px solid ${!c.revealed ? '#2A3830' : c.correct ? '#3D9B5C' : c.wrong ? '#C1443A' : '#2A3830'}`,
-                                color: !c.revealed ? '#5C6862' : c.correct ? '#7FCB98' : c.wrong ? '#E28A82' : '#8A9A90',
-                              }}
-                            >
-                              {!c.revealed ? '•••' : c.team ? `${c.team} (${c.confidence})` : `— (${c.confidence})`}
-                            </div>
-                          ))}
+                        <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid #2A3830' }}>
+                          <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
+                            MNF Tiebreaker (combined final score): <span style={{ color: p.guess != null ? '#E8A23D' : '#5C6862' }}>{p.guess != null ? p.guess : 'Not entered'}</span>
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {cells.length === 0 && <span className="font-mono text-[10px]" style={{ color: '#3A4A42' }}>No picks yet</span>}
+                            {cells.map(c => (
+                              <div
+                                key={c.gid}
+                                title={c.revealed ? c.matchup : 'Hidden until kickoff'}
+                                className="px-2 py-1 rounded font-mono text-[10px]"
+                                style={{
+                                  background: !c.revealed ? '#0F1614' : c.correct ? '#3D9B5C22' : c.wrong ? '#C1443A22' : '#0F1614',
+                                  border: `1px solid ${!c.revealed ? '#2A3830' : c.correct ? '#3D9B5C' : c.wrong ? '#C1443A' : '#2A3830'}`,
+                                  color: !c.revealed ? '#5C6862' : c.correct ? '#7FCB98' : c.wrong ? '#E28A82' : '#8A9A90',
+                                }}
+                              >
+                                {!c.revealed ? '•••' : c.team ? `${c.team} (${c.confidence})` : `— (${c.confidence})`}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1690,6 +1729,21 @@ export default function ConfidencePool() {
 
             {/* Season leaderboard */}
             <div>
+              <div className="rounded-lg px-4 py-3 mb-3" style={{ background: '#1F2B25', border: '1px solid #E8A23D66' }}>
+                <div className="font-head uppercase text-[11px] tracking-[0.2em] mb-2" style={{ color: '#E8A23D' }}>Season Payouts</div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">1st place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>275 units</span>
+                </div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">2nd place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>140 units</span>
+                </div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">3rd place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>70 units</span>
+                </div>
+              </div>
               <button onClick={() => setShowSeasonLeaderboard(v => !v)} className="w-full flex items-center gap-2 mb-1">
                 <div className="font-head uppercase text-sm tracking-[0.2em] flex items-center gap-2" style={{ color: '#8A9A90' }}>
                   <Trophy size={14} /> Season Leaderboard
@@ -1702,16 +1756,16 @@ export default function ConfidencePool() {
               {showSeasonLeaderboard && (
                 <>
                   <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
-                    Top {numTopSpots} of {data.participants.length} entrants — season tiebreaker not yet set
+                    Top {SEASON_TOP_SPOTS} of {data.participants.length} entrants win season-long payouts — season tiebreaker not yet set
                   </div>
                   <div className="space-y-1.5">
                     {leaderboard.map((p, i) => (
                       <div
                         key={p.id}
                         className="flex items-center gap-3 rounded px-3 py-2"
-                        style={{ background: '#1C2823', border: i < numTopSpots ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
+                        style={{ background: '#1C2823', border: i < SEASON_TOP_SPOTS ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
                       >
-                        <div className="font-mono text-xs w-6" style={{ color: i < numTopSpots ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
+                        <div className="font-mono text-xs w-6" style={{ color: i < SEASON_TOP_SPOTS ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                         <div className="font-head text-sm flex-1">{p.name}</div>
                         <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total} pts</div>
                       </div>

@@ -1090,6 +1090,28 @@ export default function LineupPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
+        <div className="rounded-lg px-4 py-4" style={{ background: '#1F2B25', border: '1px solid #E8A23D66' }}>
+          <div className="font-head uppercase text-sm tracking-[0.2em] mb-3 flex items-center gap-2" style={{ color: '#E8A23D' }}>
+            <Trophy size={14} /> Season Payouts
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">1st place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>325 units</span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">2nd place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>200 units</span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ borderBottom: '1px solid #2A3830', color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">3rd place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>100 units</span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
+            <span className="uppercase tracking-wide">4th place</span>
+            <span className="font-head" style={{ color: '#E8A23D' }}>50 units</span>
+          </div>
+        </div>
+
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#8A9A90" />
 
         {/* Entrants */}
@@ -1846,6 +1868,25 @@ export default function LineupPool() {
 
             {/* Season leaderboard */}
             <div>
+              <div className="rounded-lg px-4 py-3 mb-3" style={{ background: '#1F2B25', border: '1px solid #E8A23D66' }}>
+                <div className="font-head uppercase text-[11px] tracking-[0.2em] mb-2" style={{ color: '#E8A23D' }}>Season Payouts</div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">1st place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>325 units</span>
+                </div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">2nd place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>200 units</span>
+                </div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">3rd place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>100 units</span>
+                </div>
+                <div className="flex items-center justify-between font-mono text-xs py-1" style={{ color: '#8A9A90' }}>
+                  <span className="uppercase tracking-wide">4th place</span>
+                  <span className="font-head" style={{ color: '#E8A23D' }}>50 units</span>
+                </div>
+              </div>
               <button onClick={() => setShowSeasonLeaderboard(v => !v)} className="w-full flex items-center gap-2 mb-1">
                 <div className="font-head uppercase text-sm tracking-[0.2em] flex items-center gap-2" style={{ color: '#8A9A90' }}>
                   <Trophy size={14} /> Season Leaderboard
@@ -1857,13 +1898,16 @@ export default function LineupPool() {
               </button>
               {showSeasonLeaderboard && (
                 <div className="space-y-1.5">
+                  <div className="font-mono text-[10px] mb-1.5" style={{ color: '#5C6862' }}>
+                    Top 4 of {standingsRows.length} entrants win season-long payouts.
+                  </div>
                   {standingsRows.map((p, i) => (
                     <div
                       key={p.id}
                       className="flex items-center gap-3 rounded px-3 py-2"
-                      style={{ background: '#1C2823', border: '1px solid #2A3830' }}
+                      style={{ background: '#1C2823', border: i < 4 ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
                     >
-                      <div className="font-mono text-xs w-6" style={{ color: '#5C6862' }}>{i + 1}</div>
+                      <div className="font-mono text-xs w-6" style={{ color: i < 4 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                       <div className="font-head text-sm flex-1">{p.name}</div>
                       <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total.toFixed(1)} pts</div>
                     </div>

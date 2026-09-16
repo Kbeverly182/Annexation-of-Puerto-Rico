@@ -73,6 +73,7 @@ export default function SurvivorPool() {
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [newSeasonConfirm, setNewSeasonConfirm] = useState(false);
   const [emailModal, setEmailModal] = useState(null); // { label, emails: [] }
+  const [showTopPayouts, setShowTopPayouts] = useState(false);
   const [resultFilter, setResultFilter] = useState('won'); // 'won' | 'lost' | 'inprogress'
   const [expandedDistTeam, setExpandedDistTeam] = useState(null);
   const [expandedResultId, setExpandedResultId] = useState(null);
@@ -851,6 +852,30 @@ export default function SurvivorPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
+        <div>
+          <button
+            onClick={() => setShowTopPayouts(v => !v)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-head text-sm uppercase tracking-wide"
+            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#8FE0AC,#3D9B5C)', animation: 'top-payout-pulse 2.4s ease-in-out infinite' }}
+          >
+            <Trophy size={15} /> Payouts {showTopPayouts ? '▾' : '▸'}
+          </button>
+          <style>{`
+            @keyframes top-payout-pulse {
+              0%, 100% { box-shadow: 0 0 8px #3D9B5C66, 0 0 2px #3D9B5C; }
+              50% { box-shadow: 0 0 18px #3D9B5Ccc, 0 0 6px #3D9B5C; }
+            }
+          `}</style>
+          {showTopPayouts && (
+            <div className="rounded-lg px-4 py-3 mt-2" style={{ background: '#1F2B25', border: '1px solid #3D9B5C66' }}>
+              <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
+                <span className="uppercase tracking-wide">Last one standing</span>
+                <span className="font-head" style={{ color: '#7FCB98' }}>3,560 units</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         <PoolTicker message={data.tickerMessage} isAdmin={isAdmin} onSave={setTickerMessage} accent="#3D9B5C" />
 
         {/* Entrants */}
@@ -1403,6 +1428,11 @@ export default function SurvivorPool() {
               {(() => {
                 const categorized = { won: [], lost: [], inprogress: [] };
                 data.participants.forEach(p => {
+                  // Someone eliminated in an EARLIER week isn't part of this week's pool at all —
+                  // without this check, everyone who's ever played shows up as "in progress" for
+                  // every future week forever, inflating the count way past who's actually alive.
+                  const elimWeek = eliminatedAtWeek(p.id);
+                  if (elimWeek !== null && elimWeek < viewWeek) return;
                   const pick = data.picks[viewWeek]?.[p.id];
                   let category;
                   if (!pick?.team) {

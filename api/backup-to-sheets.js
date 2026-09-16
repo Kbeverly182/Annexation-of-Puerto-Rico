@@ -165,12 +165,26 @@ export default async function handler(req, res) {
       'Raw Backup', 'Entrants', 'Survivor Picks', 'Confidence Picks', 'Lineup Picks',
     ]);
 
-    // Raw Backup tab: one row per pool with the complete, untouched JSON for that pool.
-    // This is the real safety net — even if every other tab or feature breaks, this alone
-    // is enough to reconstruct everything by hand if it ever came to that.
-    const rawRows = [['Pool', 'Last Synced', 'Raw JSON']];
+    // Raw Backup tab: the complete, untouched JSON for each pool — the real safety net, since
+    // even if every other tab or feature breaks, this alone is enough to reconstruct everything
+    // by hand if it ever came to that. Google Sheets hard-caps every cell at 50,000 characters,
+    // and a season's worth of picks across 100+ entrants can genuinely grow past that in one
+    // JSON blob — so each pool's JSON is split across as many rows as it takes to fit, rather
+    // than writing it as a single cell that can silently exceed the limit and fail the whole
+    // backup (which is exactly what was happening before this). Reassembling the full JSON for
+    // a pool is just concatenating that pool's chunks back together in row order.
+    const CELL_CHAR_LIMIT = 45000; // a little under Sheets' real 50,000 cap, for safety margin
+    const rawRows = [['Pool', 'Last Synced', 'Chunk', 'Raw JSON (concatenate all chunks for this pool, in order, to reconstruct)']];
     for (const { label } of POOL_KEYS) {
-      rawRows.push([label, now, JSON.stringify(pools[label] || {})]);
+      const fullJson = JSON.stringify(pools[label] || {});
+      const chunks = [];
+      for (let i = 0; i < fullJson.length; i += CELL_CHAR_LIMIT) {
+        chunks.push(fullJson.slice(i, i + CELL_CHAR_LIMIT));
+      }
+      if (chunks.length === 0) chunks.push('{}');
+      chunks.forEach((chunk, idx) => {
+        rawRows.push([label, now, `${idx + 1} of ${chunks.length}`, chunk]);
+      });
     }
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,

@@ -767,6 +767,23 @@ export default function LineupPool() {
     .map(p => ({ ...p, total: seasonTotal(p.id) }))
     .sort((a, b) => (b.total - a.total) || lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
 
+  // Week Standings needs its OWN sort, by THIS week's points — reusing standingsRows (sorted by
+  // season total) here was the actual bug: a list sorted by season total doesn't reorder as this
+  // specific week's scores come in, so someone with a big week could sit near the bottom while
+  // someone with a big SEASON but a quiet week sits at the top.
+  const weekStandingsRows = [...data.participants].map(p => {
+    const weekPicks = data.picks[viewWeek]?.[p.id] || {};
+    const filledCount = SLOTS.filter(s => weekPicks[s.key]).length;
+    const lineupComplete = filledCount === SLOTS.length;
+    const weekTotal = lineupComplete
+      ? SLOTS.reduce((sum, s) => {
+          const val = weekPicks[s.key];
+          return sum + (val && data.playerScores?.[viewWeek]?.[val] != null ? data.playerScores[viewWeek][val] : 0);
+        }, 0)
+      : 0;
+    return { ...p, total: seasonTotal(p.id), weekTotal, filledCount, lineupComplete, weekPicks };
+  }).sort((a, b) => (b.weekTotal - a.weekTotal) || lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
+
   const syncWeekPlayerScores = async () => {
     setStatsDebugLoading(true);
     setStatsDebug(null);
@@ -959,10 +976,17 @@ export default function LineupPool() {
     const details = [];
     const next = { ...data, playerScores: { ...data.playerScores } };
     next.playerScores[viewWeek] = { ...(next.playerScores[viewWeek] || {}) };
+    // Store every player's computed score, not just ones someone in this pool actually picked —
+    // totalsByPlayerId already has points computed for the whole box score above; the picked-only
+    // filter used to apply here too, which is exactly why PPG and weekly-score history only ever
+    // showed data for players who happened to get rostered by somebody, leaving everyone else
+    // blank even though their real stats were sitting right there the whole time.
+    Object.entries(totalsByPlayerId).forEach(([key, pts]) => {
+      next.playerScores[viewWeek][key] = Math.round(pts * 10) / 10;
+    });
     pickedThisWeek.forEach((info, key) => {
       const directHit = totalsByPlayerId[key];
       if (directHit != null) {
-        next.playerScores[viewWeek][key] = Math.round(directHit * 10) / 10;
         matched++;
         details.push({ label: info.label, status: 'matched', points: Math.round(directHit * 10) / 10, key });
         return;
@@ -976,7 +1000,7 @@ export default function LineupPool() {
         details.push({ label: info.label, status: 'no-data', key });
       }
     });
-    if (matched > 0) {
+    if (Object.keys(totalsByPlayerId).length > 0) {
       persist(next);
     }
     setStatsApplySummary({ matched, total: pickedThisWeek.size, details, hasApprox: pickedThisWeek.size > 0 && [...pickedThisWeek.keys()].some(k => anyApprox[k]) });
@@ -1729,8 +1753,9 @@ export default function LineupPool() {
               )}
             </div>
 
-            {/* Week standings — nobody sees a plain list of who's been drafted. Sorted by season
-                total (alphabetical by last name before anyone has scores). Tap a name to reveal
+            {/* Week standings — nobody sees a plain list of who's been drafted. Sorted by THIS
+                week's points (falls back to alphabetical by last name before anyone has scores
+                yet), so it actually reorders as the week's scores come in. Tap a name to reveal
                 their picks — only the slots whose games have actually locked. */}
             <div>
               <div className="font-head uppercase text-sm tracking-[0.2em] mb-1 flex items-center gap-2" style={{ color: '#8A9A90' }}>
@@ -1751,16 +1776,8 @@ export default function LineupPool() {
                 </div>
               )}
               <div className="space-y-1.5">
-                {standingsRows.map(p => {
-                  const weekPicks = data.picks[viewWeek]?.[p.id] || {};
-                  const filledCount = SLOTS.filter(s => weekPicks[s.key]).length;
-                  const lineupComplete = filledCount === SLOTS.length;
-                  const weekTotal = lineupComplete
-                    ? SLOTS.reduce((sum, s) => {
-                        const val = weekPicks[s.key];
-                        return sum + (val && data.playerScores?.[viewWeek]?.[val] != null ? data.playerScores[viewWeek][val] : 0);
-                      }, 0)
-                    : 0;
+                {weekStandingsRows.map(p => {
+                  const { weekPicks, filledCount, lineupComplete, weekTotal } = p;
                   let ytpCount = 0;
                   let ipCount = 0;
                   SLOTS.forEach(s => {

@@ -190,12 +190,6 @@ async function fetchGameStats(gameId) {
   return { players, teams, scores, fieldGoals };
 }
 
-// Ported verbatim from src/pages/LineupPool.jsx's scoring functions.
-const SLOTS = [
-  { key: 'QB' }, { key: 'RB1' }, { key: 'RB2' }, { key: 'WR1' }, { key: 'WR2' },
-  { key: 'TE' }, { key: 'K' }, { key: 'DST' },
-];
-
 function pickStat(stats, keys) {
   for (const k of keys) {
     if (stats[k] != null) {
@@ -285,53 +279,62 @@ export default async function handler(req, res) {
     const weeks = Object.keys(data.picks || {});
     if (weeks.length === 0) return res.status(200).json({ ok: true, updated: 0, note: 'no picks yet' });
 
-    const { teamMap: playerTeamMap, nameMap: playerNameMap } = await fetchPlayerTeamMap();
+    const { nameMap: playerNameMap } = await fetchPlayerTeamMap();
     const gameStatsCache = {};
     const next = { ...data, playerScores: { ...(data.playerScores || {}) } };
     let updated = 0;
 
     for (const week of weeks) {
       const gameStatus = await fetchWeekGameStatus(week, seasonYear);
-      const weekPicks = data.picks[week] || {};
       const nextWeekScores = { ...(next.playerScores[week] || {}) };
       let weekChanged = false;
 
-      const values = new Set();
-      Object.values(weekPicks).forEach(entry => {
-        SLOTS.forEach(s => {
-          if (entry[s.key]) values.add(JSON.stringify([s.key === 'DST' ? 'DST' : 'PLAYER', entry[s.key]]));
-        });
+      // Every game that's actually started this week, deduplicated by gameId — not just the
+      // games containing a player someone in the pool happens to have picked. Computing stats
+      // for the whole week's slate (not just picked players) is what lets PPG and weekly-score
+      // history show real data for every player, not just whoever got rostered by somebody.
+      const startedGameIds = new Set();
+      Object.values(gameStatus).forEach(status => {
+        if (status?.started) startedGameIds.add(status.gameId);
       });
 
-      for (const packed of values) {
-        const [kind, value] = JSON.parse(packed);
-        const team = kind === 'DST' ? value : playerTeamMap[value];
-        if (!team) continue;
-        const status = gameStatus[team];
-        if (!status || !status.started) continue;
+      for (const gameId of startedGameIds) {
+        if (!gameStatsCache[gameId]) gameStatsCache[gameId] = await fetchGameStats(gameId);
+        const gameData = gameStatsCache[gameId];
 
-        if (!gameStatsCache[status.gameId]) gameStatsCache[status.gameId] = await fetchGameStats(status.gameId);
-        const gameData = gameStatsCache[status.gameId];
-
-        if (kind === 'DST') {
-          const points = Math.round(computeDstPoints(team, gameData) * 10) / 10;
-          if (nextWeekScores[value] !== points) { nextWeekScores[value] = points; weekChanged = true; updated++; }
-        } else {
-          const rows = gameData.players.filter(p => p.playerId === value);
-          if (rows.length === 0) continue;
-          // Match by playerId first; fall back to matching the kicker's name directly against
-          // this player's roster name, since participants isn't always reliably populated.
-          const rosterName = playerNameMap[value];
-          const exactFGs = gameData.fieldGoals
-            .filter(fg => fg.playerId === value || (rosterName && namesMatch(fg.kickerName, rosterName)))
-            .map(fg => fg.yards);
+        // Skill-position players — a player can have more than one stat-category row (e.g. a QB
+        // who also rushed), so group by playerId first and sum across all of that player's rows.
+        const rowsByPlayer = {};
+        gameData.players.forEach(row => {
+          if (!row.playerId) return;
+          (rowsByPlayer[row.playerId] = rowsByPlayer[row.playerId] || []).push(row);
+        });
+        for (const [playerId, rows] of Object.entries(rowsByPlayer)) {
+          const isKicker = rows.some(r => (r.category || '').toLowerCase().includes('kick'));
+          let exactFGs = [];
+          if (isKicker) {
+            // Match by playerId first; fall back to matching the kicker's name directly against
+            // this player's roster name, since the box score's own field-goal play text doesn't
+            // always carry a resolved athlete id.
+            const rosterName = playerNameMap[playerId];
+            exactFGs = gameData.fieldGoals
+              .filter(fg => fg.playerId === playerId || (rosterName && namesMatch(fg.kickerName, rosterName)))
+              .map(fg => fg.yards);
+          }
           let total = 0;
           rows.forEach(row => {
             total += computeFantasyPoints(row.category, row.stats, (row.category || '').toLowerCase().includes('kick') ? exactFGs : undefined);
           });
           const points = Math.round(total * 10) / 10;
-          if (nextWeekScores[value] !== points) { nextWeekScores[value] = points; weekChanged = true; updated++; }
+          if (nextWeekScores[playerId] !== points) { nextWeekScores[playerId] = points; weekChanged = true; updated++; }
         }
+
+        // D/ST — both teams in this game, not just one someone happened to pick.
+        gameData.scores.forEach(s => {
+          if (!s.abbr) return;
+          const points = Math.round(computeDstPoints(s.abbr, gameData) * 10) / 10;
+          if (nextWeekScores[s.abbr] !== points) { nextWeekScores[s.abbr] = points; weekChanged = true; updated++; }
+        });
       }
 
       if (weekChanged) next.playerScores[week] = nextWeekScores;

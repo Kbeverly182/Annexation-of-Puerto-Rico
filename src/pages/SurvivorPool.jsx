@@ -623,11 +623,18 @@ export default function SurvivorPool() {
   // that could leak). Anyone who genuinely never picked at all is tracked separately as "No
   // Pick" — there's no secret pick to protect there, so unlike Hidden, that bucket is safe to
   // name people in.
-  const totalParticipantsForDist = data.participants.length;
+  const totalParticipantsForDist = data.participants.filter(p => {
+    const elimWeek = eliminatedAtWeek(p.id);
+    return elimWeek === null || elimWeek >= viewWeek;
+  }).length;
   const revealedPicksThisWeek = []; // { team, result }
   let hiddenCount = 0;
   let noPickCount = 0;
   data.participants.forEach(p => {
+    // Someone eliminated in an EARLIER week isn't part of this week's pool at all — without this
+    // check, everyone who's ever played shows up as "No Pick" for every future week forever.
+    const elimWeek = eliminatedAtWeek(p.id);
+    if (elimWeek !== null && elimWeek < viewWeek) return;
     const pick = data.picks[viewWeek]?.[p.id];
     const team = pick?.team;
     if (!team) {
@@ -1619,7 +1626,8 @@ export default function SurvivorPool() {
                           const isElimHere = elimWeek === w;
                           const grey = elimWeek !== null && w > elimWeek;
                           const shown = isRevealed(w, p.id, pk?.team);
-                          let bg = '#1F2B25', border = '#2A3830', txt = '#5C6862';
+                          const isCurrentWeek = w === viewWeek;
+                          let bg = '#1F2B25', border = '#2A3830', txt = isCurrentWeek ? '#F0EDE4' : '#5C6862';
                           if (shown && pk?.result === 'win') { bg = '#3D9B5C22'; border = '#3D9B5C'; txt = '#7FCB98'; }
                           if (shown && isElimHere) { bg = '#C1443A22'; border = '#C1443A'; txt = '#E28A82'; }
                           return (

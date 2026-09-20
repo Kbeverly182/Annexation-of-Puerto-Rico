@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 
-const ALLOWED_KEYS = new Set(['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1', 'admin-config']);
+const ALLOWED_KEYS = new Set(['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1', 'admin-config', 'player-props-v1']);
 
 function resolveKey(req) {
   const key = req.query?.key;

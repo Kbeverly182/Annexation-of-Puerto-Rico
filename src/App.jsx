@@ -4,6 +4,7 @@ import Landing from './pages/Landing';
 import SurvivorPool from './pages/SurvivorPool';
 import ConfidencePool from './pages/ConfidencePool';
 import LineupPool from './pages/LineupPool';
+import PlayerProps from './pages/PlayerProps';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/survivor" element={<SurvivorPool />} />
         <Route path="/confidence" element={<ConfidencePool />} />
         <Route path="/lineup" element={<LineupPool />} />
+        <Route path="/props" element={<PlayerProps />} />
       </Routes>
     </HashRouter>
   );

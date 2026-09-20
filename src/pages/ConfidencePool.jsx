@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical, Mail, Copy, Hash } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
@@ -125,6 +125,7 @@ export default function ConfidencePool() {
   // that's identical for touch and mouse, which is why this is built on those instead.
   const [pointerDrag, setPointerDrag] = useState(null); // { pid, order: [gid,...], draggedGid, pointerId }
   const dragRowRefs = useRef({}); // gid -> row DOM node, used to hit-test drag position against
+  const prevDragRectsRef = useRef({}); // gid -> DOMRect, captured just before each reorder, for the slide-into-place animation below
   // Three interchangeable ways to set confidence order — drag-and-drop doesn't work well for
   // everyone (some touchscreens/trackpads are fussy with it), so arrows and direct number entry
   // are offered as full equivalents, not a fallback. Remembered per-device since it's a personal
@@ -698,6 +699,37 @@ export default function ConfidencePool() {
     commitOrder(viewWeek, pointerDrag.pid, pointerDrag.order);
     setPointerDrag(null);
   };
+
+  // Smooths the drag reorder itself — without this, every row bumped out of the way by the
+  // dragged item just snaps straight to its new spot the instant the order array changes, which
+  // reads as jumpy rather than a smooth reorder. This uses the standard "FLIP" technique: measure
+  // where every row WAS right before the reorder, let the reorder happen, measure where each row
+  // ended up, then paint it starting back at its old spot (no transition) and immediately animate
+  // it over to zero offset (with a transition) — the browser fills in the motion between the two,
+  // so it visually slides into place instead of teleporting. The dragged row itself is skipped —
+  // its position is directly tied to where your finger is, so snapping there reads as responsive
+  // rather than jarring; it's only the OTHER rows shifting out of the way that need to feel smooth.
+  useLayoutEffect(() => {
+    if (!pointerDrag) { prevDragRectsRef.current = {}; return; }
+    const newRects = {};
+    Object.entries(dragRowRefs.current).forEach(([gid, node]) => {
+      if (node) newRects[gid] = node.getBoundingClientRect();
+    });
+    Object.entries(prevDragRectsRef.current).forEach(([gid, oldRect]) => {
+      if (gid === pointerDrag.draggedGid) return;
+      const node = dragRowRefs.current[gid];
+      const newRect = newRects[gid];
+      if (!node || !newRect) return;
+      const deltaY = oldRect.top - newRect.top;
+      if (Math.abs(deltaY) < 1) return;
+      node.style.transition = 'none';
+      node.style.transform = `translateY(${deltaY}px)`;
+      void node.offsetHeight; // forces the browser to register the starting position before animating away from it
+      node.style.transition = 'transform 200ms ease';
+      node.style.transform = '';
+    });
+    prevDragRectsRef.current = newRects;
+  }, [pointerDrag ? pointerDrag.order.join('|') : null, pointerDrag?.pid]);
 
   // Arrow-button reordering — moves one still-open game up or down a single spot among the
   // OTHER still-open games, never displacing a locked one.

@@ -85,9 +85,13 @@ export function useEspnSchedule(week, seasonYear) {
       const massThreshold = windowGames.length
         ? windowGames[0].date.toISOString()
         : (kickoffTimes.length ? kickoffTimes.sort((a, b) => a.date - b.date)[0].date.toISOString() : null);
-      setSchedule(prev => ({ ...prev, [wk]: { loading: false, loaded: true, teamKickoff, matchups, games, massThreshold } }));
+      const weekData = { loading: false, loaded: true, teamKickoff, matchups, games, massThreshold };
+      setSchedule(prev => ({ ...prev, [wk]: weekData }));
+      return weekData;
     } catch (e) {
-      setSchedule(prev => ({ ...prev, [wk]: { loading: false, loaded: true, teamKickoff: {}, matchups: {}, games: [], massThreshold: null, error: true } }));
+      const weekData = { loading: false, loaded: true, teamKickoff: {}, matchups: {}, games: [], massThreshold: null, error: true };
+      setSchedule(prev => ({ ...prev, [wk]: weekData }));
+      return weekData;
     }
   }, [seasonYear]);
 

@@ -1817,7 +1817,7 @@ export default function LineupPool() {
                           <div className="font-head text-base" style={{ color: '#E8A23D' }}>
                             {weekTotal.toFixed(1)} <span className="font-mono text-[9px] uppercase" style={{ color: '#5C6862' }}>this wk</span>
                           </div>
-                          <div className="font-mono text-[9px]" style={{ color: '#5C6862' }}>{p.total.toFixed(1)} season</div>
+                          <div className="font-mono text-[9px]" style={{ color: '#F0EDE4' }}>{p.total.toFixed(1)} season</div>
                         </div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>

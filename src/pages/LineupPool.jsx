@@ -767,6 +767,21 @@ export default function LineupPool() {
     .map(p => ({ ...p, total: seasonTotal(p.id) }))
     .sort((a, b) => (b.total - a.total) || lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
 
+  // Season rank for each entrant, straight from standingsRows' own order — reused wherever a
+  // season position needs to show up next to someone's season total, like in Week Standings.
+  const seasonRankById = {};
+  standingsRows.forEach((p, i) => { seasonRankById[p.id] = i + 1; });
+  const ordinal = (n) => {
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+    switch (n % 10) {
+      case 1: return `${n}st`;
+      case 2: return `${n}nd`;
+      case 3: return `${n}rd`;
+      default: return `${n}th`;
+    }
+  };
+
   // Week Standings needs its OWN sort, by THIS week's points — reusing standingsRows (sorted by
   // season total) here was the actual bug: a list sorted by season total doesn't reorder as this
   // specific week's scores come in, so someone with a big week could sit near the bottom while
@@ -1817,7 +1832,7 @@ export default function LineupPool() {
                           <div className="font-head text-base" style={{ color: '#E8A23D' }}>
                             {weekTotal.toFixed(1)} <span className="font-mono text-[9px] uppercase" style={{ color: '#5C6862' }}>this wk</span>
                           </div>
-                          <div className="font-mono text-[9px]" style={{ color: '#F0EDE4' }}>{p.total.toFixed(1)} season</div>
+                          <div className="font-mono text-[9px]" style={{ color: '#F0EDE4' }}>{p.total.toFixed(1)} season ({ordinal(seasonRankById[p.id])})</div>
                         </div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>

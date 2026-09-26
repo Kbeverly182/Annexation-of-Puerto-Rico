@@ -592,6 +592,9 @@ export default function ConfidencePool() {
     if (myId && pid === myId) return true;
     return isGameLocked(g);
   };
+  // The tiebreaker guess stays editable through Thursday/early games and locks at the same
+  // Sunday-1pm/MNF mass-lock as everything else — it's also kept hidden from everyone but the
+  // entrant themself (and admin) until that same moment, so there's no advantage either way.
   const isTiebreakerRevealed = (pid) => {
     if (isAdmin) return true;
     if (myId && pid === myId) return true;
@@ -1752,9 +1755,15 @@ export default function ConfidencePool() {
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-2">
                         <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i === 0 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
                         <div className="font-head text-xs flex-1 text-left truncate">{p.name}</div>
-                        {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
+                        {p.guess != null && isTiebreakerRevealed(p.id) && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
                         <div className="text-right shrink-0 leading-tight">
                           <div className="font-head text-sm" style={{ color: '#E8A23D' }}>{p.points}</div>
+                          {(() => {
+                            const best = weeklyBestPossible(p.id, viewWeek);
+                            return best > p.points ? (
+                              <div className="font-mono text-[11px]" style={{ color: '#F0EDE4' }}>Best Possible: {best}</div>
+                            ) : null;
+                          })()}
                           <div className="font-mono text-[11px]" style={{ color: '#F0EDE4' }}>{seasonTotal(p.id)} season ({ordinal(seasonRankById[p.id])})</div>
                         </div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>

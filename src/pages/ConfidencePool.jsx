@@ -1771,7 +1771,11 @@ export default function ConfidencePool() {
                       {expandedId === p.id && (
                         <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid #2A3830' }}>
                           <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
-                            MNF Tiebreaker (combined final score): <span style={{ color: p.guess != null ? '#E8A23D' : '#5C6862' }}>{p.guess != null ? p.guess : 'Not entered'}</span>
+                            MNF Tiebreaker (combined final score): {isTiebreakerRevealed(p.id) ? (
+                              <span style={{ color: p.guess != null ? '#E8A23D' : '#5C6862' }}>{p.guess != null ? p.guess : 'Not entered'}</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1" style={{ color: '#5C6862' }}><Lock size={10} /> Hidden until kickoff</span>
+                            )}
                           </div>
                           {(() => {
                             const best = weeklyBestPossible(p.id, viewWeek);

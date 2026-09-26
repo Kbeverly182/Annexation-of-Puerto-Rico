@@ -913,6 +913,21 @@ export default function ConfidencePool() {
     .map(p => ({ ...p, total: seasonTotal(p.id) }))
     .sort((a, b) => b.total - a.total);
 
+  // Season rank for each entrant, straight from leaderboard's own order — reused wherever a
+  // season position needs to show up next to someone's season total, like in Weekly Standings.
+  const seasonRankById = {};
+  leaderboard.forEach((p, i) => { seasonRankById[p.id] = i + 1; });
+  const ordinal = (n) => {
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+    switch (n % 10) {
+      case 1: return `${n}st`;
+      case 2: return `${n}nd`;
+      case 3: return `${n}rd`;
+      default: return `${n}th`;
+    }
+  };
+
   return (
     <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
       <style>{`
@@ -1740,12 +1755,7 @@ export default function ConfidencePool() {
                         {p.guess != null && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
                         <div className="text-right shrink-0 leading-tight">
                           <div className="font-head text-sm" style={{ color: '#E8A23D' }}>{p.points}</div>
-                          {(() => {
-                            const best = weeklyBestPossible(p.id, viewWeek);
-                            return best > p.points ? (
-                              <div className="font-mono text-[9px]" style={{ color: '#F0EDE4' }}>Best Possible Total: {best}</div>
-                            ) : null;
-                          })()}
+                          <div className="font-mono text-[11px]" style={{ color: '#F0EDE4' }}>{seasonTotal(p.id)} season ({ordinal(seasonRankById[p.id])})</div>
                         </div>
                         <span style={{ color: '#5C6862', fontSize: '10px' }}>{expandedId === p.id ? '▾' : '▸'}</span>
                       </button>
@@ -1754,6 +1764,12 @@ export default function ConfidencePool() {
                           <div className="font-mono text-[10px] mb-2" style={{ color: '#5C6862' }}>
                             MNF Tiebreaker (combined final score): <span style={{ color: p.guess != null ? '#E8A23D' : '#5C6862' }}>{p.guess != null ? p.guess : 'Not entered'}</span>
                           </div>
+                          {(() => {
+                            const best = weeklyBestPossible(p.id, viewWeek);
+                            return best > p.points ? (
+                              <div className="font-mono text-[11px] mb-2" style={{ color: '#F0EDE4' }}>Best Possible Total: {best}</div>
+                            ) : null;
+                          })()}
                           <div className="flex gap-1.5 flex-wrap">
                             {cells.length === 0 && <span className="font-mono text-[10px]" style={{ color: '#3A4A42' }}>No picks yet</span>}
                             {cells.map(c => (

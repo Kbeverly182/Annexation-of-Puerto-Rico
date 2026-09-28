@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 
 const POOL_KEYS = [
   { key: 'survivor-pool-v1', label: 'Survivor' },
+  { key: 'revival-survivor-pool-v1', label: 'Revival' },
   { key: 'confidence-pool-v1', label: 'Confidence' },
   { key: 'lineup-pool-v1', label: 'Lineup' },
 ];
@@ -162,7 +163,7 @@ export default async function handler(req, res) {
     }
 
     await ensureTabsExist(sheets, sheetId, [
-      'Raw Backup', 'Entrants', 'Survivor Picks', 'Confidence Picks', 'Lineup Picks',
+      'Raw Backup', 'Entrants', 'Survivor Picks', 'Revival Picks', 'Confidence Picks', 'Lineup Picks',
     ]);
 
     // Raw Backup tab: the complete, untouched JSON for each pool — the real safety net, since
@@ -228,6 +229,27 @@ export default async function handler(req, res) {
       range: 'Survivor Picks!A1',
       valueInputOption: 'RAW',
       requestBody: { values: survivorRows },
+    });
+
+    // Revival Picks: same shape as Survivor Picks — the revival bracket is a separate pool with
+    // its own KV key, entrants, and picks, but otherwise plays exactly like Survivor.
+    const revivalData = pools['Revival'];
+    const revivalRows = [['Week', 'Entrant', 'Team Picked', 'Result']];
+    (revivalData?.participants || []).forEach(p => {
+      Object.keys(revivalData?.picks || {})
+        .sort((a, b) => Number(a) - Number(b))
+        .forEach(week => {
+          const pick = revivalData.picks[week]?.[p.id];
+          if (pick?.team) {
+            revivalRows.push([weekLabel(week), p.name || '', pick.team, pick.result || 'pending']);
+          }
+        });
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: 'Revival Picks!A1',
+      valueInputOption: 'RAW',
+      requestBody: { values: revivalRows },
     });
 
     // Confidence Picks: one row per entrant per game. Matchups are resolved from ESPN's live

@@ -9,6 +9,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/sync-revival-survivor",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/sync-confidence",
       "schedule": "0 10 * * *"
     },

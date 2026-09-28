@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Skull, ListOrdered, Users, ChevronRight, Coins, Mail, Copy, Check, X, Loader2 } from 'lucide-react';
+import { Skull, Flame, ListOrdered, Users, ChevronRight, Coins, Mail, Copy, Check, X, Loader2 } from 'lucide-react';
 import { useAdminMode } from '../lib/admin';
 import { apiGetPool } from '../lib/api';
 
-const POOL_KEYS = ['survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1'];
+const POOL_KEYS = ['survivor-pool-v1', 'revival-survivor-pool-v1', 'confidence-pool-v1', 'lineup-pool-v1'];
 
 const POOLS = [
   {
@@ -14,6 +14,15 @@ const POOLS = [
     type: 'NFL Survivor Pool',
     desc: 'Pick one team to win each week. Lose once and you\'re out.',
     color: '#3D9B5C',
+    fee: 20,
+  },
+  {
+    to: '/revival',
+    icon: Flame,
+    title: 'The Icebox',
+    type: 'NFL Survivor Pool — Revival, starts Week 4',
+    desc: 'Same rules as our Survivor pool, but a fresh, separate bracket kicking off at Week 4. New sign-ups only.',
+    color: '#C1443A',
     fee: 20,
   },
   {

@@ -130,6 +130,7 @@ export default function LineupPool() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createEntryError, setCreateEntryError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [showUsedPlayers, setShowUsedPlayers] = useState({}); // { [participantId]: bool }
   const [showSeasonLeaderboard, setShowSeasonLeaderboard] = useState(false);
   const [showTopPayouts, setShowTopPayouts] = useState(false);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
@@ -639,6 +640,25 @@ export default function LineupPool() {
       });
     }
     return used;
+  };
+
+  // Every player/D-ST a participant has ever started, across every week played so far — for the
+  // "Already Used" summary so nobody has to click back through each week to piece this together
+  // themselves. Deliberately NOT gated on isAdmin (unlike usedByParticipant above, which only
+  // exists to block re-picking — admins are allowed to re-pick, but this is a display list, so it
+  // should show real history even while viewing as admin).
+  const usedHistoryByParticipant = (pid) => {
+    const rows = [];
+    for (const w of weeksForSeason(viewWeek)) {
+      const weekPicks = data.picks[w]?.[pid];
+      if (!weekPicks) continue;
+      SLOTS.forEach(s => {
+        const value = weekPicks[s.key];
+        if (!value) return;
+        rows.push({ week: w, slotLabel: s.label, label: playerLabel(value, s.position) });
+      });
+    }
+    return rows.sort((a, b) => a.week - b.week);
   };
 
   const setSlot = (week, pid, slotKey, value) => {
@@ -1532,6 +1552,40 @@ export default function LineupPool() {
                       <div className="font-head text-sm">{p.name}</div>
                       <div className="font-mono text-xs" style={{ color: '#8A9A90' }}>Season: {total.toFixed(1)} pts</div>
                     </div>
+                    {(() => {
+                      const history = usedHistoryByParticipant(p.id);
+                      const open = !!showUsedPlayers[p.id];
+                      return (
+                        <div className="mb-2">
+                          <button
+                            onClick={() => setShowUsedPlayers(m => ({ ...m, [p.id]: !m[p.id] }))}
+                            className="font-mono text-[10px] uppercase underline flex items-center gap-1"
+                            style={{ color: '#8A9A90' }}
+                          >
+                            <ChevronDown size={10} style={{ transform: open ? 'rotate(180deg)' : 'none' }} />
+                            Already used ({history.length}) {open ? '▾' : '▸'}
+                          </button>
+                          {open && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {history.length === 0 ? (
+                                <span className="font-mono text-[10px]" style={{ color: '#5C6862' }}>Nobody started yet this season.</span>
+                              ) : (
+                                history.map((h, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="font-mono text-[10px] px-1.5 py-0.5 rounded"
+                                    style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
+                                    title={`Week ${weekLabel(h.week)}`}
+                                  >
+                                    {h.slotLabel}: {h.label} <span style={{ color: '#5C6862' }}>(Wk {weekLabel(h.week)})</span>
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {!revealed ? (
                       <div className="flex items-center gap-1.5 font-mono text-xs uppercase" style={{ color: '#5C6862' }}>
                         <Lock size={12} /> Hidden until kickoff

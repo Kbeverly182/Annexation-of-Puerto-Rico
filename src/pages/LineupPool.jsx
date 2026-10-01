@@ -647,6 +647,7 @@ export default function LineupPool() {
   // themselves. Deliberately NOT gated on isAdmin (unlike usedByParticipant above, which only
   // exists to block re-picking — admins are allowed to re-pick, but this is a display list, so it
   // should show real history even while viewing as admin).
+  const USED_POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
   const usedHistoryByParticipant = (pid) => {
     const rows = [];
     for (const w of weeksForSeason(viewWeek)) {
@@ -655,10 +656,16 @@ export default function LineupPool() {
       SLOTS.forEach(s => {
         const value = weekPicks[s.key];
         if (!value) return;
-        rows.push({ week: w, slotLabel: s.label, label: playerLabel(value, s.position) });
+        rows.push({ week: w, position: s.position, slotLabel: s.label, label: playerLabel(value, s.position) });
       });
     }
-    return rows.sort((a, b) => a.week - b.week);
+    // Grouped by position (QB, RB, WR, TE, K, D/ST) rather than by week, so all of one position
+    // sit together — within a position, earliest week first.
+    return rows.sort((a, b) => {
+      const posDiff = USED_POSITION_ORDER.indexOf(a.position) - USED_POSITION_ORDER.indexOf(b.position);
+      if (posDiff !== 0) return posDiff;
+      return a.week - b.week;
+    });
   };
 
   const setSlot = (week, pid, slotKey, value) => {
@@ -1555,30 +1562,46 @@ export default function LineupPool() {
                     {(() => {
                       const history = usedHistoryByParticipant(p.id);
                       const open = !!showUsedPlayers[p.id];
+                      const groups = USED_POSITION_ORDER
+                        .map(pos => ({ pos, label: pos === 'DST' ? 'D/ST' : pos, rows: history.filter(h => h.position === pos) }))
+                        .filter(g => g.rows.length > 0);
                       return (
-                        <div className="mb-2">
+                        <div className="mb-3">
                           <button
                             onClick={() => setShowUsedPlayers(m => ({ ...m, [p.id]: !m[p.id] }))}
-                            className="font-mono text-[10px] uppercase underline flex items-center gap-1"
-                            style={{ color: '#8A9A90' }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-head text-sm uppercase tracking-wide"
+                            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'used-players-pulse 2.4s ease-in-out infinite' }}
                           >
-                            <ChevronDown size={10} style={{ transform: open ? 'rotate(180deg)' : 'none' }} />
-                            Already used ({history.length}) {open ? '▾' : '▸'}
+                            <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                            Already Used ({history.length})
                           </button>
+                          <style>{`
+                            @keyframes used-players-pulse {
+                              0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
+                              50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+                            }
+                          `}</style>
                           {open && (
-                            <div className="mt-1.5 flex flex-wrap gap-1.5">
-                              {history.length === 0 ? (
-                                <span className="font-mono text-[10px]" style={{ color: '#5C6862' }}>Nobody started yet this season.</span>
+                            <div className="mt-2.5 rounded-lg px-3 py-3 space-y-2.5" style={{ background: '#1F2B25', border: '1px solid #E8A23D44' }}>
+                              {groups.length === 0 ? (
+                                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Nobody started yet this season.</div>
                               ) : (
-                                history.map((h, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                                    style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
-                                    title={`Week ${weekLabel(h.week)}`}
-                                  >
-                                    {h.slotLabel}: {h.label} <span style={{ color: '#5C6862' }}>(Wk {weekLabel(h.week)})</span>
-                                  </span>
+                                groups.map(g => (
+                                  <div key={g.pos}>
+                                    <div className="font-head text-xs uppercase tracking-[0.15em] mb-1" style={{ color: '#E8A23D' }}>{g.label}</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {g.rows.map((h, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="font-head text-sm px-2.5 py-1 rounded-full"
+                                          style={{ background: '#0F1614', border: '1px solid #3A4A42', color: '#F0EDE4' }}
+                                          title={`Week ${weekLabel(h.week)}`}
+                                        >
+                                          {h.label} <span className="font-mono text-[10px]" style={{ color: '#8A9A90' }}>Wk {weekLabel(h.week)}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
                                 ))
                               )}
                             </div>

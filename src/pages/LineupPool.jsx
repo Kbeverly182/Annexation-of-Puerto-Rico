@@ -1570,25 +1570,25 @@ export default function LineupPool() {
                           <button
                             onClick={() => setShowUsedPlayers(m => ({ ...m, [p.id]: !m[p.id] }))}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-head text-sm uppercase tracking-wide"
-                            style={{ color: '#0F1614', background: 'linear-gradient(135deg,#F0C168,#E8A23D)', animation: 'used-players-pulse 2.4s ease-in-out infinite' }}
+                            style={{ color: '#F0EDE4', background: 'linear-gradient(135deg,#3B5BFF,#1D3FD6)', animation: 'used-players-pulse 2.4s ease-in-out infinite' }}
                           >
                             <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
                             Already Used ({history.length})
                           </button>
                           <style>{`
                             @keyframes used-players-pulse {
-                              0%, 100% { box-shadow: 0 0 8px #E8A23D66, 0 0 2px #E8A23D; }
-                              50% { box-shadow: 0 0 18px #E8A23Dcc, 0 0 6px #E8A23D; }
+                              0%, 100% { box-shadow: 0 0 8px #3B5BFF66, 0 0 2px #3B5BFF; }
+                              50% { box-shadow: 0 0 18px #3B5BFFcc, 0 0 6px #3B5BFF; }
                             }
                           `}</style>
                           {open && (
-                            <div className="mt-2.5 rounded-lg px-3 py-3 space-y-2.5" style={{ background: '#1F2B25', border: '1px solid #E8A23D44' }}>
+                            <div className="mt-2.5 rounded-lg px-3 py-3 space-y-2.5" style={{ background: '#1F2B25', border: '1px solid #3B5BFF44' }}>
                               {groups.length === 0 ? (
                                 <div className="font-mono text-xs" style={{ color: '#5C6862' }}>Nobody started yet this season.</div>
                               ) : (
                                 groups.map(g => (
                                   <div key={g.pos}>
-                                    <div className="font-head text-xs uppercase tracking-[0.15em] mb-1" style={{ color: '#E8A23D' }}>{g.label}</div>
+                                    <div className="font-head text-xs uppercase tracking-[0.15em] mb-1" style={{ color: '#6C8EFF' }}>{g.label}</div>
                                     <div className="flex flex-wrap gap-2">
                                       {g.rows.map((h, idx) => (
                                         <span

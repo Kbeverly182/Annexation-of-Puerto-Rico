@@ -1,12 +1,43 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Trash2 } from 'lucide-react';
 
+// Per-device "have I seen the latest message" tracking for the pulsing unread glow below.
+// Keyed by the page's own route (e.g. "#/survivor", "#/confidence") so each pool's chat tracks
+// read state independently, without needing every pool page to pass its own identifier in.
+const READ_STORAGE_PREFIX = 'pool-chat-last-read:';
+const routeKey = () => {
+  try {
+    return (window.location.hash || window.location.pathname || 'default');
+  } catch (e) {
+    return 'default';
+  }
+};
+
 // A simple chat wall for a pool. Anyone who's claimed their identity can post as themselves;
 // admin can delete any message. Messages are expected to already be sorted oldest-first.
 export default function PoolChat({ messages, isAdmin, myId, myName, onPost, onDelete, accent = '#8A9A90' }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const listRef = useRef(null);
+  const [lastReadId, setLastReadId] = useState(() => {
+    try {
+      return localStorage.getItem(READ_STORAGE_PREFIX + routeKey());
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const latestMessage = messages.length ? messages[messages.length - 1] : null;
+  const hasUnread = !!latestMessage && latestMessage.id !== lastReadId;
+
+  // Opening the panel marks everything currently loaded as "read" — glow turns off and stays off
+  // on this device until a newer message than this one shows up.
+  useEffect(() => {
+    if (open && latestMessage && latestMessage.id !== lastReadId) {
+      setLastReadId(latestMessage.id);
+      try { localStorage.setItem(READ_STORAGE_PREFIX + routeKey(), latestMessage.id); } catch (e) { /* non-fatal */ }
+    }
+  }, [open, latestMessage, lastReadId]);
 
   useEffect(() => {
     if (open && listRef.current) {
@@ -26,11 +57,23 @@ export default function PoolChat({ messages, isAdmin, myId, myName, onPost, onDe
       <button
         onClick={() => setOpen(true)}
         className="fixed bottom-4 left-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-full font-head text-xs uppercase tracking-wide"
-        style={{ background: '#1C2823', border: `1px solid ${accent}`, color: accent, boxShadow: '0 4px 14px rgba(0,0,0,0.5)' }}
+        style={
+          hasUnread
+            ? { background: '#1C2823', border: '1px solid #39FF14', color: '#39FF14', boxShadow: '0 4px 14px rgba(0,0,0,0.5)', animation: 'pool-chat-unread-pulse 1.6s ease-in-out infinite' }
+            : { background: '#1C2823', border: `1px solid ${accent}`, color: accent, boxShadow: '0 4px 14px rgba(0,0,0,0.5)' }
+        }
       >
         <MessageCircle size={14} />
         Chat{messages.length > 0 ? ` (${messages.length})` : ''}
       </button>
+      {hasUnread && (
+        <style>{`
+          @keyframes pool-chat-unread-pulse {
+            0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 0 8px #39FF1466, 0 0 2px #39FF14; }
+            50% { box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 0 20px #39FF14cc, 0 0 8px #39FF14; }
+          }
+        `}</style>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0" style={{ background: '#0F1614cc' }}>

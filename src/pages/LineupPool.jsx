@@ -132,6 +132,7 @@ export default function LineupPool() {
   const [expandedId, setExpandedId] = useState(null);
   const [showUsedPlayers, setShowUsedPlayers] = useState({}); // { [participantId]: bool }
   const [showSeasonLeaderboard, setShowSeasonLeaderboard] = useState(false);
+  const [expandedSeasonHistoryId, setExpandedSeasonHistoryId] = useState(null);
   const [showTopPayouts, setShowTopPayouts] = useState(false);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
@@ -661,6 +662,31 @@ export default function LineupPool() {
     }
     // Grouped by position (QB, RB, WR, TE, K, D/ST) rather than by week, so all of one position
     // sit together — within a position, earliest week first.
+    return rows.sort((a, b) => {
+      const posDiff = USED_POSITION_ORDER.indexOf(a.position) - USED_POSITION_ORDER.indexOf(b.position);
+      if (posDiff !== 0) return posDiff;
+      return a.week - b.week;
+    });
+  };
+
+  // Season-long pick history for ANY participant — what the Season Leaderboard's "tap a name"
+  // view uses. Deliberately stops at the current week: only fully-past weeks (strictly before
+  // data.currentWeek) are settled, so that's all this shows for anyone else — no need to reveal
+  // the in-progress week's picks here at all, even once locked, since you can already see
+  // everyone's current-week picks in Week Standings once they lock. Keeps this view simple and
+  // never shows anything that isn't fully final.
+  const seasonHistoryByParticipant = (pid) => {
+    const rows = [];
+    for (const w of weeksForSeason(data.currentWeek)) {
+      if (w >= data.currentWeek) continue;
+      const weekPicks = data.picks[w]?.[pid];
+      if (!weekPicks) continue;
+      SLOTS.forEach(s => {
+        const value = weekPicks[s.key];
+        if (!value) return;
+        rows.push({ week: w, position: s.position, slotLabel: s.label, label: playerLabel(value, s.position) });
+      });
+    }
     return rows.sort((a, b) => {
       const posDiff = USED_POSITION_ORDER.indexOf(a.position) - USED_POSITION_ORDER.indexOf(b.position);
       if (posDiff !== 0) return posDiff;
@@ -2023,19 +2049,59 @@ export default function LineupPool() {
               {showSeasonLeaderboard && (
                 <div className="space-y-1.5">
                   <div className="font-mono text-[10px] mb-1.5" style={{ color: '#5C6862' }}>
-                    Top 4 of {standingsRows.length} entrants win season-long payouts.
+                    Top 4 of {standingsRows.length} entrants win season-long payouts. Tap a name to see their picks this season.
                   </div>
-                  {standingsRows.map((p, i) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center gap-3 rounded px-3 py-2"
-                      style={{ background: '#1C2823', border: i < 4 ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
-                    >
-                      <div className="font-mono text-xs w-6" style={{ color: i < 4 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
-                      <div className="font-head text-sm flex-1">{p.name}</div>
-                      <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total.toFixed(1)} pts</div>
-                    </div>
-                  ))}
+                  {standingsRows.map((p, i) => {
+                    const historyOpen = expandedSeasonHistoryId === p.id;
+                    const history = historyOpen ? seasonHistoryByParticipant(p.id) : [];
+                    const groups = USED_POSITION_ORDER
+                      .map(pos => ({ pos, label: pos === 'DST' ? 'D/ST' : pos, rows: history.filter(h => h.position === pos) }))
+                      .filter(g => g.rows.length > 0);
+                    return (
+                      <div
+                        key={p.id}
+                        className="rounded px-3 py-2"
+                        style={{ background: '#1C2823', border: i < 4 ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
+                      >
+                        <button
+                          onClick={() => setExpandedSeasonHistoryId(id => id === p.id ? null : p.id)}
+                          className="w-full flex items-center gap-3"
+                        >
+                          <div className="font-mono text-xs w-6" style={{ color: i < 4 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
+                          <div className="font-head text-sm flex-1 text-left">{p.name}</div>
+                          <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total.toFixed(1)} pts</div>
+                          <ChevronDown size={14} color="#5C6862" style={{ transform: historyOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                        </button>
+                        {historyOpen && (
+                          <div className="mt-2.5 rounded-lg px-3 py-3 space-y-2.5" style={{ background: '#1F2B25', border: '1px solid #3B5BFF44' }}>
+                            {groups.length === 0 ? (
+                              <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
+                                No completed weeks yet this season.
+                              </div>
+                            ) : (
+                              groups.map(g => (
+                                <div key={g.pos}>
+                                  <div className="font-head text-xs uppercase tracking-[0.15em] mb-1" style={{ color: '#6C8EFF' }}>{g.label}</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {g.rows.map((h, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="font-head text-sm px-2.5 py-1 rounded-full"
+                                        style={{ background: '#0F1614', border: '1px solid #3A4A42', color: '#F0EDE4' }}
+                                        title={`Week ${weekLabel(h.week)}`}
+                                      >
+                                        {h.label} <span className="font-mono text-[10px]" style={{ color: '#8A9A90' }}>Wk {weekLabel(h.week)}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

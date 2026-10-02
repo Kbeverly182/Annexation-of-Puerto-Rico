@@ -651,7 +651,8 @@ export default function LineupPool() {
   const USED_POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
   const usedHistoryByParticipant = (pid) => {
     const rows = [];
-    for (const w of weeksForSeason(viewWeek)) {
+    for (const w of weeksForSeason(data.currentWeek)) {
+      if (w >= data.currentWeek) continue;
       const weekPicks = data.picks[w]?.[pid];
       if (!weekPicks) continue;
       SLOTS.forEach(s => {

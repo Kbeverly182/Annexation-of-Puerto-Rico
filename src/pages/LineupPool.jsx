@@ -1681,6 +1681,28 @@ export default function LineupPool() {
                                       <BarChart3 size={12} />
                                     </button>
                                   )}
+                                  {value && (() => {
+                                    // Status at a glance once a player is locked: gray = yet to play,
+                                    // amber = in progress, green = final (with their points).
+                                    const rawScore = data.playerScores?.[viewWeek]?.[value];
+                                    const team = slotTeamAbbr(value, s.position);
+                                    const teamGame = games.find(g => g.away.abbr === team || g.home.abbr === team);
+                                    const isFinal = !!teamGame?.completed;
+                                    const started = !!teamGame && now >= new Date(teamGame.kickoff).getTime();
+                                    const status = isFinal ? 'final' : started ? 'live' : 'ytp';
+                                    const color = status === 'final' ? '#7FCB98' : status === 'live' ? '#E8A23D' : '#8A9A90';
+                                    const pts = rawScore != null ? `${rawScore.toFixed(1)} pts` : (isFinal ? '0.0 pts' : '— pts');
+                                    return (
+                                      <span
+                                        className="ml-auto shrink-0 flex items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs"
+                                        style={{ color, background: `${color}22`, border: `1px solid ${color}66` }}
+                                        title={status === 'final' ? 'Final' : status === 'live' ? 'Game in progress' : 'Yet to play'}
+                                      >
+                                        {status === 'live' && <span className="rounded-full shrink-0" style={{ width: '6px', height: '6px', background: '#E8A23D' }} />}
+                                        {status === 'ytp' ? 'YTP' : status === 'live' ? 'IP' : ''} {pts}
+                                      </span>
+                                    );
+                                  })()}
                                 </span>
                               ) : (
                                 <>

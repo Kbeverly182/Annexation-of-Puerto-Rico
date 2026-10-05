@@ -116,6 +116,9 @@ export default function ConfidencePool() {
   const [copied, setCopied] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
   // Admin-only "Restore entrant" tool (paste a saved entrant record back in). Hooks stay above the early return.
+  // Your own picks card stays open by default once the week locks (so you see your colored picks right away);
+  // this only tracks if you've manually collapsed it.
+  const [myCardCollapsed, setMyCardCollapsed] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreText, setRestoreText] = useState('');
   const [restoreStatus, setRestoreStatus] = useState(null); // { ok, msg }
@@ -1499,11 +1502,17 @@ export default function ConfidencePool() {
                 const total = seasonTotal(p.id);
                 const tiebreakerRevealed = isTiebreakerRevealed(p.id);
                 const weekFullyLocked = games.length > 0 && games.every(g => isGameLocked(g));
-                const isCardExpanded = expandedId === `mine-${p.id}` || !weekFullyLocked;
+                // Your own card shows your picks (with win/loss/in-progress colors) even after the week
+                // locks; admin's view of everyone else's cards stays collapsed until tapped.
+                const isCardExpanded = !weekFullyLocked || (isMe ? !myCardCollapsed : expandedId === `mine-${p.id}`);
                 return (
                   <div key={p.id} className="rounded px-4 py-3" style={{ background: '#1C2823', border: isMe ? '1px solid #E8A23D88' : '1px solid #2A3830' }}>
                     <button
-                      onClick={() => weekFullyLocked && setExpandedId(id => id === `mine-${p.id}` ? null : `mine-${p.id}`)}
+                      onClick={() => {
+                        if (!weekFullyLocked) return;
+                        if (isMe) setMyCardCollapsed(c => !c);
+                        else setExpandedId(id => id === `mine-${p.id}` ? null : `mine-${p.id}`);
+                      }}
                       className="w-full flex items-center justify-between mb-2"
                       style={{ cursor: weekFullyLocked ? 'pointer' : 'default' }}
                     >

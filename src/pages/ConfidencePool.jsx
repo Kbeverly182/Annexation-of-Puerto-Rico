@@ -390,6 +390,7 @@ export default function ConfidencePool() {
     setClaimPrompt({ participantId: newP.id, mode: 'set', input: '', error: '' });
   };
   const removeParticipant = (id) => {
+    if (!isAdmin) return; // only the admin can remove an entrant
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
     for (const w of ALL_WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
     persist(next, [id]);
@@ -1762,9 +1763,11 @@ export default function ConfidencePool() {
                         })()}
                       </div>
                     )}
-                    <button onClick={() => removeParticipant(p.id)} className="mt-3 font-mono text-[10px] underline" style={{ color: '#5C6862' }}>
-                      Remove entrant
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => removeParticipant(p.id)} className="mt-3 font-mono text-[10px] underline" style={{ color: '#5C6862' }}>
+                        Remove entrant
+                      </button>
+                    )}
                   </div>
                 );
               })}

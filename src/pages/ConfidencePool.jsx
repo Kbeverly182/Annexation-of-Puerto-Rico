@@ -115,6 +115,10 @@ export default function ConfidencePool() {
   const [renamePrompt, setRenamePrompt] = useState(null); // { participantId, value, error }
   const [copied, setCopied] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
+  // Admin-only "Restore entrant" tool (paste a saved entrant record back in). Hooks stay above the early return.
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreText, setRestoreText] = useState('');
+  const [restoreStatus, setRestoreStatus] = useState(null); // { ok, msg }
   const [memberSearch, setMemberSearch] = useState('');
   const [now, setNow] = useState(Date.now());
   const [celebrationQueue, setCelebrationQueue] = useState([]);
@@ -389,6 +393,39 @@ export default function ConfidencePool() {
     const next = { ...data, participants: data.participants.filter(p => p.id !== id) };
     for (const w of ALL_WEEKS) { if (next.picks[w]) delete next.picks[w][id]; }
     persist(next, [id]);
+  };
+  // Admin-only: put back an entrant who was removed, using their saved record (participant + picks per week)
+  // pulled from a Google Sheets backup. Adds only this one entrant; nobody else's data is touched.
+  const restoreEntrant = () => {
+    if (!isAdmin) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(restoreText);
+    } catch (e) {
+      setRestoreStatus({ ok: false, msg: "That doesn't look like a saved entrant record — make sure you pasted the whole thing." });
+      return;
+    }
+    const p = parsed && parsed.participant;
+    const savedPicks = (parsed && parsed.picks) || {};
+    if (!p || !p.id || !p.name) {
+      setRestoreStatus({ ok: false, msg: 'Record is missing the entrant details.' });
+      return;
+    }
+    if (data.participants.some(x => x.id === p.id)) {
+      setRestoreStatus({ ok: false, msg: `${p.name} is already in the pool — nothing to restore.` });
+      return;
+    }
+    if (data.participants.some(x => (x.name || '').toLowerCase() === p.name.toLowerCase())) {
+      setRestoreStatus({ ok: false, msg: `Someone named "${p.name}" is already in the pool.` });
+      return;
+    }
+    const nextPicks = { ...data.picks };
+    Object.keys(savedPicks).forEach(w => {
+      nextPicks[w] = { ...(nextPicks[w] || {}), [p.id]: savedPicks[w] };
+    });
+    persist({ ...data, participants: [...data.participants, p], picks: nextPicks });
+    setRestoreStatus({ ok: true, msg: `Restored ${p.name} with picks for ${Object.keys(savedPicks).length} week(s).` });
+    setRestoreText('');
   };
   const setCurrentWeek = (w) => persist({ ...data, currentWeek: w });
   const saveTitle = () => {
@@ -1212,6 +1249,37 @@ export default function ConfidencePool() {
                     {backupStatus.ok ? `Backed up all 3 pools to Google Sheets at ${new Date(backupStatus.syncedAt).toLocaleTimeString()}.` : `Backup failed: ${backupStatus.error}`}
                   </div>
                 )}
+                <div className="mb-3">
+                  <button onClick={() => setRestoreOpen(o => !o)} className="font-mono text-[10px] uppercase underline" style={{ color: '#5C6862' }}>
+                    {restoreOpen ? 'Hide restore entrant' : 'Restore entrant'}
+                  </button>
+                  {restoreOpen && (
+                    <div className="mt-2 rounded px-3 py-3" style={{ background: '#1F2B25', border: '1px solid #2A3830' }}>
+                      <div className="font-mono text-[10px] mb-2" style={{ color: '#8A9A90' }}>
+                        Paste a saved entrant record to bring someone back with their original picks.
+                      </div>
+                      <textarea
+                        value={restoreText}
+                        onChange={e => { setRestoreText(e.target.value); setRestoreStatus(null); }}
+                        rows={4}
+                        placeholder="Paste the saved record here"
+                        className="w-full px-2 py-1.5 rounded outline-none font-mono text-[10px]"
+                        style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#F0EDE4' }}
+                      />
+                      <button
+                        onClick={restoreEntrant}
+                        disabled={!restoreText.trim()}
+                        className="mt-2 px-3 py-1.5 rounded font-head text-xs uppercase"
+                        style={{ background: restoreText.trim() ? '#7FCB98' : '#2A3830', color: '#0F1614' }}
+                      >
+                        Restore
+                      </button>
+                      {restoreStatus && (
+                        <div className="font-mono text-[10px] mt-2" style={{ color: restoreStatus.ok ? '#7FCB98' : '#E28A82' }}>{restoreStatus.msg}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Email this pool's members:</div>
                   <button onClick={() => buildEmailList('all')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98' }}>

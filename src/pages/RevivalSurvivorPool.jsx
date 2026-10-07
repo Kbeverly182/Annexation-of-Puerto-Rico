@@ -27,6 +27,8 @@ const POLL_MS = 15000;
 const emptyData = () => ({ name: 'The Icebox', participants: [], picks: {}, currentWeek: REVIVAL_START_WEEK });
 
 const SURVIVOR_ENTRY_FEE = 20;
+// Units set aside from the pot to cover fees; the displayed winner payout is entries x fee minus this.
+const REVIVAL_FEES_DEDUCTION = 20;
 const SURVIVOR_RULES = [
   {
     heading: 'How it works',
@@ -890,7 +892,7 @@ export default function RevivalSurvivorPool() {
             <div className="rounded-lg px-4 py-3 mt-2" style={{ background: '#1F2B25', border: '1px solid #3D9B5C66' }}>
               <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
                 <span className="uppercase tracking-wide">Last one standing (winner take all)</span>
-                <span className="font-head" style={{ color: '#7FCB98' }}>{data.participants.length * SURVIVOR_ENTRY_FEE} units</span>
+                <span className="font-head" style={{ color: '#7FCB98' }}>{Math.max(0, data.participants.length * SURVIVOR_ENTRY_FEE - REVIVAL_FEES_DEDUCTION)} units</span>
               </div>
             </div>
           )}

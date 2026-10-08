@@ -1675,8 +1675,10 @@ export default function ConfidencePool() {
                                         {g.home.abbr}
                                       </button>
                                     </div>
+                                    {/* Kickoff sits under the matchup (not beside it) so every row is the same height
+                                        — beside it, wider matchups pushed the drag handle onto its own line. */}
+                                    <div className="font-mono text-[9px] whitespace-nowrap" style={{ color: '#5C6862' }}>{formatKickoff(g.kickoff)}</div>
                                   </div>
-                                  <div className="font-mono text-[9px] shrink-0" style={{ color: '#5C6862' }}>{formatKickoff(g.kickoff)}</div>
                                   {missed && <span style={{ color: '#5C6862' }}>Missed pick</span>}
                                   {correct && <span style={{ color: '#7FCB98' }}>✓ +{confidence}</span>}
                                   {wrong && <span style={{ color: '#E28A82' }}>✗ 0</span>}

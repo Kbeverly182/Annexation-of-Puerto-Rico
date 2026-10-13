@@ -133,6 +133,7 @@ export default function LineupPool() {
   const [showUsedPlayers, setShowUsedPlayers] = useState({}); // { [participantId]: bool }
   const [showSeasonLeaderboard, setShowSeasonLeaderboard] = useState(false);
   const [expandedSeasonHistoryId, setExpandedSeasonHistoryId] = useState(null);
+  const [expandedDistPlayer, setExpandedDistPlayer] = useState(null); // week pick distribution: which player's pickers are showing
   const [showTopPayouts, setShowTopPayouts] = useState(false);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
@@ -815,6 +816,42 @@ export default function LineupPool() {
     if (total === 0 || !value) return 0;
     return Math.round(((weekOwnershipCounts[value] || 0) / total) * 100);
   };
+
+  // Week pick distribution — every player chosen this week whose own game has kicked off, most
+  // owned first. Deliberately uses each player's real kickoff lock (NOT the admin bypass in
+  // isSlotLocked), so an unlocked pick is never named or counted for anyone — admin included.
+  // Picks still waiting on kickoff are only tallied as a number, never tied to a player or person.
+  const distMeta = {};
+  let distHiddenPickCount = 0;
+  data.participants.forEach(p => {
+    const weekPicks = data.picks[viewWeek]?.[p.id];
+    if (!weekPicks) return;
+    SLOTS.forEach(s => {
+      const val = weekPicks[s.key];
+      if (!val) return;
+      const team = slotTeamAbbr(val, s.position);
+      const lockTime = team ? teamOwnKickoffLockTime(team) : null;
+      if (lockTime === null || now < lockTime) { distHiddenPickCount += 1; return; }
+      if (!distMeta[val]) distMeta[val] = { value: val, position: s.position, team, label: playerLabel(val, s.position), pickers: [] };
+      distMeta[val].pickers.push(p);
+    });
+  });
+  const playerDistribution = Object.values(distMeta)
+    .map(d => {
+      const teamGame = games.find(g => g.away.abbr === d.team || g.home.abbr === d.team);
+      const isFinal = !!teamGame?.completed;
+      const started = !!teamGame && now >= new Date(teamGame.kickoff).getTime();
+      const rawScore = data.playerScores?.[viewWeek]?.[d.value];
+      return {
+        ...d,
+        count: d.pickers.length,
+        pct: data.participants.length ? Math.round((d.pickers.length / data.participants.length) * 100) : 0,
+        status: isFinal ? 'final' : started ? 'live' : 'ytp',
+        points: rawScore != null ? rawScore : null,
+        pickers: [...d.pickers].sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name))),
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 
   // Standings order: highest season total first; before anyone has scores (all zero), this
   // naturally falls back to alphabetical-by-last-name via the tiebreaker.
@@ -1908,6 +1945,74 @@ export default function LineupPool() {
                     );
                   })}
                 </div>
+              )}
+            </div>
+
+            {/* Week pick distribution — every player picked this week whose game has kicked off, most
+                owned first. Tap a player to see who has them. Players whose games haven't started
+                stay hidden (only counted), so nobody can see the crowd before choosing. */}
+            <div>
+              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
+                Week {weekLabel(viewWeek)} Pick Distribution
+              </div>
+              {playerDistribution.length === 0 ? (
+                <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
+                  Unlocks player by player as each game starts, so nobody can see the crowd before choosing.
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    {playerDistribution.map(d => {
+                      const isExpanded = expandedDistPlayer === d.value;
+                      const textColor = d.status === 'final' ? '#7FCB98' : d.status === 'live' ? '#E8A23D' : '#F0EDE4';
+                      const barColor = d.status === 'final' ? '#3D9B5C' : d.status === 'live' ? '#E8A23D' : '#5C7A8A';
+                      return (
+                        <div key={d.value} className="rounded" style={{ background: isExpanded ? '#1C2823' : 'transparent' }}>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedDistPlayer(id => id === d.value ? null : d.value)}
+                            className="w-full px-1 py-1 text-left"
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: '#5C686233', color: '#8A9A90' }}>
+                                {d.position === 'DST' ? 'D/ST' : d.position}
+                              </span>
+                              <span className="font-head text-sm flex-1 min-w-0 truncate" style={{ color: textColor }}>{d.label}</span>
+                              {d.points != null && (
+                                <span className="font-mono text-[10px] shrink-0" style={{ color: textColor }}>{d.points.toFixed(1)} pts</span>
+                              )}
+                              <span className="font-mono text-xs shrink-0 text-right" style={{ color: '#8A9A90', minWidth: '64px' }}>
+                                {d.pct}% ({d.count})
+                              </span>
+                              <span className="shrink-0" style={{ color: '#5C6862', fontSize: '10px' }}>{isExpanded ? '▾' : '▸'}</span>
+                            </div>
+                            <div className="h-3 rounded overflow-hidden" style={{ background: '#1C2823', border: '1px solid #2A3830' }}>
+                              <div style={{ width: `${d.pct}%`, height: '100%', background: barColor }} />
+                            </div>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-3 pb-2.5 pt-1 flex flex-wrap gap-1.5">
+                              {d.pickers.map(p => (
+                                <span
+                                  key={p.id}
+                                  className="font-mono text-[10px] px-2 py-1 rounded-full"
+                                  style={{ background: '#0F1614', border: '1px solid #2A3830', color: '#8A9A90' }}
+                                >
+                                  {p.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {distHiddenPickCount > 0 && (
+                    <div className="font-mono text-[10px] mt-2.5" style={{ color: '#5C6862' }}>
+                      {distHiddenPickCount} more pick{distHiddenPickCount === 1 ? '' : 's'} hidden until those players' games kick off.
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

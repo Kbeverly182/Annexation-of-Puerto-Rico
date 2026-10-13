@@ -134,6 +134,7 @@ export default function LineupPool() {
   const [showSeasonLeaderboard, setShowSeasonLeaderboard] = useState(false);
   const [expandedSeasonHistoryId, setExpandedSeasonHistoryId] = useState(null);
   const [expandedDistPlayer, setExpandedDistPlayer] = useState(null); // week pick distribution: which player's pickers are showing
+  const [showDistribution, setShowDistribution] = useState(false); // week pick distribution starts collapsed
   const [showTopPayouts, setShowTopPayouts] = useState(false);
   const [showYtpIpInfo, setShowYtpIpInfo] = useState(false);
   const [resetConfirmId, setResetConfirmId] = useState(null);
@@ -651,6 +652,28 @@ export default function LineupPool() {
   // exists to block re-picking — admins are allowed to re-pick, but this is a display list, so it
   // should show real history even while viewing as admin).
   const USED_POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
+  // One "already used" chip: player, week picked, points scored that week, and their season average —
+  // so you can see at a glance how good or bad the pick turned out. Points are green when at/above the
+  // player's season average and red when below. (Season average = seasonPPG: only weeks someone in the
+  // pool rostered him have a recorded score, so it's close but not a true games-played average.)
+  const renderUsedChip = (h, idx) => {
+    const pts = data.playerScores?.[h.week]?.[h.value];
+    const avg = seasonPPG(h.value);
+    const ptsColor = pts == null || avg == null ? '#8A9A90' : pts >= avg ? '#7FCB98' : '#E28A82';
+    return (
+      <span
+        key={idx}
+        className="font-head text-sm px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 flex-wrap"
+        style={{ background: '#0F1614', border: '1px solid #3A4A42', color: '#F0EDE4' }}
+        title={`Week ${weekLabel(h.week)}`}
+      >
+        {h.label}
+        <span className="font-mono text-[10px]" style={{ color: '#8A9A90' }}>Wk {weekLabel(h.week)}</span>
+        <span className="font-mono text-[10px]" style={{ color: ptsColor }}>{pts != null ? `${pts.toFixed(1)} pts` : '— pts'}</span>
+        {avg != null && <span className="font-mono text-[10px]" style={{ color: '#8A9A90' }}>avg {avg.toFixed(1)}</span>}
+      </span>
+    );
+  };
   const usedHistoryByParticipant = (pid) => {
     const rows = [];
     for (const w of weeksForSeason(data.currentWeek)) {
@@ -660,7 +683,7 @@ export default function LineupPool() {
       SLOTS.forEach(s => {
         const value = weekPicks[s.key];
         if (!value) return;
-        rows.push({ week: w, position: s.position, slotLabel: s.label, label: playerLabel(value, s.position) });
+        rows.push({ week: w, position: s.position, slotLabel: s.label, value, label: playerLabel(value, s.position) });
       });
     }
     // Grouped by position (QB, RB, WR, TE, K, D/ST) rather than by week, so all of one position
@@ -687,7 +710,7 @@ export default function LineupPool() {
       SLOTS.forEach(s => {
         const value = weekPicks[s.key];
         if (!value) return;
-        rows.push({ week: w, position: s.position, slotLabel: s.label, label: playerLabel(value, s.position) });
+        rows.push({ week: w, position: s.position, slotLabel: s.label, value, label: playerLabel(value, s.position) });
       });
     }
     return rows.sort((a, b) => {
@@ -1669,16 +1692,7 @@ export default function LineupPool() {
                                   <div key={g.pos}>
                                     <div className="font-head text-xs uppercase tracking-[0.15em] mb-1" style={{ color: '#6C8EFF' }}>{g.label}</div>
                                     <div className="flex flex-wrap gap-2">
-                                      {g.rows.map((h, idx) => (
-                                        <span
-                                          key={idx}
-                                          className="font-head text-sm px-2.5 py-1 rounded-full"
-                                          style={{ background: '#0F1614', border: '1px solid #3A4A42', color: '#F0EDE4' }}
-                                          title={`Week ${weekLabel(h.week)}`}
-                                        >
-                                          {h.label} <span className="font-mono text-[10px]" style={{ color: '#8A9A90' }}>Wk {weekLabel(h.week)}</span>
-                                        </span>
-                                      ))}
+                                      {g.rows.map((h, idx) => renderUsedChip(h, idx))}
                                     </div>
                                   </div>
                                 ))
@@ -1952,10 +1966,16 @@ export default function LineupPool() {
                 owned first. Tap a player to see who has them. Players whose games haven't started
                 stay hidden (only counted), so nobody can see the crowd before choosing. */}
             <div>
-              <div className="font-head uppercase text-sm tracking-[0.2em] mb-3" style={{ color: '#8A9A90' }}>
-                Week {weekLabel(viewWeek)} Pick Distribution
-              </div>
-              {playerDistribution.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowDistribution(v => !v)}
+                className={`w-full flex items-center justify-between gap-2 font-head uppercase text-sm tracking-[0.2em] text-left ${showDistribution ? 'mb-3' : ''}`}
+                style={{ color: '#8A9A90' }}
+              >
+                <span>Week {weekLabel(viewWeek)} Pick Distribution</span>
+                <ChevronDown size={20} style={{ transform: showDistribution ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+              </button>
+              {!showDistribution ? null : playerDistribution.length === 0 ? (
                 <div className="font-mono text-xs" style={{ color: '#5C6862' }}>
                   Unlocks player by player as each game starts, so nobody can see the crowd before choosing.
                 </div>
@@ -2228,16 +2248,7 @@ export default function LineupPool() {
                                 <div key={g.pos}>
                                   <div className="font-head text-xs uppercase tracking-[0.15em] mb-1" style={{ color: '#6C8EFF' }}>{g.label}</div>
                                   <div className="flex flex-wrap gap-2">
-                                    {g.rows.map((h, idx) => (
-                                      <span
-                                        key={idx}
-                                        className="font-head text-sm px-2.5 py-1 rounded-full"
-                                        style={{ background: '#0F1614', border: '1px solid #3A4A42', color: '#F0EDE4' }}
-                                        title={`Week ${weekLabel(h.week)}`}
-                                      >
-                                        {h.label} <span className="font-mono text-[10px]" style={{ color: '#8A9A90' }}>Wk {weekLabel(h.week)}</span>
-                                      </span>
-                                    ))}
+                                    {g.rows.map((h, idx) => renderUsedChip(h, idx))}
                                   </div>
                                 </div>
                               ))

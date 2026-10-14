@@ -9,6 +9,7 @@ import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
 import PoolChat from '../components/PoolChat';
 import PoolRules from '../components/PoolRules';
+import ChopChest from '../components/ChopChest';
 
 const POOL_KEY = 'survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-survivor';
@@ -17,6 +18,8 @@ const POLL_MS = 15000;
 const emptyData = () => ({ name: 'Survivor Pool', participants: [], picks: {}, currentWeek: 1 });
 
 const SURVIVOR_ENTRY_FEE = 20;
+// Total pot shown in Payouts (and used as the pot for chop proposals).
+const SURVIVOR_PAYOUT = 3560;
 const SURVIVOR_RULES = [
   {
     heading: 'How it works',
@@ -735,7 +738,8 @@ export default function SurvivorPool() {
   };
 
   return (
-    <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate', background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', backgroundImage: "linear-gradient(180deg, rgba(8,14,18,0.55), rgba(8,14,18,0.74)), url('/survivor-reef-bg.svg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#06304f' }} />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@700&display=swap');
         * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
@@ -760,7 +764,7 @@ export default function SurvivorPool() {
       `}</style>
 
       {/* Scoreboard header */}
-      <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #3D9B5C33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
+      <div style={{ background: 'linear-gradient(180deg,rgba(27,39,33,0.9),rgba(15,22,20,0.84))', borderBottom: '1px solid #3D9B5C33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
           <img src="/logo.png" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
@@ -860,6 +864,17 @@ export default function SurvivorPool() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 space-y-8">
 
+        <ChopChest
+          data={data}
+          persist={persist}
+          aliveIds={data.participants.filter(p => eliminatedAtWeek(p.id) === null).map(p => p.id)}
+          myId={myIdValid ? myId : null}
+          isAdmin={isAdmin}
+          poolTotal={SURVIVOR_PAYOUT}
+          canAct={viewWeek === data.currentWeek}
+          poolKey={POOL_KEY}
+        />
+
         <div>
           <button
             onClick={() => setShowTopPayouts(v => !v)}
@@ -878,7 +893,7 @@ export default function SurvivorPool() {
             <div className="rounded-lg px-4 py-3 mt-2" style={{ background: '#1F2B25', border: '1px solid #3D9B5C66' }}>
               <div className="flex items-center justify-between font-mono text-xs py-1.5" style={{ color: '#8A9A90' }}>
                 <span className="uppercase tracking-wide">Last one standing</span>
-                <span className="font-head" style={{ color: '#7FCB98' }}>3,560 units</span>
+                <span className="font-head" style={{ color: '#7FCB98' }}>{SURVIVOR_PAYOUT.toLocaleString()} units</span>
               </div>
             </div>
           )}

@@ -132,7 +132,9 @@ export default function ConfidencePool() {
   // that's identical for touch and mouse, which is why this is built on those instead.
   const [pointerDrag, setPointerDrag] = useState(null); // { pid, order: [gid,...], draggedGid, pointerId }
   const dragRowRefs = useRef({}); // gid -> row DOM node, used to hit-test drag position against
-  const prevDragRectsRef = useRef({}); // gid -> DOMRect, captured just before each reorder, for the slide-into-place animation below
+  const viewWeekRef = useRef(1);
+  const dragSessionRef = useRef(null); // live drag bookkeeping (measured row positions etc.) — a ref so pointer moves never trigger React re-renders
+  const commitOrderRef = useRef(null); // always points at the latest commitOrder, for the delayed commit when a drag ends
 
   // Smooths the drag reorder itself — without this, every row bumped out of the way by the
   // dragged item just snaps straight to its new spot the instant the order array changes, which
@@ -148,26 +150,14 @@ export default function ConfidencePool() {
   // between renders, which crashes the whole render (this exact bug already happened once before
   // in this file, with the win-celebration confetti).
   useLayoutEffect(() => {
-    if (!pointerDrag) { prevDragRectsRef.current = {}; return; }
-    const newRects = {};
-    Object.entries(dragRowRefs.current).forEach(([gid, node]) => {
-      if (node) newRects[gid] = node.getBoundingClientRect();
+    // Once a drag is over (and React has put the rows in their final DOM order), wipe the
+    // temporary transforms used to animate the drag — the rows are now exactly where those
+    // transforms had them, so nothing visibly moves.
+    if (pointerDrag) return;
+    Object.values(dragRowRefs.current).forEach(node => {
+      if (node && node.style) { node.style.transform = ''; node.style.transition = ''; node.style.willChange = ''; }
     });
-    Object.entries(prevDragRectsRef.current).forEach(([gid, oldRect]) => {
-      if (gid === pointerDrag.draggedGid) return;
-      const node = dragRowRefs.current[gid];
-      const newRect = newRects[gid];
-      if (!node || !newRect) return;
-      const deltaY = oldRect.top - newRect.top;
-      if (Math.abs(deltaY) < 1) return;
-      node.style.transition = 'none';
-      node.style.transform = `translateY(${deltaY}px)`;
-      void node.offsetHeight; // forces the browser to register the starting position before animating away from it
-      node.style.transition = 'transform 200ms ease';
-      node.style.transform = '';
-    });
-    prevDragRectsRef.current = newRects;
-  }, [pointerDrag ? pointerDrag.order.join('|') : null, pointerDrag?.pid]);
+  }, [pointerDrag === null]);
 
   // Three interchangeable ways to set confidence order — drag-and-drop doesn't work well for
   // everyone (some touchscreens/trackpads are fussy with it), so arrows and direct number entry
@@ -244,8 +234,10 @@ export default function ConfidencePool() {
   useEffect(() => {
     const t = setInterval(async () => {
       if (skipNextPoll.current) { skipNextPoll.current = false; return; }
+      if (dragSessionRef.current) return; // never re-render the page out from under an in-progress drag
       try {
         const remote = await apiGetPool(POOL_KEY);
+        if (dragSessionRef.current) return;
         if (remote) setData(remote);
       } catch (e) { /* silent */ }
     }, POLL_MS);
@@ -712,6 +704,9 @@ export default function ConfidencePool() {
     persist(next);
   };
 
+  commitOrderRef.current = commitOrder;
+  viewWeekRef.current = viewWeek;
+
   const isGidLocked = (gid) => {
     const g = games.find(x => x.id === gid);
     return g ? isGameLocked(g) : false;
@@ -742,42 +737,105 @@ export default function ConfidencePool() {
     return result;
   };
 
-  // Starts a drag on pointerdown. setPointerCapture keeps sending this same element the move/up
-  // events for the rest of the gesture even once the finger/cursor leaves it — required for a
-  // reliable drag on touch, where the pointer routinely strays off the small handle.
+  // Drag-and-drop design (why it's built this way): the rows stay in their ORIGINAL DOM order for
+  // the whole drag, and are only ever moved with CSS transforms. Every row's position is measured
+  // ONCE when the drag starts, so nothing about the layout changes while you drag — that's what
+  // stops the jumping/flapping the earlier version had (it re-ordered the real DOM mid-drag and
+  // hit-tested against rows that were themselves still animating). The grabbed row follows the
+  // pointer exactly; the other rows slide to where they'd land if you dropped now. Nothing is saved
+  // until you let go.
+  const dragKey = (pid, gid) => `${pid}|${gid}`;
+
   const beginPointerDrag = (e, pid, order, gid) => {
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setPointerDrag({ pid, order: [...order], draggedGid: gid, pointerId: e.pointerId });
+    if (dragSessionRef.current) return;
+    const firstNode = dragRowRefs.current[dragKey(pid, order[0])];
+    if (!firstNode) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    const rel = {};
+    const heights = {};
+    order.forEach(g => {
+      const n = dragRowRefs.current[dragKey(pid, g)];
+      if (n) { rel[g] = n.offsetTop - firstNode.offsetTop; heights[g] = n.offsetHeight; }
+    });
+    const gap = order.length > 1 && rel[order[1]] !== undefined ? Math.max(0, rel[order[1]] - (rel[order[0]] + heights[order[0]])) : 0;
+    const lastG = order[order.length - 1];
+    dragSessionRef.current = {
+      pid, draggedGid: gid, pointerId: e.pointerId, baseOrder: [...order], order: [...order],
+      startY: e.clientY, scrollY0: window.scrollY, rel, heights, gap,
+      total: (rel[lastG] || 0) + (heights[lastG] || 0),
+      locked: new Set(order.filter(g => isGidLocked(g))),
+      dy: 0, ending: false,
+    };
+    order.forEach(g => {
+      const n = dragRowRefs.current[dragKey(pid, g)];
+      if (!n) return;
+      n.style.willChange = 'transform';
+      n.style.transition = g === gid ? 'none' : 'transform 160ms ease';
+    });
+    setPointerDrag({ pid, baseOrder: [...order], order: [...order], draggedGid: gid, pointerId: e.pointerId });
   };
 
-  // Live-reorders as the pointer moves, by comparing its position against the vertical midpoint
-  // of every other still-open row — once it crosses a row's midpoint, the dragged item jumps to
-  // that spot, same feel as most sortable lists. Locked rows are deliberately excluded from the
-  // reference points here, so dragging near one just skips past it to the next open row instead
-  // of using it as a drop boundary — it can never end up bumped out of its position this way.
   const onPointerMoveDrag = (e) => {
-    if (!pointerDrag || e.pointerId !== pointerDrag.pointerId) return;
-    const { order, draggedGid } = pointerDrag;
-    const pointerY = e.clientY;
-    const others = order.filter(gid => gid !== draggedGid && !isGidLocked(gid));
-    let targetIndex = others.length;
-    for (let i = 0; i < others.length; i++) {
-      const node = dragRowRefs.current[others[i]];
-      if (!node) continue;
-      const rect = node.getBoundingClientRect();
-      if (pointerY < rect.top + rect.height / 2) { targetIndex = i; break; }
-    }
-    const newOrder = reorderKeepingLockedInPlace(order, draggedGid, targetIndex);
-    if (newOrder.join('|') !== order.join('|')) {
+    const sess = dragSessionRef.current;
+    if (!sess || sess.ending || e.pointerId !== sess.pointerId) return;
+    const { rel, heights, gap, baseOrder, draggedGid, pid } = sess;
+    // Edge auto-scroll so long lists can be dragged past the visible area.
+    if (e.clientY < 70) window.scrollBy(0, -14);
+    else if (e.clientY > window.innerHeight - 70) window.scrollBy(0, 14);
+    const h = heights[draggedGid] || 0;
+    let dy = e.clientY - sess.startY + (window.scrollY - sess.scrollY0);
+    dy = Math.max(-(rel[draggedGid] || 0), Math.min(sess.total - h - (rel[draggedGid] || 0), dy));
+    sess.dy = dy;
+    const dragNode = dragRowRefs.current[dragKey(pid, draggedGid)];
+    if (dragNode) dragNode.style.transform = `translateY(${dy}px)`;
+
+    // Where would it land? Count how many other open rows have their (original, fixed) midpoint
+    // above the dragged row's current center.
+    const centerY = (rel[draggedGid] || 0) + dy + h / 2;
+    let targetIndex = 0;
+    baseOrder.forEach(g => {
+      if (g === draggedGid || sess.locked.has(g)) return;
+      if ((rel[g] || 0) + (heights[g] || 0) / 2 < centerY) targetIndex++;
+    });
+    const newOrder = reorderKeepingLockedInPlace(baseOrder, draggedGid, targetIndex);
+    if (newOrder.join('|') !== sess.order.join('|')) {
+      sess.order = newOrder;
+      applyDragLayout(sess);
       setPointerDrag(pd => (pd ? { ...pd, order: newOrder } : pd));
     }
   };
 
+  // Slides every row except the grabbed one to the spot it'd occupy in sess.order.
+  const applyDragLayout = (sess) => {
+    const finalTop = {};
+    let y = 0;
+    sess.order.forEach(g => { finalTop[g] = y; y += (sess.heights[g] || 0) + sess.gap; });
+    sess.finalTop = finalTop;
+    sess.baseOrder.forEach(g => {
+      if (g === sess.draggedGid) return;
+      const n = dragRowRefs.current[dragKey(sess.pid, g)];
+      if (n) n.style.transform = `translateY(${(finalTop[g] || 0) - (sess.rel[g] || 0)}px)`;
+    });
+  };
+
   const endPointerDrag = (e) => {
-    if (!pointerDrag || e.pointerId !== pointerDrag.pointerId) return;
-    commitOrder(viewWeek, pointerDrag.pid, pointerDrag.order);
-    setPointerDrag(null);
+    const sess = dragSessionRef.current;
+    if (!sess || sess.ending || e.pointerId !== sess.pointerId) return;
+    sess.ending = true;
+    applyDragLayout(sess);
+    // Glide the grabbed row into its final slot, then save and hand over to React's real order.
+    const dragNode = dragRowRefs.current[dragKey(sess.pid, sess.draggedGid)];
+    if (dragNode) {
+      dragNode.style.transition = 'transform 120ms ease';
+      dragNode.style.transform = `translateY(${(sess.finalTop[sess.draggedGid] || 0) - (sess.rel[sess.draggedGid] || 0)}px)`;
+    }
+    setTimeout(() => {
+      const changed = sess.order.join('|') !== sess.baseOrder.join('|');
+      if (changed && commitOrderRef.current) commitOrderRef.current(viewWeekRef.current, sess.pid, sess.order);
+      dragSessionRef.current = null;
+      setPointerDrag(null);
+    }, 130);
   };
 
   // Arrow-button reordering — moves one still-open game up or down a single spot among the
@@ -973,7 +1031,22 @@ export default function ConfidencePool() {
   };
 
   return (
-    <div style={{ background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate', background: 'radial-gradient(ellipse 90% 60% at 50% -10%, #17211D 0%, #0F1614 55%)', color: '#F0EDE4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+      {/* Night-sky backdrop (Milky Way) — fixed behind everything, with a dark wash on top so text stays
+          readable. Purely decorative: no pointer events, hidden from screen readers. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: -1,
+          pointerEvents: 'none',
+          backgroundImage: "linear-gradient(180deg, rgba(8,12,20,0.60), rgba(8,12,20,0.74)), url('/confidence-galaxy-bg.jpg')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundColor: '#05070D',
+        }}
+      />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         * { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
@@ -991,7 +1064,7 @@ export default function ConfidencePool() {
         select { color-scheme: dark; }
       `}</style>
 
-      <div style={{ background: 'linear-gradient(180deg,#1B2721,#0F1614)', borderBottom: '1px solid #E8A23D33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
+      <div style={{ background: 'linear-gradient(180deg,rgba(27,39,33,0.9),rgba(15,22,20,0.84))', borderBottom: '1px solid #E8A23D33', boxShadow: '0 6px 24px rgba(0,0,0,0.45)' }} className="px-5 py-5 sm:px-8">
         <div className="max-w-5xl mx-auto mb-3 flex items-center gap-3">
           <img src="/logo.png" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
           <Link to="/" className="font-mono text-xs flex items-center gap-1.5 w-fit" style={{ color: '#8A9A90' }}>
@@ -1498,7 +1571,9 @@ export default function ConfidencePool() {
                 const weekEntry = data.picks[viewWeek]?.[p.id] || {};
                 const winners = weekEntry.winners || {};
                 const order = getDisplayOrder(p.id);
-                const liveOrder = (pointerDrag && pointerDrag.pid === p.id) ? pointerDrag.order : order;
+                const dragHere = !!(pointerDrag && pointerDrag.pid === p.id);
+                const liveOrder = dragHere ? pointerDrag.order : order;
+                const domOrder = dragHere ? pointerDrag.baseOrder : order; // rows keep their original DOM order during a drag; only transforms move them
                 const total = seasonTotal(p.id);
                 const tiebreakerRevealed = isTiebreakerRevealed(p.id);
                 const weekFullyLocked = games.length > 0 && games.every(g => isGameLocked(g));
@@ -1575,8 +1650,9 @@ export default function ConfidencePool() {
                               </button>
                             ))}
                           </div>
-                          <div className="space-y-1">
-                            {liveOrder.map((gid, idx) => {
+                          <div className="space-y-1" style={{ overflowAnchor: 'none' }}>
+                            {domOrder.map((gid) => {
+                              const idx = liveOrder.indexOf(gid);
                               const g = games.find(gm => gm.id === gid);
                               if (!g) return null;
                               const gLocked = isGameLocked(g);
@@ -1584,7 +1660,7 @@ export default function ConfidencePool() {
                               const confidence = liveOrder.length - idx;
                               if (!gRevealed) {
                                 return (
-                                  <div key={gid} className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#5C6862' }}>
+                                  <div key={gid} ref={el => { dragRowRefs.current[`${p.id}|${gid}`] = el; }} className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs" style={{ background: '#0F1614', border: '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)', color: '#5C6862' }}>
                                     <Lock size={12} /> Hidden until kickoff
                                   </div>
                                 );
@@ -1612,7 +1688,7 @@ export default function ConfidencePool() {
                               return (
                                 <div
                                   key={gid}
-                                  ref={el => { dragRowRefs.current[gid] = el; }}
+                                  ref={el => { dragRowRefs.current[`${p.id}|${gid}`] = el; }}
                                   className="flex items-center gap-2 rounded px-2.5 py-1.5 font-mono text-xs flex-wrap"
                                   style={{
                                     background: isBeingDragged ? '#243328' : '#0F1614',
@@ -1699,6 +1775,7 @@ export default function ConfidencePool() {
                                         color: isBeingDragged ? '#0F1614' : '#E8A23D',
                                         cursor: isBeingDragged ? 'grabbing' : 'grab',
                                         touchAction: 'none', // stops the page from scrolling while dragging on touch
+                                        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
                                       }}
                                     >
                                       <GripVertical size={18} />

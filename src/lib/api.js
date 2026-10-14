@@ -46,9 +46,24 @@ export function mergePoolData(local, remote) {
     return Array.from(byMsgId.values()).sort((a, b) => new Date(a.at) - new Date(b.at));
   };
 
+  // Chop proposal: the newest proposal (by createdAt) wins; if both sides hold the same
+  // proposal, union the votes so two people voting at once don't erase each other.
+  const mergeChop = (l, r) => {
+    if (!l) return r;
+    if (!r) return l;
+    if (l.id !== r.id) return (l.createdAt || 0) >= (r.createdAt || 0) ? l : r;
+    const votes = { ...(r.votes || {}) };
+    Object.entries(l.votes || {}).forEach(([pid, v]) => {
+      if (!votes[pid] || (v.at || 0) >= (votes[pid].at || 0)) votes[pid] = v;
+    });
+    return { ...r, ...l, votes };
+  };
+  const chop = mergeChop(local.chop, remote.chop);
+
   return {
     ...remote,
     ...local,
+    ...(chop ? { chop } : {}),
     participants,
     picks: mergeNested(local.picks, remote.picks),
     results: mergeNested(local.results, remote.results),

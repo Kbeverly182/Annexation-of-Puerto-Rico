@@ -7,7 +7,7 @@ import { uid } from '../lib/utils';
 // A chop is stored on the pool data as `data.chop`:
 //   { id, createdAt, round, type: 'even'|'takeAndPlay'|'custom', amount, per, rem, n, pool,
 //     note, proposerId, eligibleIds: [ids alive when it was proposed],
-//     votes: { [participantId]: { v: 'accept'|'reject', at } } }
+//     votes: { [participantId]: { v: 'accept' (a reject clears the proposal), at } } }
 // or a tombstone { id, createdAt, withdrawn: true } once someone withdraws it.
 //
 // Nothing about status is stored — it's derived from the votes, so two people voting at the
@@ -19,7 +19,8 @@ import { uid } from '../lib/utils';
 const GOLD = '#E8A23D';
 
 export function chopStatus(chop, aliveIds, canAct) {
-  if (!chop || chop.withdrawn || !chop.eligibleIds) return { kind: 'none' };
+  if (chop && chop.withdrawn) return { kind: 'none', rejected: !!chop.rejected };
+  if (!chop || !chop.eligibleIds) return { kind: 'none' };
   const votes = chop.votes || {};
   const accepted = chop.eligibleIds.every(id => votes[id]?.v === 'accept');
   if (accepted) return { kind: 'accepted' };
@@ -27,9 +28,10 @@ export function chopStatus(chop, aliveIds, canAct) {
     const alive = new Set(aliveIds);
     if (chop.eligibleIds.some(id => !alive.has(id))) return { kind: 'void' };
   }
+  // A deal needs 100% approval, so a single rejection kills it on the spot.
+  if (Object.values(votes).some(x => x?.v === 'reject')) return { kind: 'none', rejected: true };
   const acc = chop.eligibleIds.filter(id => votes[id]?.v === 'accept').length;
-  const rej = chop.eligibleIds.filter(id => votes[id]?.v === 'reject').length;
-  return { kind: 'open', acc, rej, waiting: chop.eligibleIds.length - acc - rej, total: chop.eligibleIds.length };
+  return { kind: 'open', acc, waiting: chop.eligibleIds.length - acc, total: chop.eligibleIds.length };
 }
 
 function describe(c) {
@@ -187,6 +189,11 @@ export default function ChopChest({ data, persist, aliveIds, myId, isAdmin, pool
 
   const vote = (v) => {
     if (!chop || !iAmEligible || !canAct) return;
+    if (v === 'reject') {
+      if (!window.confirm('Rejecting clears this proposal for everyone — a chop needs 100% approval. Reject it?')) return;
+      save({ id: uid(), createdAt: Date.now(), withdrawn: true, rejected: true });
+      return;
+    }
     save({ ...chop, votes: { ...(chop.votes || {}), [myId]: { v, at: Date.now() } } });
   };
 
@@ -249,6 +256,12 @@ export default function ChopChest({ data, persist, aliveIds, myId, isAdmin, pool
               <button onClick={() => setModalOpen(false)} style={{ color: '#8A9A90' }}><X size={18} /></button>
             </div>
 
+            {status.kind === 'none' && status.rejected && (
+              <div className="font-mono text-xs px-3 py-2 rounded mb-3" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
+                The last proposal was rejected, so it's been cleared. A chop needs 100% approval — anyone still alive can make a new one.
+              </div>
+            )}
+
             {status.kind === 'void' && (
               <div className="font-mono text-xs px-3 py-2 rounded mb-3" style={{ background: '#C1443A1a', border: '1px solid #C1443A44', color: '#E28A82' }}>
                 A player was eliminated, so the last proposal was voided. Fire a new one!
@@ -279,10 +292,9 @@ export default function ChopChest({ data, persist, aliveIds, myId, isAdmin, pool
                 </div>
                 <div className="flex gap-2 font-mono text-[11px] mb-3 flex-wrap">
                   <span className="px-2 py-1 rounded" style={{ background: '#3D9B5C22', color: '#7FCB98' }}>✓ {status.acc} accepted</span>
-                  <span className="px-2 py-1 rounded" style={{ background: '#C1443A22', color: '#E28A82' }}>✗ {status.rej} rejected</span>
                   <span className="px-2 py-1 rounded" style={{ background: '#2A3830', color: '#8A9A90' }}>… {status.waiting} waiting</span>
                 </div>
-                <div className="font-mono text-[11px] mb-3" style={{ color: '#8A9A90' }}>It takes 100% of the remaining players to accept.</div>
+                <div className="font-mono text-[11px] mb-3" style={{ color: '#8A9A90' }}>It takes 100% of the remaining players to accept — one rejection clears it.</div>
 
                 {!canAct && (
                   <div className="font-mono text-xs mb-2" style={{ color: '#E8A23D' }}>Switch to the current week to respond.</div>

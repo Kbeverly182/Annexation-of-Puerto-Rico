@@ -522,6 +522,8 @@ export default function SurvivorPool() {
       matching = data.participants.filter(p => !data.picks[viewWeek]?.[p.id]?.team);
     } else if (filter === 'unpaid') {
       matching = data.participants.filter(p => !p.paid);
+    } else if (filter === 'alive') {
+      matching = data.participants.filter(p => eliminatedAtWeek(p.id) === null);
     }
     const seen = new Set();
     const emails = [];
@@ -531,7 +533,7 @@ export default function SurvivorPool() {
       seen.add(email.toLowerCase());
       emails.push(email);
     });
-    const labels = { all: 'All members', nopick: `Haven't picked yet — Week ${weekLabel(viewWeek)}`, unpaid: 'Not marked paid' };
+    const labels = { all: 'All members', nopick: `Haven't picked yet — Week ${weekLabel(viewWeek)}`, unpaid: 'Not marked paid', alive: `Still alive — Week ${weekLabel(viewWeek)}` };
     setEmailModal({ label: labels[filter], emails });
   };
 
@@ -1041,6 +1043,9 @@ export default function SurvivorPool() {
                   <div className="font-mono text-[10px] uppercase" style={{ color: '#5C6862' }}>Email this pool's members:</div>
                   <button onClick={() => buildEmailList('all')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#7FCB98' }}>
                     <Mail size={10} /> All
+                  </button>
+                  <button onClick={() => buildEmailList('alive')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#8FE0AC' }}>
+                    <Mail size={10} /> Still alive
                   </button>
                   <button onClick={() => buildEmailList('nopick')} className="font-mono text-[10px] uppercase underline flex items-center gap-1" style={{ color: '#E8A23D' }}>
                     <Mail size={10} /> Haven't picked (Week {weekLabel(viewWeek)})

@@ -215,6 +215,21 @@ export default function RevivalSurvivorPool() {
     return () => clearInterval(t);
   }, []);
 
+  // Auto-stamp win/loss results. The server only syncs once a day (5 AM ET), so without this a
+  // team that finished Sunday could sit un-colored until the next morning (or until the admin
+  // pressed Sync). Whenever someone has the page open, check ESPN every few minutes for the viewed
+  // week and fill in any still-pending locked picks. The actual work lives in autoSyncRef, which is
+  // assigned below the loading guard (it needs persist/isPickLocked); this effect only triggers it.
+  const autoSyncRef = useRef(null);
+  const autoSyncBusyRef = useRef(false);
+  useEffect(() => {
+    if (!data) return;
+    const run = () => { if (autoSyncRef.current) autoSyncRef.current(); };
+    const first = setTimeout(run, 1500);
+    const t = setInterval(run, 4 * 60 * 1000);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [!!data, viewWeek]);
+
   // Fires the "you're eliminated" bomb animation every time the page loads while identified as
   // an eliminated participant — no memory of past plays, so it's not affected by cache/storage
   // at all. This has to duplicate a small piece of the real elimination check (rather than
@@ -719,6 +734,35 @@ export default function RevivalSurvivorPool() {
   // Prefers a manually-synced spread over whatever was cached at page load, since that's more
   // likely to be current — falls back to the schedule's own odds if nobody's synced yet.
   const effectiveOdds = (g) => data.oddsOverride?.[viewWeek]?.[g.id] || g.odds;
+
+  autoSyncRef.current = async () => {
+    if (autoSyncBusyRef.current) return;
+    const week = viewWeek;
+    // Only picks that are locked but still undecided are touched — anything already decided
+    // (including results the admin set by hand) is left alone.
+    const isPending = (pk) => pk && pk.team && pk.result !== 'win' && pk.result !== 'loss' && (() => { const lt = lockTimeForPick(week, pk.team); return lt !== null && now >= lt; })();
+    if (!data.participants.some(p => isPending(data.picks[week]?.[p.id]))) return;
+    autoSyncBusyRef.current = true;
+    try {
+      const { results: resultMap, completedGames } = await fetchWeekResults(week, seasonYear);
+      if (!completedGames) return;
+      const next = { ...data, picks: { ...data.picks } };
+      next.picks[week] = { ...(next.picks[week] || {}) };
+      let updated = 0;
+      data.participants.forEach(p => {
+        const pk = next.picks[week][p.id];
+        if (isPending(pk) && resultMap[pk.team]) {
+          next.picks[week][p.id] = { ...pk, result: resultMap[pk.team] };
+          updated++;
+        }
+      });
+      if (updated > 0) persist(next);
+    } catch (e) {
+      // silent — the daily server sync and the admin Sync button are still there as backups
+    } finally {
+      autoSyncBusyRef.current = false;
+    }
+  };
 
   const syncScores = async (week) => {
     setSyncing(true);

@@ -87,7 +87,10 @@ export default async function handler(req, res) {
       if (weekChanged) next.picks[week] = weekPicks;
     }
 
-    if (updated > 0) await kv.set('survivor-pool-v1', next);
+    if (updated > 0) {
+      await kv.set('survivor-pool-v1', next);
+      await kv.set('survivor-pool-v1:rev', Date.now().toString(36)); // lets open pages notice the change
+    }
     return res.status(200).json({ ok: true, syncedAt: new Date().toISOString(), updated });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });

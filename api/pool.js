@@ -13,10 +13,21 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
+      // Cheap "has anything changed?" check: pages poll this tiny revision marker and only download
+      // the full pool when it moves. (Re-downloading every pool every few seconds from every open
+      // tab is what blew through the database's monthly bandwidth allowance.)
+      if (req.query?.rev) {
+        const revOnly = await kv.get(key + ':rev');
+        return res.status(200).json({ rev: revOnly == null ? null : String(revOnly) });
+      }
+      const rev = await kv.get(key + ':rev'); // read BEFORE the data, so a change in between is simply caught on the next check
       const data = await kv.get(key);
-      return res.status(200).json({ data: data || null });
+      return res.status(200).json({ data: data || null, rev: rev == null ? null : String(rev) });
     } catch (e) {
-      return res.status(500).json({ error: 'Failed to read pool data' });
+      // Log the real reason (visible in Vercel → Logs) and include the short message so an outage
+      // can be diagnosed straight from the browser instead of guessing.
+      console.error('[api/pool] read failed for key', key, '-', e && (e.message || e));
+      return res.status(500).json({ error: 'Failed to read pool data', detail: String((e && e.message) || e).slice(0, 300) });
     }
   }
 
@@ -26,10 +37,13 @@ export default async function handler(req, res) {
       if (!body || typeof body !== 'object') {
         return res.status(400).json({ error: 'Invalid pool data' });
       }
+      const rev = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await kv.set(key, body);
-      return res.status(200).json({ ok: true });
+      await kv.set(key + ':rev', rev);
+      return res.status(200).json({ ok: true, rev });
     } catch (e) {
-      return res.status(500).json({ error: 'Failed to save pool data' });
+      console.error('[api/pool] save failed for key', key, '-', e && (e.message || e));
+      return res.status(500).json({ error: 'Failed to save pool data', detail: String((e && e.message) || e).slice(0, 300) });
     }
   }
 

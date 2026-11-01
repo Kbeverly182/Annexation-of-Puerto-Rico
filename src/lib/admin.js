@@ -19,7 +19,8 @@ export function useAdminMode() {
         const remote = await apiGetPool(ADMIN_KEY);
         setAdminHash(remote?.pinHash || null);
       } catch (e) {
-        setAdminHash(null);
+        // Couldn't reach the database: leave this undefined (unknown), NOT null — null would mean
+        // "no admin PIN exists yet" and let someone set a brand-new PIN over the real one.
       }
     })();
     try {
@@ -31,6 +32,7 @@ export function useAdminMode() {
 
   const openPrompt = () => {
     if (isAdmin) return;
+    if (adminHash === undefined) return; // still loading / database unreachable — never offer "set a new PIN" on a failed read
     setPrompt({ mode: adminHash ? 'enter' : 'set', input: '', error: '' });
   };
 

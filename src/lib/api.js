@@ -1,8 +1,25 @@
+// Last revision marker seen per pool key, so polling can skip the big download when nothing changed.
+const lastRev = {};
+
 export async function apiGetPool(key) {
   const res = await fetch(`/api/pool?key=${encodeURIComponent(key)}`);
   if (!res.ok) throw new Error('failed to load pool');
   const json = await res.json();
+  if ('rev' in json) lastRev[key] = json.rev;
   return json.data;
+}
+
+// For polling: asks the server only for the tiny revision marker, and downloads the full pool
+// only if it differs from the last one this browser saw. Resolves to `undefined` when nothing has
+// changed. Falls back to a full download if the server doesn't supply revisions.
+export async function apiGetPoolIfChanged(key) {
+  if (lastRev[key] !== undefined) {
+    const res = await fetch(`/api/pool?key=${encodeURIComponent(key)}&rev=1`);
+    if (!res.ok) throw new Error('failed to check pool');
+    const { rev } = await res.json();
+    if (rev === lastRev[key]) return undefined;
+  }
+  return apiGetPool(key);
 }
 
 export async function apiSavePool(key, data) {
@@ -12,7 +29,9 @@ export async function apiSavePool(key, data) {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error('failed to save pool');
-  return res.json();
+  const out = await res.json();
+  if (out && 'rev' in out) lastRev[key] = out.rev; // we just wrote it — no need to re-download our own change
+  return out;
 }
 
 // Two people can each be holding a slightly different local snapshot of the pool and save

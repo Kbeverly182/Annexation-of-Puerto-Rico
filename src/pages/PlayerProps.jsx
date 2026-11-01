@@ -124,7 +124,7 @@ export default function PlayerProps() {
         };
         setData(migrated);
       } catch (e) {
-        setData(emptyData());
+        // Database unreachable: leave data unset (spinner) rather than showing an empty page that could be saved over the real data.
       } finally {
         setLoading(false);
       }

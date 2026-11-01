@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Loader2, RefreshCw, AlertCircle, Lock, UserCircle, ArrowLeft, ListOrdered, Trophy, Check, Download, Coins, Pencil, GripVertical, Mail, Copy, Hash } from 'lucide-react';
 import { WEEKS, ALL_WEEKS, weekLabel, weeksForSeason, isPreseasonWeek } from '../lib/teams';
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
-import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
+import { apiGetPool, apiGetPoolIfChanged, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults, fetchWeekOdds } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
@@ -12,7 +12,7 @@ import PoolRules from '../components/PoolRules';
 
 const POOL_KEY = 'confidence-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-confidence';
-const POLL_MS = 15000;
+const POLL_MS = 30000;
 
 const emptyData = () => ({ name: 'Confidence Pool', participants: [], picks: {}, results: {}, mnfActual: {}, currentWeek: 1 });
 
@@ -84,6 +84,8 @@ function repositionMissed(order, winners, isClosedFn) {
 export default function ConfidencePool() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // true = couldn't reach the database (NOT the same as an empty pool)
+  const [loadRetryTick, setLoadRetryTick] = useState(0);
   const [saveError, setSaveError] = useState(false);
   const [viewWeek, setViewWeek] = useState(1);
   const [newName, setNewName] = useState('');
@@ -211,12 +213,31 @@ export default function ConfidencePool() {
         setData(parsed);
         setViewWeek(parsed.currentWeek || 1);
       } catch (e) {
-        setData(emptyData());
+        // Couldn't reach the database. Do NOT fall back to an empty pool here — an empty-looking
+        // page that someone then saves to would overwrite the real data. Show a retry screen instead.
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // While the database is unreachable, keep retrying quietly in the background.
+  useEffect(() => {
+    if (!loadError || data) return;
+    const t = setTimeout(async () => {
+      try {
+        const remote = await apiGetPool(POOL_KEY);
+        const parsed = remote || emptyData();
+        setData(parsed);
+        setViewWeek(parsed.currentWeek || 1);
+        setLoadError(false);
+      } catch (e) {
+        setLoadRetryTick(n => n + 1);
+      }
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [loadError, !!data, loadRetryTick]);
 
   useEffect(() => {
     try {
@@ -233,10 +254,11 @@ export default function ConfidencePool() {
 
   useEffect(() => {
     const t = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.hidden) return; // don't poll from background tabs
       if (skipNextPoll.current) { skipNextPoll.current = false; return; }
       if (dragSessionRef.current) return; // never re-render the page out from under an in-progress drag
       try {
-        const remote = await apiGetPool(POOL_KEY);
+        const remote = await apiGetPoolIfChanged(POOL_KEY);
         if (dragSessionRef.current) return;
         if (remote) setData(remote);
       } catch (e) { /* silent */ }
@@ -322,7 +344,15 @@ export default function ConfidencePool() {
   if (loading || !data) {
     return (
       <div style={{ background: '#0F1614' }} className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#E8A23D]" size={28} />
+        {loadError ? (
+          <div className="text-center px-6 max-w-sm">
+            <div className="font-head text-lg uppercase" style={{ color: '#E8A23D' }}>Can't reach the pool right now</div>
+            <div className="font-mono text-xs mt-2" style={{ color: '#8A9A90' }}>The database isn't responding. Nothing has been lost or changed — please don't re-enter anything. This page keeps retrying automatically.</div>
+            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 rounded font-head text-sm uppercase" style={{ background: '#E8A23D', color: '#0F1614' }}>Retry now</button>
+          </div>
+        ) : (
+          <Loader2 className="animate-spin text-[#E8A23D]" size={28} />
+        )}
       </div>
     );
   }

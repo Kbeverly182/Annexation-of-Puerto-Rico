@@ -13,7 +13,7 @@ const WEEKS = Array.from({ length: 18 - REVIVAL_START_WEEK + 1 }, (_, i) => i + 
 const ALL_WEEKS = [...WEEKS];
 const weeksForSeason = () => WEEKS; // no preseason concept in this pool — always the same range
 import { uid, hashPin, defaultSeasonYear } from '../lib/utils';
-import { apiGetPool, apiSavePool, mergePoolData } from '../lib/api';
+import { apiGetPool, apiGetPoolIfChanged, apiSavePool, mergePoolData } from '../lib/api';
 import { useEspnSchedule, fetchWeekResults, fetchWeekOdds } from '../lib/espnSchedule';
 import { useAdminMode } from '../lib/admin';
 import PoolTicker from '../components/PoolTicker';
@@ -23,7 +23,7 @@ import ChopChest from '../components/ChopChest';
 
 const POOL_KEY = 'revival-survivor-pool-v1';
 const IDENTITY_KEY = 'my-participant-id-revival-survivor';
-const POLL_MS = 15000;
+const POLL_MS = 30000;
 
 const emptyData = () => ({ name: 'The Icebox', participants: [], picks: {}, currentWeek: REVIVAL_START_WEEK });
 
@@ -63,6 +63,8 @@ const SURVIVOR_RULES = [
 export default function RevivalSurvivorPool() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // true = couldn't reach the database (NOT the same as an empty pool)
+  const [loadRetryTick, setLoadRetryTick] = useState(0);
   const [saveError, setSaveError] = useState(false);
   const [viewWeek, setViewWeek] = useState(REVIVAL_START_WEEK);
   const [newName, setNewName] = useState('');
@@ -143,12 +145,31 @@ export default function RevivalSurvivorPool() {
         setData(parsed);
         setViewWeek(parsed.currentWeek || REVIVAL_START_WEEK);
       } catch (e) {
-        setData(emptyData());
+        // Couldn't reach the database. Do NOT fall back to an empty pool here — an empty-looking
+        // page that someone then saves to would overwrite the real data. Show a retry screen instead.
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // While the database is unreachable, keep retrying quietly in the background.
+  useEffect(() => {
+    if (!loadError || data) return;
+    const t = setTimeout(async () => {
+      try {
+        const remote = await apiGetPool(POOL_KEY);
+        const parsed = remote || emptyData();
+        setData(parsed);
+        setViewWeek(parsed.currentWeek || REVIVAL_START_WEEK);
+        setLoadError(false);
+      } catch (e) {
+        setLoadRetryTick(n => n + 1);
+      }
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [loadError, !!data, loadRetryTick]);
 
   // Personal identity lives on this device only (localStorage), not in the shared pool data
   useEffect(() => {
@@ -204,9 +225,10 @@ export default function RevivalSurvivorPool() {
   // Poll for changes other people make, so the shared leaderboard stays live
   useEffect(() => {
     const t = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.hidden) return; // don't poll from background tabs
       if (skipNextPoll.current) { skipNextPoll.current = false; return; }
       try {
-        const remote = await apiGetPool(POOL_KEY);
+        const remote = await apiGetPoolIfChanged(POOL_KEY);
         if (remote) setData(remote);
       } catch (e) {
         // silent — keep showing last known state
@@ -268,7 +290,15 @@ export default function RevivalSurvivorPool() {
   if (loading || !data) {
     return (
       <div style={{ background: '#0F1614' }} className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#E8A23D]" size={28} />
+        {loadError ? (
+          <div className="text-center px-6 max-w-sm">
+            <div className="font-head text-lg uppercase" style={{ color: '#E8A23D' }}>Can't reach the pool right now</div>
+            <div className="font-mono text-xs mt-2" style={{ color: '#8A9A90' }}>The database isn't responding. Nothing has been lost or changed — please don't re-enter anything. This page keeps retrying automatically.</div>
+            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 rounded font-head text-sm uppercase" style={{ background: '#E8A23D', color: '#0F1614' }}>Retry now</button>
+          </div>
+        ) : (
+          <Loader2 className="animate-spin text-[#E8A23D]" size={28} />
+        )}
       </div>
     );
   }
@@ -1455,11 +1485,13 @@ export default function RevivalSurvivorPool() {
                     // both fine to expand — there's no secret pick being protected either way.
                     const clickable = !t.isNoPick;
                     const pickers = t.isNoPickBucket
-                      ? [...data.participants].filter(p => !data.picks[viewWeek]?.[p.id]?.team)
+                      ? [...data.participants].filter(p => { const ew = eliminatedAtWeek(p.id); return ew === null || ew >= viewWeek; }) // same rule as the counts: anyone eliminated in an earlier week isn't part of this week's pool
+                        .filter(p => !data.picks[viewWeek]?.[p.id]?.team)
                         .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)))
                       : t.isNoPick
                       ? []
-                      : [...data.participants].filter(p => data.picks[viewWeek]?.[p.id]?.team === t.abbr)
+                      : [...data.participants].filter(p => { const ew = eliminatedAtWeek(p.id); return ew === null || ew >= viewWeek; })
+                        .filter(p => data.picks[viewWeek]?.[p.id]?.team === t.abbr)
                         .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
                     return (
                       <div key={t.abbr} className="rounded" style={!clickable ? {} : { background: isExpanded ? '#1C2823' : 'transparent' }}>

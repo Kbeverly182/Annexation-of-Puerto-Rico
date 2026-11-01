@@ -162,6 +162,14 @@ export default async function handler(req, res) {
       pools[label] = await kv.get(key);
     }
 
+    // Safety: never overwrite a good backup with an empty one. This sheet is overwritten each run,
+    // so if the database came back empty (or wiped) the previous good copy would be lost. If any
+    // pool is missing or has no entrants, refuse to write and leave the last backup untouched.
+    const emptyPools = POOL_KEYS.filter(({ label }) => !pools[label] || !(pools[label].participants || []).length).map(p => p.label);
+    if (emptyPools.length) {
+      return res.status(200).json({ ok: false, skipped: true, error: `Backup skipped to protect the last good copy — no data found for: ${emptyPools.join(', ')}` });
+    }
+
     await ensureTabsExist(sheets, sheetId, [
       'Raw Backup', 'Entrants', 'Survivor Picks', 'Revival Picks', 'Confidence Picks', 'Lineup Picks',
     ]);

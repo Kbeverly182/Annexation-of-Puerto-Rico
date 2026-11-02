@@ -1066,10 +1066,14 @@ export default function LineupPool() {
     } else {
       approximate = true;
     }
-    const teamStats = gameResult.teams?.find(t => t.abbr === teamAbbr)?.stats || {};
-    const sacks = pickStat(teamStats, ['sacksYardsLost', 'sacks', 'Sacks', 'totalSacks']);
-    const ints = pickStat(teamStats, ['interceptions', 'Interceptions', 'defensiveInterceptions']);
-    const fumRec = pickStat(teamStats, ['fumblesRecovered', 'FumblesRecovered']);
+    // ESPN team stats are from each offense's point of view (interceptions = thrown, fumblesLost,
+    // sacksYardsLost = sacks taken), so a defense's takeaways/sacks come from the OPPONENT's row.
+    const oppStats = gameResult.teams?.find(t => t.abbr !== teamAbbr)?.stats || {};
+    const sacks = (gameResult.defSacks && gameResult.defSacks[teamAbbr] != null)
+      ? gameResult.defSacks[teamAbbr]
+      : pickStat(oppStats, ['sacksYardsLost', 'sacks', 'Sacks', 'totalSacks']);
+    const ints = pickStat(oppStats, ['interceptions', 'Interceptions']);
+    const fumRec = pickStat(oppStats, ['fumblesLost', 'FumblesLost']);
     if (sacks || ints || fumRec) {
       points += sacks * 1 + ints * 2 + fumRec * 2;
     } else {

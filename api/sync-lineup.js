@@ -251,6 +251,17 @@ async function fetchGameStats(gameId) {
   // Fallback / cross-check from the box score: players' own TD columns in the interception,
   // defensive, kick-return and punt-return tables. If this finds more TDs for a team than the
   // scoring-play parse did, the difference is added so no defensive/ST touchdown is missed.
+
+  // Defensive sacks credited to each team, from the defenders' own SACKS column. (The team
+  // "sacksYardsLost" stat is sacks a team TOOK, i.e. the other defense's sacks.)
+  let defSacks;
+  try {
+    players.forEach(p => {
+      if (!/defensive/i.test(p.category || '') || !p.team || p.stats?.SACKS == null) return;
+      defSacks = defSacks || {};
+      defSacks[p.team] = (defSacks[p.team] || 0) + (parseFloat(p.stats.SACKS) || 0);
+    });
+  } catch (e) { /* defSacks stays undefined */ }
   const scoringTypes = [];
   try {
     (json?.scoringPlays || []).forEach(p => scoringTypes.push({ type: p?.type?.text || null, team: p?.team?.abbreviation || p?.team?.id || null, text: (p?.text || '').slice(0, 90) }));
@@ -272,7 +283,7 @@ async function fetchGameStats(gameId) {
     });
   } catch (e) { /* ignore */ }
 
-  return { players, teams, scores, fieldGoals, defTds, defExtras, scoringTypes };
+  return { players, teams, scores, fieldGoals, defTds, defExtras, scoringTypes, defSacks };
 }
 
 function pickStat(stats, keys) {
@@ -340,9 +351,15 @@ function computeDstPoints(teamAbbr, gameResult) {
   const oppScore = gameResult.scores?.find(s => s.abbr !== teamAbbr);
   if (oppScore?.score != null) points += pointsAllowedScore(oppScore.score);
   const teamStats = gameResult.teams?.find(t => t.abbr === teamAbbr)?.stats || {};
-  const sacks = pickStat(teamStats, ['sacksYardsLost', 'sacks', 'Sacks', 'totalSacks']);
-  const ints = pickStat(teamStats, ['interceptions', 'Interceptions', 'defensiveInterceptions']);
-  const fumRec = pickStat(teamStats, ['fumblesRecovered', 'FumblesRecovered']);
+  const oppStats = gameResult.teams?.find(t => t.abbr !== teamAbbr)?.stats || {};
+  // ESPN's team stats are from each team's OFFENSE point of view: "interceptions" = thrown,
+  // "fumblesLost" = fumbles lost, "sacksYardsLost" = sacks taken. So a defense's takeaways and
+  // sacks come from the OPPONENT's numbers (sacks prefer the defenders' own SACKS column).
+  const sacks = (gameResult.defSacks && gameResult.defSacks[teamAbbr] != null)
+    ? gameResult.defSacks[teamAbbr]
+    : pickStat(oppStats, ['sacksYardsLost', 'sacks', 'Sacks', 'totalSacks']);
+  const ints = pickStat(oppStats, ['interceptions', 'Interceptions']);
+  const fumRec = pickStat(oppStats, ['fumblesLost', 'FumblesLost']);
   points += sacks * 1 + ints * 2 + fumRec * 2;
   points += ((gameResult.defTds || []).filter(d => d.abbr === teamAbbr).length) * 6; // defensive/special-teams TD = +6
   points += ((gameResult.defExtras || []).filter(d => d.abbr === teamAbbr).reduce((s, d) => s + (d.points || 0), 0)); // blocked kick / safety = +2 each
@@ -364,7 +381,7 @@ export default async function handler(req, res) {
       const teamsOut = (g.teams || []).map(t => ({ abbr: t.abbr, stats: t.stats }));
       const tdRows = (g.players || []).filter(p => p.stats && p.stats.TD != null && /interception|defensive|return/i.test(p.category || '')).map(p => ({ team: p.team, category: p.category, TD: p.stats.TD }));
       return res.status(200).json({ ok: true, scores: g.scores, defTds: g.defTds, defExtras: g.defExtras, scoringTypes: g.scoringTypes, tdRows, teamsOut,
-        dstPoints: (g.scores || []).map(s => ({ abbr: s.abbr, points: computeDstPoints(s.abbr, g) })) });
+        defSacks: g.defSacks, dstPoints: (g.scores || []).map(s => ({ abbr: s.abbr, points: computeDstPoints(s.abbr, g) })) });
     }
     const data = await kv.get('lineup-pool-v1');
     if (!data) return res.status(200).json({ ok: true, updated: 0, note: 'no pool data yet' });

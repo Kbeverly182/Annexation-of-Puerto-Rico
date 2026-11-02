@@ -171,6 +171,17 @@ export default async function handler(req, res) {
   // Fallback / cross-check from the box score: players' own TD columns in the interception,
   // defensive, kick-return and punt-return tables. If this finds more TDs for a team than the
   // scoring-play parse did, the difference is added so no defensive/ST touchdown is missed.
+
+  // Defensive sacks credited to each team, from the defenders' own SACKS column. (The team
+  // "sacksYardsLost" stat is sacks a team TOOK, i.e. the other defense's sacks.)
+  let defSacks;
+  try {
+    players.forEach(p => {
+      if (!/defensive/i.test(p.category || '') || !p.team || p.stats?.SACKS == null) return;
+      defSacks = defSacks || {};
+      defSacks[p.team] = (defSacks[p.team] || 0) + (parseFloat(p.stats.SACKS) || 0);
+    });
+  } catch (e) { /* defSacks stays undefined */ }
   const scoringTypes = [];
   try {
     (json?.scoringPlays || []).forEach(p => scoringTypes.push({ type: p?.type?.text || null, team: p?.team?.abbreviation || p?.team?.id || null, text: (p?.text || '').slice(0, 90) }));
@@ -277,6 +288,7 @@ export default async function handler(req, res) {
     defTds,
     defExtras,
     scoringTypes,
+    defSacks,
     fieldGoalsSource,
     // Only include the raw payload when the main player parse found nothing, so we can see the
     // real shape — keeps the response small on the (hopefully common) success path.

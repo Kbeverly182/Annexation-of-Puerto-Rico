@@ -168,6 +168,30 @@ export default async function handler(req, res) {
     });
   } catch (e) { /* defExtras stays [] */ }
 
+  // Fallback / cross-check from the box score: players' own TD columns in the interception,
+  // defensive, kick-return and punt-return tables. If this finds more TDs for a team than the
+  // scoring-play parse did, the difference is added so no defensive/ST touchdown is missed.
+  const scoringTypes = [];
+  try {
+    (json?.scoringPlays || []).forEach(p => scoringTypes.push({ type: p?.type?.text || null, team: p?.team?.abbreviation || p?.team?.id || null, text: (p?.text || '').slice(0, 90) }));
+    const byTeam = {};
+    players.forEach(p => {
+      const c = (p.category || '').toLowerCase();
+      const td = Number(p.stats?.TD) || 0;
+      if (!td || !p.team) return;
+      const o = (byTeam[p.team] = byTeam[p.team] || { int: 0, def: 0, kr: 0, pr: 0 });
+      if (c.includes('interception')) o.int += td;
+      else if (c.includes('punt') && c.includes('return')) o.pr += td;
+      else if (c.includes('kick') && c.includes('return')) o.kr += td;
+      else if (c.includes('defensive')) o.def += td;
+    });
+    Object.entries(byTeam).forEach(([abbr, o]) => {
+      const derived = Math.max(o.int, o.def) + o.kr + o.pr;
+      const have = defTds.filter(d => d.abbr === abbr).length;
+      for (let i = have; i < derived; i++) defTds.push({ abbr, type: 'Defensive/ST TD (box score)' });
+    });
+  } catch (e) { /* ignore */ }
+
   // Individual field goal distances, best-effort. The aggregated boxscore.players stats only
   // give a kicker's LONGEST field goal for the game, not each one — so a kicker who made two
   // field goals of different distances can't be scored exactly from that alone. This looks at
@@ -252,6 +276,7 @@ export default async function handler(req, res) {
     fieldGoals,
     defTds,
     defExtras,
+    scoringTypes,
     fieldGoalsSource,
     // Only include the raw payload when the main player parse found nothing, so we can see the
     // real shape — keeps the response small on the (hopefully common) success path.

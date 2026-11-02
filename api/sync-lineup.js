@@ -248,7 +248,31 @@ async function fetchGameStats(gameId) {
     });
   } catch (e) { /* defExtras stays [] */ }
 
-  return { players, teams, scores, fieldGoals, defTds, defExtras };
+  // Fallback / cross-check from the box score: players' own TD columns in the interception,
+  // defensive, kick-return and punt-return tables. If this finds more TDs for a team than the
+  // scoring-play parse did, the difference is added so no defensive/ST touchdown is missed.
+  const scoringTypes = [];
+  try {
+    (json?.scoringPlays || []).forEach(p => scoringTypes.push({ type: p?.type?.text || null, team: p?.team?.abbreviation || p?.team?.id || null, text: (p?.text || '').slice(0, 90) }));
+    const byTeam = {};
+    players.forEach(p => {
+      const c = (p.category || '').toLowerCase();
+      const td = Number(p.stats?.TD) || 0;
+      if (!td || !p.team) return;
+      const o = (byTeam[p.team] = byTeam[p.team] || { int: 0, def: 0, kr: 0, pr: 0 });
+      if (c.includes('interception')) o.int += td;
+      else if (c.includes('punt') && c.includes('return')) o.pr += td;
+      else if (c.includes('kick') && c.includes('return')) o.kr += td;
+      else if (c.includes('defensive')) o.def += td;
+    });
+    Object.entries(byTeam).forEach(([abbr, o]) => {
+      const derived = Math.max(o.int, o.def) + o.kr + o.pr;
+      const have = defTds.filter(d => d.abbr === abbr).length;
+      for (let i = have; i < derived; i++) defTds.push({ abbr, type: 'Defensive/ST TD (box score)' });
+    });
+  } catch (e) { /* ignore */ }
+
+  return { players, teams, scores, fieldGoals, defTds, defExtras, scoringTypes };
 }
 
 function pickStat(stats, keys) {
@@ -335,6 +359,13 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (req.query?.debug) {
+      const g = await fetchGameStats(String(req.query.debug));
+      const teamsOut = (g.teams || []).map(t => ({ abbr: t.abbr, stats: t.stats }));
+      const tdRows = (g.players || []).filter(p => p.stats && p.stats.TD != null && /interception|defensive|return/i.test(p.category || '')).map(p => ({ team: p.team, category: p.category, TD: p.stats.TD }));
+      return res.status(200).json({ ok: true, scores: g.scores, defTds: g.defTds, defExtras: g.defExtras, scoringTypes: g.scoringTypes, tdRows, teamsOut,
+        dstPoints: (g.scores || []).map(s => ({ abbr: s.abbr, points: computeDstPoints(s.abbr, g) })) });
+    }
     const data = await kv.get('lineup-pool-v1');
     if (!data) return res.status(200).json({ ok: true, updated: 0, note: 'no pool data yet' });
 

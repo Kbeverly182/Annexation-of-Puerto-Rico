@@ -107,6 +107,67 @@ export default async function handler(req, res) {
     // fall through — scores stays []
   }
 
+
+  // Defensive and special-teams touchdowns (interception/fumble returns, blocked kicks, punt and
+  // kickoff returns). Read from ESPN's scoring plays; credited to the team that scored. Regular offensive
+  // rushing, passing and receiving touchdowns are NOT counted here.
+  const defTds = [];
+  try {
+    const idToAbbr = {};
+    (json?.header?.competitions?.[0]?.competitors || []).forEach(c => { if (c.team?.id) idToAbbr[String(c.team.id)] = c.team.abbreviation; });
+    (json?.scoringPlays || []).forEach(play => {
+      const t = ((play?.type?.text || '') + ' ' + (play?.type?.abbreviation || '')).toLowerCase();
+      const isTd = /touchdown|\btd\b/.test(t);
+      // Defensive + special-teams TDs: INT/fumble returns, blocked or missed kick returns,
+      // punt returns and kickoff returns. Plain rushing/passing/receiving TDs never match.
+      const isDefOrST = /interception|\bint\b|fumble|blocked|missed|punt return|kickoff return|kick return|return/.test(t)
+        && !/^\s*(rushing|passing|receiving)\b/.test(t);
+      const txt = (play?.text || '').toLowerCase();
+      const textDef = /intercept.*(for a touchdown|return.*touchdown)|fumble.*return.*touchdown|recover.*touchdown|blocked.*return.*touchdown|(punt|kickoff|kick) return.*touchdown/.test(txt) && !/pass from|run\b/.test(txt.split('intercept')[0]);
+      if (!(isTd && isDefOrST) && !(isTd && textDef)) return;
+      const abbr = idToAbbr[String(play?.team?.id)] || play?.team?.abbreviation || null;
+      if (abbr) defTds.push({ abbr, type: play?.type?.text || 'Defensive TD' });
+    });
+  } catch (e) { /* defTds stays [] */ }
+
+  // Defensive extras worth +2 each: a blocked punt / blocked field goal (credited to the team
+  // that did NOT have the ball) and a safety (credited to the team that scored it).
+  const defExtras = [];
+  try {
+    const comps = json?.header?.competitions?.[0]?.competitors || [];
+    const idToAbbr2 = {};
+    const abbrs = [];
+    comps.forEach(c => { if (c.team?.id) idToAbbr2[String(c.team.id)] = c.team.abbreviation; if (c.team?.abbreviation) abbrs.push(c.team.abbreviation); });
+    const seen = new Set();
+    const isBlockedKick = (play) => {
+      const t = (play?.type?.text || '').toLowerCase();
+      const txt = (play?.text || '').toLowerCase();
+      if (/extra point|\bpat\b|two-point|2-pt/.test(t + ' ' + txt)) return false;
+      if (!/punt|field goal/.test(t)) return false;
+      return /block/.test(t) || /block/.test(txt);
+    };
+    (json?.drives?.previous || []).concat(json?.drives?.current ? [json.drives.current] : []).forEach(drive => {
+      const kickingTeam = drive?.team?.abbreviation || null;
+      (drive?.plays || []).forEach(play => {
+        const key = play?.id || (drive?.id + ':' + play?.sequenceNumber);
+        if (isBlockedKick(play) && kickingTeam && abbrs.length === 2) {
+          const blocker = abbrs.find(a => a !== kickingTeam);
+          if (blocker && !seen.has('b' + key)) { seen.add('b' + key); defExtras.push({ abbr: blocker, type: 'Blocked kick', points: 2 }); }
+        }
+      });
+    });
+    (json?.scoringPlays || []).forEach(play => {
+      const t = (play?.type?.text || '').toLowerCase();
+      const abbr = idToAbbr2[String(play?.team?.id)] || play?.team?.abbreviation || null;
+      if (!abbr) return;
+      if (/safety/.test(t) && !seen.has('s' + play?.id)) { seen.add('s' + play?.id); defExtras.push({ abbr, type: 'Safety', points: 2 }); }
+      // blocked kick returned for a TD: covered by drives above when present; otherwise count here
+      if (isBlockedKick(play) && !seen.has('b' + play?.id) && !defExtras.some(e => e.type === 'Blocked kick' && e.abbr === abbr && seen.has('bsp' + abbr + play?.id))) {
+        if (!(json?.drives?.previous || []).length) { seen.add('b' + play?.id); defExtras.push({ abbr, type: 'Blocked kick', points: 2 }); }
+      }
+    });
+  } catch (e) { /* defExtras stays [] */ }
+
   // Individual field goal distances, best-effort. The aggregated boxscore.players stats only
   // give a kicker's LONGEST field goal for the game, not each one — so a kicker who made two
   // field goals of different distances can't be scored exactly from that alone. This looks at
@@ -189,6 +250,8 @@ export default async function handler(req, res) {
     teams,
     scores,
     fieldGoals,
+    defTds,
+    defExtras,
     fieldGoalsSource,
     // Only include the raw payload when the main player parse found nothing, so we can see the
     // real shape — keeps the response small on the (hopefully common) success path.

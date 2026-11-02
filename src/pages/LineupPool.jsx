@@ -52,7 +52,7 @@ const LINEUP_RULES = [
       'Extra point made: 1 pt',
       'Field goal: distance ÷ 10, minimum 3.0 points (a 46-yard FG = 4.6 pts, anything under 30 yards = 3.0 flat)',
       'D/ST — points allowed: 0 = +10 pts · 1–6 = +7 · 7–13 = +4 · 14–20 = +1 · 21–27 = 0 · 28–34 = −1 · 35+ = −4',
-      'D/ST — defensive plays: sack = +1 pt · interception = +2 pts · fumble recovery = +2 pts',
+      'D/ST — defensive plays: sack = +1 pt · interception = +2 pts · fumble recovery = +2 pts · defensive or special teams touchdown (incl. kick/punt returns) = +6 pts · blocked punt or field goal = +2 pts · safety = +2 pts',
     ],
   },
   {
@@ -1075,6 +1075,8 @@ export default function LineupPool() {
     } else {
       approximate = true; // couldn't find these fields — likely under-counting
     }
+    points += ((gameResult.defTds || []).filter(d => d.abbr === teamAbbr).length) * 6; // defensive/special-teams TD = +6
+  points += ((gameResult.defExtras || []).filter(d => d.abbr === teamAbbr).reduce((s, d) => s + (d.points || 0), 0)); // blocked kick / safety = +2 each
     return { points, approximate };
   };
 

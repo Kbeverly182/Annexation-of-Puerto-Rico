@@ -60,7 +60,7 @@ const SUFFIX = /\b(jr|sr|ii|iii|iv|v)\b/g;
 const normName = (s) => (s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(SUFFIX, '').replace(/\s+/g, ' ').trim();
 const sameName = (a, b) => !!a && !!b && normName(a) === normName(b);
 
-const defaultConfig = () => ({ games: [], fgLine: 48.5, totalLine: 45.5, lockAt: null, tbTeam: 'DAL', payoutNote: '' });
+const defaultConfig = () => ({ games: [], fgLine: 48.5, totalLine: 45.5, lockAt: null, tbTeam: 'DAL', payoutNote: '', spreadsLive: false, playersOpen: false });
 const emptyData = () => ({
   name: 'The Poultry Bowl', open: false, participants: [], config: defaultConfig(),
   picks: { bowl: {} }, results: { bowl: {} }, chatMessages: [],
@@ -221,9 +221,9 @@ function pickProgress(pk, cfg) {
   return { done, total, missing };
 }
 
-const fmtSpread = (g) => {
+const fmtSpread = (g, live = true) => {
   const s = Number(g.spread);
-  if (g.spread === undefined || g.spread === null || g.spread === '' || Number.isNaN(s)) return '—';
+  if (!live || g.spread === undefined || g.spread === null || g.spread === '' || Number.isNaN(s)) return 'TBD';
   if (s === 0) return `${g.home} PK`;
   return s < 0 ? `${g.home} ${s}` : `${g.away} -${s}`;
 };
@@ -618,9 +618,9 @@ export default function PoultryBowl() {
   const setConfig = (patch) => persist({ ...data, config: { ...cfg, ...patch } });
   const updateGame = (gid, patch) => setConfig({ games: cfg.games.map(g => g.id === gid ? { ...g, ...patch } : g) });
   const removeGame = (gid) => setConfig({ games: cfg.games.filter(g => g.id !== gid) });
-  const addBlankGame = () => setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: 0, espnId: '' }] });
+  const addBlankGame = () => setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: '', espnId: '' }] });
 
-  const loadFromEspn = async () => {
+  const loadFromEspn = async (refreshSpreads = false) => {
     setEspnMsg('Loading from ESPN…');
     try {
       const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=100&dates=${espnRange.start}-${espnRange.end}`);
@@ -645,11 +645,11 @@ export default function PoultryBowl() {
         const ex = byEspn[f.espnId];
         if (ex) {
           const i = merged.findIndex(g => g.id === ex.id);
-          merged[i] = { ...ex, kickoff: f.kickoff || ex.kickoff, spread: (ex.spread === undefined || ex.spread === '' || ex.spread === null) && f.spread !== undefined ? f.spread : ex.spread };
-        } else { merged.push({ ...f, spread: f.spread ?? 0 }); added++; }
+          merged[i] = { ...ex, kickoff: f.kickoff || ex.kickoff, spread: f.spread !== undefined && (refreshSpreads || ex.spread === undefined || ex.spread === '' || ex.spread === null) ? f.spread : ex.spread };
+        } else { merged.push({ ...f, spread: f.spread ?? '' }); added++; }
       });
       setConfig({ games: merged });
-      setEspnMsg(`Found ${found.length} game${found.length === 1 ? '' : 's'} (${added} new). Check the spreads below — ESPN sometimes has none yet.`);
+      setEspnMsg(refreshSpreads ? `Refreshed spreads from ESPN for ${found.filter(g => g.spread !== undefined).length} of ${found.length} game(s). Games ESPN has no line for were left alone — check each one below.` : `Found ${found.length} game${found.length === 1 ? '' : 's'} (${added} new). Check the spreads below — ESPN sometimes has none yet.`);
     } catch (e) { setEspnMsg('Could not load from ESPN: ' + (e.message || e)); }
   };
 
@@ -760,6 +760,12 @@ export default function PoultryBowl() {
             <button onClick={exitAdmin} className="font-mono text-[10px] uppercase px-2 py-1 rounded" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#FFB4A8' }}>Exit Admin</button>
           ) : <button onClick={openAdminPrompt} className="font-mono text-[10px] uppercase underline" style={{ color: C.line }}>Admin</button>}
         </div>
+
+        {isAdmin && (!cfg.spreadsLive || !cfg.playersOpen) && (
+          <div className="rounded px-3 py-2 font-mono text-xs" style={{ background: '#3A2A0A', border: `1px solid ${C.gold}`, color: C.cream }}>
+            ⏰ <b>Reminder before opening:</b> {!cfg.spreadsLive && 'spreads are TBD'}{!cfg.spreadsLive && !cfg.playersOpen && ' and '}{!cfg.playersOpen && 'player pools are closed (only you can see them)'}. Ask Claude to pull the latest spreads and players before Nov 25, then flip the switches in Admin tools.
+          </div>
+        )}
 
         {/* Pot */}
         <div className="grid grid-cols-3 gap-2 text-center">
@@ -878,10 +884,21 @@ export default function PoultryBowl() {
           )}
         </div>
 
-        {games.length === 0 && <div className="font-mono text-sm text-center py-6" style={{ color: C.muted }}>The games haven't been set up yet — check back soon.</div>}
+        {games.length === 0 && (
+          <div className="rounded p-4 text-center" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="font-mono text-sm" style={{ color: C.muted }}>The games haven't been set up yet{isAdmin ? '.' : ' — check back soon.'}</div>
+            {isAdmin && (
+              <div className="mt-3">
+                <button onClick={() => loadFromEspn(false)} className="font-head flex items-center gap-1 mx-auto" style={smallBtn(C.gold)}><RefreshCw size={12} /> Load the Thanksgiving games from ESPN</button>
+                <div className="font-mono text-[11px] mt-2" style={{ color: C.muted }}>Pulls every game between {espnRange.start} and {espnRange.end} (change the dates in Admin tools if needed).</div>
+                {espnMsg && <div className="font-mono text-xs mt-2" style={{ color: C.cream }}>{espnMsg}</div>}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Picks editor — turkey legs pick the section, each shows how many picks are in */}
-        {actingId && games.length > 0 && (() => {
+        {games.length > 0 && (() => {
           const legs = legCounts(myPicks, games);
           const leg = legs.find(l => l.key === activeLeg) || legs[0];
           const needGames = (children) => <div className="space-y-3">{children}</div>;
@@ -894,9 +911,15 @@ export default function PoultryBowl() {
           const card = (g, extra, body) => (
             <div key={g.id} className="rounded p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>{gameHead(g, extra)}{body}</div>
           );
+          const playersGate = !cfg.playersOpen && !isAdmin;
+          const tbdPlayers = (title) => (
+            <Section title={title} sub="">
+              <div className="font-mono text-xs" style={{ color: C.muted }}>🦃 Player pool TBD — the players for these picks get posted closer to Thanksgiving (rosters and injuries settle first). Check back soon!</div>
+            </Section>
+          );
           const usedConf = (gid) => games.map(x => x.id !== gid ? Number(myPicks.games?.[x.id]?.conf) : 0).filter(Boolean);
           const panels = {
-            big4: () => (
+            big4: () => playersGate ? tbdPlayers('The Big Four — 20 pts each') : (
               <Section title="The Big Four — 20 pts each" sub="Who leads ALL the games in each category?">
                 <div className="space-y-2">
                   {LEADERS.map(l => (
@@ -913,7 +936,7 @@ export default function PoultryBowl() {
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const used = usedConf(g.id);
-                  return card(g, fmtSpread(g), (
+                  return card(g, `Spread ${fmtSpread(g, cfg.spreadsLive)}`, (
                     <div className="flex gap-2 items-center">
                       <div style={{ flex: 1 }}><Segmented disabled={!canEdit} value={gp.win} onChange={v => guard(gp.win, v, () => setGame(g.id, { win: v }))} options={[{ value: g.away, label: g.away }, { value: g.home, label: g.home }]} /></div>
                       <select disabled={!canEdit} value={gp.conf || ''} onChange={e => { const v = Number(e.target.value) || 0; guard(gp.conf, v || '', () => setConf(g.id, v)); }} style={{ ...inputStyle, width: 100 }}>
@@ -930,7 +953,9 @@ export default function PoultryBowl() {
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const sp = Number(g.spread);
-                  return card(g, `Spread ${fmtSpread(g)}`, (
+                  const spreadReady = !!cfg.spreadsLive && has(g.spread);
+                  if (!spreadReady) return card(g, 'Spread TBD', <div className="font-mono text-xs" style={{ color: C.muted }}>📅 The spread for this game is still TBD — it opens up closer to kickoff week. Check back soon!</div>);
+                  return card(g, `Spread ${fmtSpread(g, true)}`, (
                     <Segmented disabled={!canEdit} value={gp.ats} onChange={v => guard(gp.ats, v, () => setGame(g.id, { ats: v }))} options={[
                       { value: g.away, label: `${g.away} ${sp > 0 ? '-' + g.spread : sp < 0 ? '+' + Math.abs(g.spread) : 'PK'}` },
                       { value: g.home, label: `${g.home} ${sp < 0 ? g.spread : sp > 0 ? '+' + g.spread : 'PK'}` },
@@ -963,7 +988,7 @@ export default function PoultryBowl() {
                 }))}
               </Section>
             ),
-            td: () => (
+            td: () => playersGate ? tbdPlayers('TD scorer — 12 pts each') : (
               <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return — a passing TD counts for the catcher, not the QB).">
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
@@ -971,7 +996,7 @@ export default function PoultryBowl() {
                 }))}
               </Section>
             ),
-            lineup: () => (
+            lineup: () => playersGate ? tbdPlayers('Fantasy lineup — 15 / 10 / 5') : (
               <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef. Fill all 8 slots.">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {LINEUP_SLOTS.map(s => {
@@ -997,7 +1022,7 @@ export default function PoultryBowl() {
                 </div>
               </Section>
             ),
-            jackpot: () => (
+            jackpot: () => playersGate ? tbdPlayers('The Big Beefy Bonus — 10% of the pot') : (
               <div className="rounded p-4" style={{ background: '#3A2A0A', border: `2px solid ${C.gold}` }}>
                 <div className="font-head uppercase text-base" style={{ color: C.gold }}>🥩 The Big Beefy Bonus — {JACKPOT_PCT}% of the pot</div>
                 <div className="font-mono text-[11px] mb-3" style={{ color: C.muted }}>Who scores the longest TD of the 5 games? (Defensive TDs and punt/kickoff return TDs don't count.) No points — just the Big Beefy Bonus.</div>
@@ -1008,6 +1033,7 @@ export default function PoultryBowl() {
           const allDone = legs.every(l => l.done === l.total);
           return (
             <div className="space-y-4">
+              {!actingId && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: C.panel, color: C.cream, border: `1px solid ${C.gold}` }}>👀 Preview — join the pool or pick your name above to start making picks{isAdmin ? ' (or use "edit picks as" in the admin row)' : ''}.</div>}
               {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.</div>}
               {rosterLoading && roster.length === 0 && <div className="font-mono text-xs flex items-center gap-2" style={{ color: C.muted }}><Loader2 size={12} className="animate-spin" /> Loading players…</div>}
 
@@ -1045,7 +1071,7 @@ export default function PoultryBowl() {
                 const rg = R.games[g.id];
                 return (
                   <div key={g.id} className="flex flex-wrap justify-between items-center rounded px-3 py-2 font-mono text-xs" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                    <div><b>{g.away} @ {g.home}</b> <span style={{ color: C.muted }}>· {fmtKick(g.kickoff)} · {fmtSpread(g)}</span></div>
+                    <div><b>{g.away} @ {g.home}</b> <span style={{ color: C.muted }}>· {fmtKick(g.kickoff)} · {fmtSpread(g, cfg.spreadsLive)}</span></div>
                     <div style={{ color: gameFinal(rg) ? C.green : C.muted }}>
                       {rg && rg.homeScore != null ? `${g.away} ${rg.awayScore} – ${g.home} ${rg.homeScore}${gameFinal(rg) ? ' · Final' : gameHasStarted(g) ? ' · Live' : ''}` : gameHasStarted(g) ? 'In progress' : 'Upcoming'}
                       {rg && rg.homeScore != null && <span style={{ color: C.muted }}> · longest FG {rg.longestFG ?? 0} · {rg.fgMade ?? 0} FG</span>}
@@ -1103,6 +1129,14 @@ export default function PoultryBowl() {
               <div className="px-4 pb-4 space-y-5 font-mono text-xs">
                 <div className="space-y-2">
                   <label className="flex items-center gap-2" style={{ color: C.cream }}>
+                    <input type="checkbox" checked={!!cfg.spreadsLive} onChange={e => setConfig({ spreadsLive: e.target.checked })} />
+                    <b>Spreads are final — show them &amp; allow spread picks</b> <span style={{ color: C.muted }}>(off = everyone sees TBD)</span>
+                  </label>
+                  <label className="flex items-center gap-2" style={{ color: C.cream }}>
+                    <input type="checkbox" checked={!!cfg.playersOpen} onChange={e => setConfig({ playersOpen: e.target.checked })} />
+                    <b>Player pools are open</b> <span style={{ color: C.muted }}>(Big Four, TD scorer, fantasy lineup, Big Beefy Bonus — off = everyone but you sees TBD)</span>
+                  </label>
+                  <label className="flex items-center gap-2" style={{ color: C.cream }}>
                     <input type="checkbox" checked={!!data.showTeaser || !!data.open} disabled={!!data.open} onChange={e => persist({ ...data, showTeaser: e.target.checked })} />
                     <b>Show the "coming soon" turkey on the landing page</b> <span style={{ color: C.muted }}>(it's still locked — people can't get in)</span>
                   </label>
@@ -1117,7 +1151,8 @@ export default function PoultryBowl() {
                   <div className="flex flex-wrap items-end gap-2 mb-2">
                     <div><Label>ESPN dates from</Label><input value={espnRange.start} onChange={e => setEspnRange(r => ({ ...r, start: e.target.value }))} style={{ ...inputStyle, width: 110 }} /></div>
                     <div><Label>to</Label><input value={espnRange.end} onChange={e => setEspnRange(r => ({ ...r, end: e.target.value }))} style={{ ...inputStyle, width: 110 }} /></div>
-                    <button onClick={loadFromEspn} className="font-head flex items-center gap-1" style={smallBtn(C.gold)}><RefreshCw size={12} /> Load games from ESPN</button>
+                    <button onClick={() => loadFromEspn(false)} className="font-head flex items-center gap-1" style={smallBtn(C.gold)}><RefreshCw size={12} /> Load games from ESPN</button>
+                    <button onClick={() => loadFromEspn(true)} className="font-head flex items-center gap-1" style={smallBtn(C.orange, '#fff')}><RefreshCw size={12} /> Refresh spreads from ESPN</button>
                     <button onClick={addBlankGame} className="font-head" style={smallBtn(C.panel2, C.cream)}>+ Add game by hand</button>
                   </div>
                   {espnMsg && <div className="mb-2" style={{ color: C.muted }}>{espnMsg}</div>}

@@ -2249,6 +2249,16 @@ export default function LineupPool() {
               </button>
               {showSeasonLeaderboard && (
                 <div className="space-y-1.5">
+                  <style>{`
+                    @keyframes me-shimmer { from { background-position: 250% 0; } to { background-position: -50% 0; } }
+                    @keyframes me-pulse {
+                      0%, 100% { box-shadow: 0 0 8px rgba(255,200,60,0.45), 0 0 0 1px #FFD54A; }
+                      50% { box-shadow: 0 0 22px rgba(255,200,60,0.95), 0 0 0 2px #FFD54A; }
+                    }
+                    .me-row { position: relative; z-index: 1; transform: scale(1.03); background: linear-gradient(90deg, #3A2A08, #4F3810 50%, #3A2A08) !important; border: 1px solid #FFD54A !important; animation: me-pulse 2s ease-in-out infinite; }
+                    .me-name { font-weight: 800; background: linear-gradient(100deg, #FFD54A, #FFF6C2 30%, #FF9F1A 50%, #FFF6C2 70%, #FFD54A); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: me-shimmer 2.6s linear infinite; filter: drop-shadow(0 0 5px rgba(255,190,40,0.85)); }
+                    .me-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #FFD54A; margin-left: 6px; -webkit-text-fill-color: #FFD54A; }
+                  `}</style>
                   <div className="font-mono text-[10px] mb-1.5" style={{ color: '#5C6862' }}>
                     Top 4 of {standingsRows.length} entrants win season-long payouts. Tap a name to see their picks this season.
                   </div>
@@ -2261,7 +2271,7 @@ export default function LineupPool() {
                     return (
                       <div
                         key={p.id}
-                        className="rounded px-3 py-2"
+                        className={`rounded px-3 py-2${p.id === myId ? ' me-row' : ''}`}
                         style={{ background: '#1C2823', border: i < 4 ? '1px solid #E8A23D88' : '1px solid #2A3830' }}
                       >
                         <button
@@ -2269,7 +2279,7 @@ export default function LineupPool() {
                           className="w-full flex items-center gap-3"
                         >
                           <div className="font-mono text-xs w-6" style={{ color: i < 4 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
-                          <div className="font-head text-sm flex-1 text-left">{p.name}</div>
+                          <div className="font-head text-sm flex-1 text-left"><span className={p.id === myId ? 'me-name' : ''}>{p.name}</span>{p.id === myId && <span className="me-tag">← you</span>}</div>
                           <div className="font-mono text-sm" style={{ color: '#E8A23D' }}>{p.total.toFixed(1)} pts</div>
                           <ChevronDown size={14} color="#5C6862" style={{ transform: historyOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
                         </button>

@@ -623,9 +623,25 @@ export default function PoultryBowl() {
   const loadFromEspn = async (refreshSpreads = false) => {
     setEspnMsg('Loading from ESPN…');
     try {
-      const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=100&dates=${espnRange.start}-${espnRange.end}`);
-      if (!r.ok) throw new Error('ESPN returned ' + r.status);
-      const json = await r.json();
+      const base = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+      const getJson = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('ESPN returned ' + r.status); return r.json(); };
+      let events = [];
+      try {
+        events = (await getJson(`${base}?limit=1000&dates=${espnRange.start}-${espnRange.end}`)).events || [];
+      } catch (rangeErr) {
+        // ESPN sometimes rejects a multi-day range — fall back to asking for one day at a time.
+        const days = [];
+        const d0 = new Date(Date.UTC(+espnRange.start.slice(0, 4), +espnRange.start.slice(4, 6) - 1, +espnRange.start.slice(6, 8)));
+        const d1 = new Date(Date.UTC(+espnRange.end.slice(0, 4), +espnRange.end.slice(4, 6) - 1, +espnRange.end.slice(6, 8)));
+        for (let d = d0; d <= d1 && days.length < 10; d = new Date(d.getTime() + 86400000)) {
+          days.push(`${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`);
+        }
+        const perDay = await Promise.all(days.map(day => getJson(`${base}?limit=100&dates=${day}`).then(j => j.events || []).catch(() => null)));
+        if (perDay.length === 0 || perDay.every(x => x === null)) throw rangeErr;
+        const seen = new Set();
+        events = perDay.flat().filter(ev => ev && !seen.has(ev.id) && seen.add(ev.id));
+      }
+      const json = { events };
       const found = (json.events || []).map(ev => {
         const comp = ev.competitions?.[0];
         const home = fixAbbr(comp?.competitors?.find(c => c.homeAway === 'home')?.team?.abbreviation);

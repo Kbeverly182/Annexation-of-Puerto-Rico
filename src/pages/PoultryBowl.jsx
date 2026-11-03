@@ -50,7 +50,7 @@ const RULES = [
   { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', 'The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. (A QB who runs one in himself does count.)'] },
   { heading: 'Fantasy lineup — 15 / 10 / 5', body: ['Build a lineup from players in the 5 games: 1 QB, 2 RB, 2 WR, 1 TE, 1 K, 1 D/ST. Every slot must be filled or you are not eligible.', 'Scored with the same full-PPR scoring as Where\'s the Beef (including the D/ST rules).', 'Highest lineup total earns 15 pts, 2nd earns 10, 3rd earns 5. Ties split the points for the spots they cover.'] },
   { heading: 'Tiebreakers', body: ['1) Closest to how many points the Cowboys score.', '2) Closest to the total number of field goals made across all 5 games.'] },
-  { heading: 'Jackpot — no points, 10% of the pot', body: ['Pick who will score the longest touchdown of the 5 games (defensive TDs and punt/kickoff return TDs do not count). If you are right, you automatically win 10% of the total pot.', 'If more than one person is right, the tiebreakers above decide. If nobody is right, that 10% goes back into the main prize pool.'] },
+  { heading: 'Big Beefy Bonus — no points, 10% of the pot', body: ['Pick who will score the longest touchdown of the 5 games (defensive TDs and punt/kickoff return TDs do not count). If you are right, you automatically win the Big Beefy Bonus: 10% of the total pot.', 'If more than one person is right, the tiebreakers above decide. If nobody is right, that 10% goes back into the main prize pool.'] },
   { heading: 'Locking', body: 'Everything locks at the kickoff of the first game. After that, every entry\'s picks are revealed to everyone.' },
   { heading: 'Payouts', body: 'Entry is 20 units. Payout structure is posted on this page once entries close.' },
 ];
@@ -217,7 +217,7 @@ function pickProgress(pk, cfg) {
   LINEUP_SLOTS.forEach(s => chk(!!pk?.lineup?.[s.key]?.id, `Lineup ${s.label}`));
   chk(pk?.tb1 !== undefined && pk?.tb1 !== '', 'Tiebreaker 1 (Cowboys points)');
   chk(pk?.tb2 !== undefined && pk?.tb2 !== '', 'Tiebreaker 2 (total FGs)');
-  chk(!!pk?.jackpot?.name, 'Jackpot pick');
+  chk(!!pk?.jackpot?.name, 'Big Beefy Bonus pick');
   return { done, total, missing };
 }
 
@@ -318,6 +318,90 @@ function Segmented({ value, options, onChange, disabled }) {
   );
 }
 
+
+// A turkey leg (drumstick) used as the section selector.
+function Drumstick({ active, done }) {
+  return (
+    <svg width="54" height="54" viewBox="0 0 64 64" style={{ filter: active ? 'drop-shadow(0 0 6px #FFB300)' : 'none', transition: 'transform 0.15s', transform: active ? 'scale(1.12)' : 'none' }}>
+      <g transform="rotate(-38 32 32)">
+        <rect x="29" y="40" width="6" height="17" rx="2" fill="#F5E9D3" stroke="#8A6A45" strokeWidth="1.5" />
+        <circle cx="27.5" cy="58" r="4.2" fill="#F5E9D3" stroke="#8A6A45" strokeWidth="1.5" />
+        <circle cx="36.5" cy="58" r="4.2" fill="#F5E9D3" stroke="#8A6A45" strokeWidth="1.5" />
+        <path d="M32 4 C48 4 56 17 52 30 C49 40 41 43 37 49 L27 49 C23 43 15 40 12 30 C8 17 16 4 32 4 Z" fill={done ? '#3D9B5C' : '#C26B1D'} stroke="#6B3410" strokeWidth="2" />
+        <path d="M22 12 C26 8 34 8 38 11" stroke="#FFD9A0" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.8" />
+        <ellipse cx="25" cy="24" rx="4" ry="6" fill="#FFB866" opacity="0.35" />
+      </g>
+    </svg>
+  );
+}
+
+
+// The Big Beefy Bonus icon: a thick slab of beef with a fork stuck in it.
+function JackpotIcon({ active }) {
+  return (
+    <svg width="58" height="54" viewBox="0 0 68 64" style={{ filter: active ? 'drop-shadow(0 0 7px #FF8A5C)' : 'drop-shadow(0 0 3px rgba(255,120,80,0.45))', transition: 'transform 0.15s', transform: active ? 'scale(1.12)' : 'none' }}>
+      {/* slab: side/thickness first, then the top face */}
+      <path d="M6 40 C6 52 14 58 34 58 C54 58 62 52 62 40 L62 34 L6 34 Z" fill="#7A1F1A" stroke="#4A0F0C" strokeWidth="2" />
+      <path d="M8 30 C6 20 16 12 34 12 C52 12 62 20 60 30 C62 38 52 44 34 44 C16 44 6 38 8 30 Z" fill="#C4362B" stroke="#4A0F0C" strokeWidth="2" />
+      {/* fat cap along the top edge */}
+      <path d="M12 21 C18 15 28 14 34 14 C42 14 52 16 56 22" stroke="#F7E6D0" strokeWidth="4" strokeLinecap="round" fill="none" />
+      {/* marbling */}
+      <g stroke="#F4B9A8" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.9">
+        <path d="M16 30 C20 27 24 31 28 28" />
+        <path d="M34 35 C39 32 43 36 49 32" />
+        <path d="M20 38 C24 36 27 39 32 37" />
+        <path d="M40 25 C44 23 47 26 52 24" />
+      </g>
+      {/* the fork, handle up, tines buried in the steak */}
+      <g stroke="#3B3B3B" strokeWidth="1.1" strokeLinejoin="round" fill="#EDEDF3">
+        <rect x="32" y="1" width="4.4" height="21" rx="2.2" />
+        <path d="M27 21 L41.5 21 C41.5 25 39.5 27 36.5 27.5 L32 27.5 C29 27 27 25 27 21 Z" />
+        <rect x="27.6" y="27" width="2.6" height="13" rx="1.3" />
+        <rect x="32.9" y="27" width="2.6" height="14" rx="1.3" />
+        <rect x="38.2" y="27" width="2.6" height="13" rx="1.3" />
+      </g>
+    </svg>
+  );
+}
+
+// A numeric pick that only commits when you press Enter or tap away (so the "change your
+// pick?" confirmation doesn't fire on every keystroke).
+function NumberPick({ value, onCommit, disabled, placeholder, tick }) {
+  const [draft, setDraft] = useState(value ?? '');
+  useEffect(() => { setDraft(value ?? ''); }, [value, tick]);
+  const commit = () => {
+    const v = draft === '' ? '' : Number(draft);
+    if (String(v) === String(value ?? '')) return;
+    onCommit(v);
+  };
+  return (
+    <input
+      type="number" inputMode="numeric" disabled={disabled} placeholder={placeholder}
+      value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      style={{ ...inputStyle, opacity: disabled ? 0.6 : 1 }}
+    />
+  );
+}
+
+const has = (v) => v !== undefined && v !== null && v !== '';
+function legCounts(pk, games) {
+  const n = games.length;
+  const g = (fn) => games.filter(x => fn(pk?.games?.[x.id] || {})).length;
+  return [
+    { key: 'big4', label: 'The Big Four', done: LEADERS.filter(l => pk?.leaders?.[l.key]?.name).length, total: 4 },
+    { key: 'win', label: 'Winners', done: g(p => p.win && p.conf), total: n },
+    { key: 'ats', label: 'Spread', done: g(p => p.ats), total: n },
+    { key: 'tot', label: 'Total Pts', done: g(p => p.tot), total: n },
+    { key: 'fg', label: 'FG Over/Under', done: g(p => p.fg), total: n },
+    { key: 'exact', label: 'Exact FG', done: g(p => has(p.fgExact)), total: n },
+    { key: 'td', label: 'TD Scorer', done: g(p => p.td?.name), total: n },
+    { key: 'lineup', label: 'Fantasy Lineup', done: LINEUP_SLOTS.filter(s => pk?.lineup?.[s.key]?.id).length, total: LINEUP_SLOTS.length },
+    { key: 'tb', label: 'Tiebreakers', done: (has(pk?.tb1) ? 1 : 0) + (has(pk?.tb2) ? 1 : 0), total: 2 },
+    { key: 'jackpot', label: 'Big Beefy Bonus', done: pk?.jackpot?.name ? 1 : 0, total: 1 },
+  ];
+}
+
 // ---------------------------------------------------------------- page
 export default function PoultryBowl() {
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
@@ -341,6 +425,9 @@ export default function PoultryBowl() {
   const [espnRange, setEspnRange] = useState({ start: '20261125', end: '20261127' });
   const [espnMsg, setEspnMsg] = useState('');
   const [manualDraft, setManualDraft] = useState(null);
+  const [activeLeg, setActiveLeg] = useState('big4');
+  const [pendingChange, setPendingChange] = useState(null); // { apply, oldLabel, newLabel, who }
+  const [cancelTick, setCancelTick] = useState(0);
   const saveTimer = useRef(null);
   const skipNextPoll = useRef(false);
   const savedTimer = useRef(null);
@@ -482,6 +569,19 @@ export default function PoultryBowl() {
     return { ...cur, games: gm };
   });
   const setSlot = (key, val) => setMyPicks(cur => ({ ...cur, lineup: { ...(cur.lineup || {}), [key]: val } }));
+
+  // Same rule as the other pools: a first-time pick saves straight away, but replacing a pick
+  // that's already been made asks "Change X to Y?" first.
+  const lbl = (v) => (v && typeof v === 'object' ? v.name : v);
+  const guard = (oldVal, newVal, apply) => {
+    if (!canEdit) return;
+    const o = lbl(oldVal); const nw = lbl(newVal);
+    if (!has(o)) { apply(); return; }
+    if (String(o) === String(nw ?? '')) return;
+    setPendingChange({ apply, oldLabel: String(o), newLabel: has(nw) ? String(nw) : '(nothing)', who: actingPerson?.name });
+  };
+  const confirmPending = () => { if (pendingChange) { pendingChange.apply(); setPendingChange(null); } };
+  const cancelPending = () => { setPendingChange(null); setCancelTick(t => t + 1); };
 
   const chooseMe = (id) => { setMyId(id); try { localStorage.setItem(IDENTITY_KEY, id); } catch (e) { /* ignore */ } };
   const forgetMe = () => { setMyId(null); setActAsId(null); try { localStorage.removeItem(IDENTITY_KEY); } catch (e) { /* ignore */ } };
@@ -663,7 +763,7 @@ export default function PoultryBowl() {
 
         {/* Pot */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          {[['Entries', `${data.participants.length}`], ['Pot (paid)', `${pot} units`], [`Jackpot ${JACKPOT_PCT}%`, `${jackpotAmt} units`]].map(([k, v]) => (
+          {[['Entries', `${data.participants.length}`], ['Pot (paid)', `${pot} units`], [`Beefy Bonus ${JACKPOT_PCT}%`, `${jackpotAmt} units`]].map(([k, v]) => (
             <div key={k} className="rounded py-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
               <div className="font-mono text-[10px] uppercase" style={{ color: C.muted }}>{k}</div>
               <div className="font-head text-lg" style={{ color: C.gold }}>{v}</div>
@@ -678,7 +778,7 @@ export default function PoultryBowl() {
             <div className="font-head uppercase" style={{ color: C.gold }}>🏆 Final</div>
             <div className="font-mono text-xs mt-1" style={{ color: C.cream }}>
               Leader: <b>{standings.rows[0]?.p.name}</b> with {standings.rows[0]?.total} pts.
-              {R.longestTd?.name && <> Longest TD: <b>{R.longestTd.name}</b>{R.longestTd.yards ? ` (${R.longestTd.yards} yds)` : ''} — {standings.jackpotWinner ? <>jackpot winner <b>{standings.jackpotWinner.p.name}</b> ({jackpotAmt} units)!</> : 'nobody picked him; the jackpot rolls into the main pot.'}</>}
+              {R.longestTd?.name && <> Longest TD: <b>{R.longestTd.name}</b>{R.longestTd.yards ? ` (${R.longestTd.yards} yds)` : ''} — {standings.jackpotWinner ? <>Big Beefy Bonus winner <b>{standings.jackpotWinner.p.name}</b> ({jackpotAmt} units)!</> : 'nobody picked him; the Bonus rolls into the main pot.'}</>}
             </div>
           </div>
         )}
@@ -701,7 +801,7 @@ export default function PoultryBowl() {
           const others = Object.entries(tally).filter(([k]) => k !== leaderKey).sort((a, b) => b[1].who.length - a[1].who.length);
           return (
             <div className="rounded px-4 py-3" style={{ background: '#3A2A0A', border: `2px solid ${C.gold}` }}>
-              <div className="font-head uppercase" style={{ color: C.gold }}>🏆 Jackpot watch — longest TD ({jackpotAmt} units)</div>
+              <div className="font-head uppercase" style={{ color: C.gold }}>🥩 Big Beefy Bonus watch — longest TD ({jackpotAmt} units)</div>
               {lt?.name ? (
                 <div className="mt-1">
                   <div className="font-head text-lg">{lt.name}{lt.team ? ` (${lt.team})` : ''} <span style={{ color: C.gold }}>{lt.yards ? `· ${lt.yards} yds` : ''}</span></div>
@@ -711,7 +811,7 @@ export default function PoultryBowl() {
                   <div className="font-mono text-xs mt-2" style={{ color: C.cream }}>
                     {!locked ? '🔒 Who picked him is revealed at kickoff.' : leaderPickers.length
                       ? <>Picked by: <b style={{ color: C.gold }}>{leaderPickers.join(', ')}</b></>
-                      : 'Nobody picked him — if he holds, the jackpot rolls back into the main pot.'}
+                      : 'Nobody picked him — if he holds, the Bonus rolls back into the main pot.'}
                   </div>
                 </div>
               ) : (
@@ -719,7 +819,7 @@ export default function PoultryBowl() {
               )}
               {locked && others.length > 0 && (
                 <details className="mt-2 font-mono text-[11px]" style={{ color: C.muted }}>
-                  <summary style={{ cursor: 'pointer', color: C.gold }}>Everyone's jackpot picks</summary>
+                  <summary style={{ cursor: 'pointer', color: C.gold }}>Everyone's Big Beefy Bonus picks</summary>
                   <ul className="mt-1 space-y-0.5">
                     {others.map(([k, v]) => <li key={k}><b style={{ color: C.cream }}>{v.name}</b> — {v.who.join(', ')}</li>)}
                   </ul>
@@ -780,118 +880,162 @@ export default function PoultryBowl() {
 
         {games.length === 0 && <div className="font-mono text-sm text-center py-6" style={{ color: C.muted }}>The games haven't been set up yet — check back soon.</div>}
 
-        {/* Picks editor */}
-        {actingId && games.length > 0 && (
-          <div className="space-y-4">
-            {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.</div>}
-            {rosterLoading && roster.length === 0 && <div className="font-mono text-xs flex items-center gap-2" style={{ color: C.muted }}><Loader2 size={12} className="animate-spin" /> Loading players…</div>}
-
-            <Section title="The Big Four — 20 pts each" sub="Who leads ALL 5 games?">
-              <div className="space-y-2">
-                {LEADERS.map(l => (
-                  <div key={l.key}>
-                    <div className="font-mono text-[11px] mb-1" style={{ color: C.muted }}>{l.label}</div>
-                    <PlayerSelect value={myPicks.leaders?.[l.key]} onChange={v => setLeader(l.key, v)} options={roster.filter(p => p.position === l.pos)} disabled={!canEdit} />
-                  </div>
-                ))}
-              </div>
-            </Section>
-
-            <Section title="Game by game" sub="Winner + confidence · spread · total · field goals · TD scorer">
-              <div className="space-y-4">
-                {games.map(g => {
+        {/* Picks editor — turkey legs pick the section, each shows how many picks are in */}
+        {actingId && games.length > 0 && (() => {
+          const legs = legCounts(myPicks, games);
+          const leg = legs.find(l => l.key === activeLeg) || legs[0];
+          const needGames = (children) => <div className="space-y-3">{children}</div>;
+          const gameHead = (g, extra) => (
+            <div className="flex flex-wrap justify-between items-baseline gap-1 mb-2">
+              <div className="font-head text-base">{g.away} @ {g.home}</div>
+              <div className="font-mono text-[11px]" style={{ color: C.muted }}>{fmtKick(g.kickoff)}{extra ? ` · ${extra}` : ''}</div>
+            </div>
+          );
+          const card = (g, extra, body) => (
+            <div key={g.id} className="rounded p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>{gameHead(g, extra)}{body}</div>
+          );
+          const usedConf = (gid) => games.map(x => x.id !== gid ? Number(myPicks.games?.[x.id]?.conf) : 0).filter(Boolean);
+          const panels = {
+            big4: () => (
+              <Section title="The Big Four — 20 pts each" sub="Who leads ALL the games in each category?">
+                <div className="space-y-2">
+                  {LEADERS.map(l => (
+                    <div key={l.key}>
+                      <Label>{l.label}</Label>
+                      <PlayerSelect value={myPicks.leaders?.[l.key]} onChange={v => guard(myPicks.leaders?.[l.key], v, () => setLeader(l.key, v))} options={roster.filter(p => p.position === l.pos)} disabled={!canEdit} />
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            ),
+            win: () => (
+              <Section title="Winners + confidence" sub="Pick the winner and rank your confidence — 5 pts × the number if you're right. Use each number once.">
+                {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
-                  const usedConf = games.map(x => Number(myPicks.games?.[x.id]?.conf)).filter(Boolean);
-                  return (
-                    <div key={g.id} className="rounded p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                      <div className="flex justify-between items-baseline mb-2">
-                        <div className="font-head text-base">{g.away} @ {g.home}</div>
-                        <div className="font-mono text-[11px]" style={{ color: C.muted }}>{fmtKick(g.kickoff)}</div>
-                      </div>
-                      <div className="font-mono text-[11px] mb-2" style={{ color: C.muted }}>Spread {fmtSpread(g)} · Total {cfg.totalLine} · FG line {cfg.fgLine}</div>
-
-                      <Label>Winner (straight up) + confidence</Label>
-                      <div className="flex gap-2 items-center">
-                        <div style={{ flex: 1 }}><Segmented disabled={!canEdit} value={gp.win} onChange={v => setGame(g.id, { win: v })} options={[{ value: g.away, label: g.away }, { value: g.home, label: g.home }]} /></div>
-                        <select disabled={!canEdit} value={gp.conf || ''} onChange={e => setConf(g.id, Number(e.target.value) || 0)} style={{ ...inputStyle, width: 90 }}>
-                          <option value="">Conf…</option>
-                          {Array.from({ length: games.length }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}{usedConf.includes(n) && n !== Number(gp.conf) ? ' (swap)' : ''}</option>)}
-                        </select>
-                      </div>
-
-                      <Label>Against the spread ({fmtSpread(g)})</Label>
-                      <Segmented disabled={!canEdit} value={gp.ats} onChange={v => setGame(g.id, { ats: v })} options={[{ value: g.away, label: `${g.away} ${Number(g.spread) > 0 ? '-' + g.spread : Number(g.spread) < 0 ? '+' + Math.abs(g.spread) : 'PK'}` }, { value: g.home, label: `${g.home} ${Number(g.spread) < 0 ? g.spread : Number(g.spread) > 0 ? '+' + g.spread : 'PK'}` }]} />
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Total points {cfg.totalLine}</Label>
-                          <Segmented disabled={!canEdit} value={gp.tot} onChange={v => setGame(g.id, { tot: v })} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />
-                        </div>
-                        <div>
-                          <Label>Longest FG {cfg.fgLine}</Label>
-                          <Segmented disabled={!canEdit} value={gp.fg} onChange={v => setGame(g.id, { fg: v })} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Exact longest FG (yards)</Label>
-                          <input disabled={!canEdit} type="number" inputMode="numeric" value={gp.fgExact ?? ''} onChange={e => setGame(g.id, { fgExact: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} placeholder="e.g. 47" />
-                        </div>
-                        <div>
-                          <Label>TD scorer (12 pts)</Label>
-                          <PlayerSelect value={gp.td} onChange={v => setGame(g.id, { td: v })} options={roster.filter(p => (p.team === g.home || p.team === g.away) && p.position !== 'K')} disabled={!canEdit} />
-                        </div>
-                      </div>
+                  const used = usedConf(g.id);
+                  return card(g, fmtSpread(g), (
+                    <div className="flex gap-2 items-center">
+                      <div style={{ flex: 1 }}><Segmented disabled={!canEdit} value={gp.win} onChange={v => guard(gp.win, v, () => setGame(g.id, { win: v }))} options={[{ value: g.away, label: g.away }, { value: g.home, label: g.home }]} /></div>
+                      <select disabled={!canEdit} value={gp.conf || ''} onChange={e => { const v = Number(e.target.value) || 0; guard(gp.conf, v || '', () => setConf(g.id, v)); }} style={{ ...inputStyle, width: 100 }}>
+                        <option value="">Conf…</option>
+                        {Array.from({ length: games.length }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}{used.includes(n) ? ' (swap)' : ''}</option>)}
+                      </select>
                     </div>
-                  );
-                })}
-              </div>
-            </Section>
-
-            <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {LINEUP_SLOTS.map(s => {
-                  const chosen = LINEUP_SLOTS.map(x => myPicks.lineup?.[x.key]?.id).filter(Boolean);
-                  const opts = s.pos === 'DST'
-                    ? gameTeams.map(t => ({ id: t, name: `${TEAM_MAP[t] || t} D/ST`, team: t, position: 'D/ST' }))
-                    : roster.filter(p => p.position === s.pos);
-                  return (
-                    <div key={s.key}>
-                      <Label>{s.label}</Label>
-                      <PlayerSelect value={myPicks.lineup?.[s.key]} onChange={v => setSlot(s.key, v)} options={opts} disabled={!canEdit} exclude={chosen} />
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-
-            <Section title="Tiebreakers + Jackpot" sub="">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>1) Cowboys total points</Label>
-                  <input disabled={!canEdit} type="number" inputMode="numeric" value={myPicks.tb1 ?? ''} onChange={e => setTop({ tb1: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} />
+                  ));
+                }))}
+              </Section>
+            ),
+            ats: () => (
+              <Section title="Against the spread — 5 pts each" sub="Pick who covers.">
+                {needGames(games.map(g => {
+                  const gp = myPicks.games?.[g.id] || {};
+                  const sp = Number(g.spread);
+                  return card(g, `Spread ${fmtSpread(g)}`, (
+                    <Segmented disabled={!canEdit} value={gp.ats} onChange={v => guard(gp.ats, v, () => setGame(g.id, { ats: v }))} options={[
+                      { value: g.away, label: `${g.away} ${sp > 0 ? '-' + g.spread : sp < 0 ? '+' + Math.abs(g.spread) : 'PK'}` },
+                      { value: g.home, label: `${g.home} ${sp < 0 ? g.spread : sp > 0 ? '+' + g.spread : 'PK'}` },
+                    ]} />
+                  ));
+                }))}
+              </Section>
+            ),
+            tot: () => (
+              <Section title={`Total points over/under ${cfg.totalLine} — 5 pts each`} sub="Combined score of both teams.">
+                {needGames(games.map(g => {
+                  const gp = myPicks.games?.[g.id] || {};
+                  return card(g, `Line ${cfg.totalLine}`, <Segmented disabled={!canEdit} value={gp.tot} onChange={v => guard(gp.tot, v, () => setGame(g.id, { tot: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
+                }))}
+              </Section>
+            ),
+            fg: () => (
+              <Section title={`Longest field goal over/under ${cfg.fgLine} — 5 pts each`} sub="The longest made field goal in each game.">
+                {needGames(games.map(g => {
+                  const gp = myPicks.games?.[g.id] || {};
+                  return card(g, `Line ${cfg.fgLine}`, <Segmented disabled={!canEdit} value={gp.fg} onChange={v => guard(gp.fg, v, () => setGame(g.id, { fg: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
+                }))}
+              </Section>
+            ),
+            exact: () => (
+              <Section title="Exact longest field goal" sub="5 pts for exact, minus 1 for every yard off (never below 0). Press Enter or tap away to save.">
+                {needGames(games.map(g => {
+                  const gp = myPicks.games?.[g.id] || {};
+                  return card(g, '', <NumberPick tick={cancelTick} disabled={!canEdit} placeholder="yards, e.g. 47" value={gp.fgExact} onCommit={v => guard(gp.fgExact, v, () => setGame(g.id, { fgExact: v }))} />);
+                }))}
+              </Section>
+            ),
+            td: () => (
+              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return — a passing TD counts for the catcher, not the QB).">
+                {needGames(games.map(g => {
+                  const gp = myPicks.games?.[g.id] || {};
+                  return card(g, '', <PlayerSelect value={gp.td} onChange={v => guard(gp.td, v, () => setGame(g.id, { td: v }))} options={roster.filter(p => (p.team === g.home || p.team === g.away) && p.position !== 'K')} disabled={!canEdit} />);
+                }))}
+              </Section>
+            ),
+            lineup: () => (
+              <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef. Fill all 8 slots.">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {LINEUP_SLOTS.map(s => {
+                    const chosen = LINEUP_SLOTS.map(x => myPicks.lineup?.[x.key]?.id).filter(Boolean);
+                    const opts = s.pos === 'DST'
+                      ? gameTeams.map(t => ({ id: t, name: `${TEAM_MAP[t] || t} D/ST`, team: t, position: 'D/ST' }))
+                      : roster.filter(p => p.position === s.pos);
+                    return (
+                      <div key={s.key}>
+                        <Label>{s.label}</Label>
+                        <PlayerSelect value={myPicks.lineup?.[s.key]} onChange={v => guard(myPicks.lineup?.[s.key], v, () => setSlot(s.key, v))} options={opts} disabled={!canEdit} exclude={chosen} />
+                      </div>
+                    );
+                  })}
                 </div>
-                <div>
-                  <Label>2) Total FGs made, all 5 games</Label>
-                  <input disabled={!canEdit} type="number" inputMode="numeric" value={myPicks.tb2 ?? ''} onChange={e => setTop({ tb2: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} />
+              </Section>
+            ),
+            tb: () => (
+              <Section title="Tiebreakers" sub="Closest wins. Press Enter or tap away to save.">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div><Label>1) How many points will the Cowboys score?</Label><NumberPick tick={cancelTick} disabled={!canEdit} value={myPicks.tb1} onCommit={v => guard(myPicks.tb1, v, () => setTop({ tb1: v }))} /></div>
+                  <div><Label>2) Total field goals made across all games</Label><NumberPick tick={cancelTick} disabled={!canEdit} value={myPicks.tb2} onCommit={v => guard(myPicks.tb2, v, () => setTop({ tb2: v }))} /></div>
+                </div>
+              </Section>
+            ),
+            jackpot: () => (
+              <div className="rounded p-4" style={{ background: '#3A2A0A', border: `2px solid ${C.gold}` }}>
+                <div className="font-head uppercase text-base" style={{ color: C.gold }}>🥩 The Big Beefy Bonus — {JACKPOT_PCT}% of the pot</div>
+                <div className="font-mono text-[11px] mb-3" style={{ color: C.muted }}>Who scores the longest TD of the 5 games? (Defensive TDs and punt/kickoff return TDs don't count.) No points — just the Big Beefy Bonus.</div>
+                <PlayerSelect value={myPicks.jackpot} onChange={v => guard(myPicks.jackpot, v, () => setTop({ jackpot: v }))} options={roster.filter(p => p.position !== 'K')} disabled={!canEdit} />
+              </div>
+            ),
+          };
+          const allDone = legs.every(l => l.done === l.total);
+          return (
+            <div className="space-y-4">
+              {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.</div>}
+              {rosterLoading && roster.length === 0 && <div className="font-mono text-xs flex items-center gap-2" style={{ color: C.muted }}><Loader2 size={12} className="animate-spin" /> Loading players…</div>}
+
+              <div className="rounded p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="font-head uppercase text-sm text-center mb-2" style={{ color: C.gold }}>
+                  {allDone ? '🦃 All picks are in — you\'re set!' : 'Tap a turkey leg (or the beef) to make your picks'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: 6 }}>
+                  {legs.map(l => {
+                    const done = l.total > 0 && l.done === l.total;
+                    const active = l.key === leg.key;
+                    return (
+                      <button key={l.key} onClick={() => setActiveLeg(l.key)} style={{ background: active ? '#4A2E12' : 'transparent', border: `2px solid ${active ? C.gold : 'transparent'}`, borderRadius: 10, padding: '6px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                        {l.key === 'jackpot' ? <JackpotIcon active={active} /> : <Drumstick active={active} done={done} />}
+                        <div className="font-head" style={{ fontSize: 12, lineHeight: 1.1, color: C.cream, marginTop: 2 }}>{l.label}</div>
+                        <div className="font-mono" style={{ fontSize: 13, marginTop: 2, color: done ? C.green : C.gold, fontWeight: 600 }}>
+                          {done ? '✓' : `${l.done}/${l.total}`}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="mt-3 rounded p-3" style={{ background: '#3A2A0A', border: `1px solid ${C.gold}` }}>
-                <div className="font-head uppercase text-sm" style={{ color: C.gold }}>🏆 Jackpot question — {JACKPOT_PCT}% of the pot</div>
-                <div className="font-mono text-[11px] mb-2" style={{ color: C.muted }}>Who scores the longest TD of the 5 games? (Defensive TDs and punt/kickoff return TDs don't count.)</div>
-                <PlayerSelect value={myPicks.jackpot} onChange={v => setTop({ jackpot: v })} options={roster.filter(p => p.position !== 'K')} disabled={!canEdit} />
-              </div>
-            </Section>
 
-            {progress.missing.length > 0 && !locked && (
-              <details className="font-mono text-xs rounded px-3 py-2" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.muted }}>
-                <summary style={{ cursor: 'pointer', color: C.gold }}>{progress.missing.length} pick{progress.missing.length === 1 ? '' : 's'} still missing</summary>
-                <ul className="mt-2 list-disc pl-4 space-y-0.5">{progress.missing.map((m, i) => <li key={i}>{m}</li>)}</ul>
-              </details>
-            )}
-          </div>
-        )}
+              {panels[leg.key]()}
+            </div>
+          );
+        })()}
 
         {/* Games + results board */}
         {games.length > 0 && (
@@ -999,7 +1143,7 @@ export default function PoultryBowl() {
                     <div><Label>Lock time override</Label><input type="datetime-local" value={toLocalInput(cfg.lockAt)} onChange={e => setConfig({ lockAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={inputStyle} /></div>
                   </div>
                   <div className="mt-2" style={{ color: C.muted }}>Default lock is the first kickoff. Lines changed after people have picked still score against the new numbers — set them before opening.</div>
-                  <div className="mt-2"><Label>Payout note shown to everyone (optional)</Label><textarea rows={3} value={cfg.payoutNote || ''} onChange={e => setConfig({ payoutNote: e.target.value })} style={inputStyle} placeholder="e.g. 1st 50% · 2nd 25% · 3rd 15% · Jackpot 10%" /></div>
+                  <div className="mt-2"><Label>Payout note shown to everyone (optional)</Label><textarea rows={3} value={cfg.payoutNote || ''} onChange={e => setConfig({ payoutNote: e.target.value })} style={inputStyle} placeholder="e.g. 1st 50% · 2nd 25% · 3rd 15% · Big Beefy Bonus 10%" /></div>
                 </div>
 
                 <div>
@@ -1092,6 +1236,21 @@ export default function PoultryBowl() {
         </div>
       )}
 
+      {pendingChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: '#000000bb' }}>
+          <div className="w-full max-w-sm rounded p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="font-mono text-[10px] uppercase mb-2" style={{ color: C.gold }}>Replacing an existing pick</div>
+            <div className="font-mono text-sm mb-4" style={{ color: C.cream }}>
+              Change {pendingChange.who ? <span style={{ color: C.muted }}>{pendingChange.who}'s</span> : 'your'} pick from <span style={{ color: '#E28A82' }}>{pendingChange.oldLabel}</span> to <span style={{ color: C.green }}>{pendingChange.newLabel}</span>?
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={confirmPending} className="font-head" style={smallBtn(C.gold)}>Confirm</button>
+              <button onClick={cancelPending} className="font-mono text-xs underline" style={{ color: C.muted }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {saveError && <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:w-96 z-50 font-mono text-xs px-3 py-2 rounded" style={{ background: '#5A1F18', border: `1px solid ${C.red}`, color: '#FFB4A8' }}>Couldn't save — your last change may not have stuck. Check your connection and try again.</div>}
       {justSaved && <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded font-mono text-xs" style={{ background: C.panel, border: `1px solid ${C.green}`, color: C.green }}><Check size={12} /> Saved</div>}
     </div>
@@ -1150,7 +1309,7 @@ function PicksSummary({ r, games, cfg, R }) {
         );
       })}
       <div><b style={{ color: C.cream }}>Lineup:</b> {LINEUP_SLOTS.map(s => `${s.label} ${pk.lineup?.[s.key]?.name || '—'}`).join(' · ')}</div>
-      <div><b style={{ color: C.cream }}>Tiebreakers:</b> Cowboys {pk.tb1 ?? '—'} · Total FGs {pk.tb2 ?? '—'} · <b style={{ color: C.cream }}>Jackpot:</b> {pk.jackpot?.name || '—'}</div>
+      <div><b style={{ color: C.cream }}>Tiebreakers:</b> Cowboys {pk.tb1 ?? '—'} · Total FGs {pk.tb2 ?? '—'} · <b style={{ color: C.cream }}>Big Beefy Bonus:</b> {pk.jackpot?.name || '—'}</div>
     </div>
   );
 }

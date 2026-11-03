@@ -44,7 +44,7 @@ const LINEUP_SLOTS = [
 
 const RULES = [
   { heading: 'The Big Four — 20 pts each', body: ['Pick the player who will lead ALL 5 games in each category: QB passing yards, RB rushing yards, WR receiving yards, and TE receptions.', '20 points for each one you get right (80 possible).'] },
-  { heading: 'Per game — 5 pts each', body: ['Longest field goal of the game: over or under the posted line (48.5 by default).', 'Total points of the game: over or under the posted line (45.5 by default).', 'Pick against the spread for each game.', 'Lines use a half point so there are no pushes. (If a spread is ever posted on a whole number and lands exactly, everybody gets the 5 points.)'] },
+  { heading: 'Per game — 5 pts each', body: ['Longest field goal of the game: over or under the posted line (48.5 by default).', 'Total points of the game: over or under that game\'s posted over/under (from ESPN, set when the lines are released).', 'Pick against the spread for each game.', 'Lines use a half point so there are no pushes. (If a spread is ever posted on a whole number and lands exactly, everybody gets the 5 points.)'] },
   { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.'] },
   { heading: 'Exact longest field goal', body: ['Guess the longest made field goal in each game. Exact = 5 points, then minus 1 point for every yard you are off (never below 0).', 'Examples: guess 47, longest 47 = 5 · longest 44 = 2 · longest 50 = 2 · longest 53 = 0. If a game has no field goals the longest counts as 0.'] },
   { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', 'The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. (A QB who runs one in himself does count.)'] },
@@ -60,7 +60,7 @@ const SUFFIX = /\b(jr|sr|ii|iii|iv|v)\b/g;
 const normName = (s) => (s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(SUFFIX, '').replace(/\s+/g, ' ').trim();
 const sameName = (a, b) => !!a && !!b && normName(a) === normName(b);
 
-const defaultConfig = () => ({ games: [], fgLine: 48.5, totalLine: 45.5, lockAt: null, tbTeam: 'DAL', payoutNote: '', spreadsLive: false, playersOpen: false });
+const defaultConfig = () => ({ games: [], fgLine: 48.5, lockAt: null, tbTeam: 'DAL', payoutNote: '', spreadsLive: false, playersOpen: false });
 const emptyData = () => ({
   name: 'The Poultry Bowl', open: false, participants: [], config: defaultConfig(),
   picks: { bowl: {} }, results: { bowl: {} }, chatMessages: [],
@@ -125,8 +125,9 @@ function scoreEntrant(pk, cfg, R) {
     if (gp.ats && (cover === 'push' || gp.ats === cover)) { d.ats = true; parts.ats += 5; }
 
     const total = rg.homeScore + rg.awayScore;
-    const totOU = total > cfg.totalLine ? 'over' : total < cfg.totalLine ? 'under' : 'push';
-    if (gp.tot && (totOU === 'push' || gp.tot === totOU)) { d.tot = true; parts.tot += 5; }
+    const tl = g.total === undefined || g.total === null || g.total === '' ? NaN : Number(g.total);
+    const totOU = Number.isNaN(tl) ? null : total > tl ? 'over' : total < tl ? 'under' : 'push';
+    if (gp.tot && totOU && (totOU === 'push' || gp.tot === totOU)) { d.tot = true; parts.tot += 5; }
 
     const lf = Number(rg.longestFG) || 0;
     const fgOU = lf > cfg.fgLine ? 'over' : lf < cfg.fgLine ? 'under' : 'push';
@@ -336,30 +337,90 @@ function Drumstick({ active, done }) {
 }
 
 
-// The Big Beefy Bonus icon: a thick slab of beef with a fork stuck in it.
+// The Big Beefy Bonus icon: a seared, grill-marked steak with a fork stuck in it.
 function JackpotIcon({ active }) {
   return (
-    <svg width="58" height="54" viewBox="0 0 68 64" style={{ filter: active ? 'drop-shadow(0 0 7px #FF8A5C)' : 'drop-shadow(0 0 3px rgba(255,120,80,0.45))', transition: 'transform 0.15s', transform: active ? 'scale(1.12)' : 'none' }}>
-      {/* slab: side/thickness first, then the top face */}
-      <path d="M6 40 C6 52 14 58 34 58 C54 58 62 52 62 40 L62 34 L6 34 Z" fill="#7A1F1A" stroke="#4A0F0C" strokeWidth="2" />
-      <path d="M8 30 C6 20 16 12 34 12 C52 12 62 20 60 30 C62 38 52 44 34 44 C16 44 6 38 8 30 Z" fill="#C4362B" stroke="#4A0F0C" strokeWidth="2" />
-      {/* fat cap along the top edge */}
-      <path d="M12 21 C18 15 28 14 34 14 C42 14 52 16 56 22" stroke="#F7E6D0" strokeWidth="4" strokeLinecap="round" fill="none" />
-      {/* marbling */}
-      <g stroke="#F4B9A8" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.9">
-        <path d="M16 30 C20 27 24 31 28 28" />
-        <path d="M34 35 C39 32 43 36 49 32" />
-        <path d="M20 38 C24 36 27 39 32 37" />
-        <path d="M40 25 C44 23 47 26 52 24" />
-      </g>
-      {/* the fork, handle up, tines buried in the steak */}
-      <g stroke="#3B3B3B" strokeWidth="1.1" strokeLinejoin="round" fill="#EDEDF3">
-        <rect x="32" y="1" width="4.4" height="21" rx="2.2" />
-        <path d="M27 21 L41.5 21 C41.5 25 39.5 27 36.5 27.5 L32 27.5 C29 27 27 25 27 21 Z" />
-        <rect x="27.6" y="27" width="2.6" height="13" rx="1.3" />
-        <rect x="32.9" y="27" width="2.6" height="14" rx="1.3" />
-        <rect x="38.2" y="27" width="2.6" height="13" rx="1.3" />
-      </g>
+    <svg width="66" height="60" viewBox="0 0 72 66" style={{ overflow: 'visible', filter: active ? 'drop-shadow(0 0 7px #FF8A5C)' : 'none', transition: 'transform 0.15s', transform: active ? 'scale(1.1)' : 'none' }}>
+
+<defs>
+  <filter id="bb-rough" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="3" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2"/>
+  </filter>
+  <filter id="bb-grain" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="3" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0.25  0 0 0 0 0.08  0 0 0 0 0.05  0 0 0 0.55 -0.12" result="gc"/>
+    <feComposite in="gc" in2="SourceGraphic" operator="in"/>
+  </filter>
+  <filter id="bb-mottle" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.06 0.09" numOctaves="4" seed="11" result="m"/>
+    <feColorMatrix in="m" type="matrix" values="0 0 0 0 0.12  0 0 0 0 0.04  0 0 0 0 0.02  0 0 0 1.5 -0.55" result="mc"/>
+    <feComposite in="mc" in2="SourceGraphic" operator="in"/>
+  </filter>
+  <filter id="bb-blur1"><feGaussianBlur stdDeviation="0.9"/></filter>
+  <filter id="bb-blur2"><feGaussianBlur stdDeviation="0.45"/></filter>
+  <filter id="bb-shadow" x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur stdDeviation="2.2"/></filter>
+  <radialGradient id="bb-meat" cx="45%" cy="38%" r="70%">
+    <stop offset="0" stopColor="#A5502F"/><stop offset="0.5" stopColor="#7E3A20"/><stop offset="0.85" stopColor="#52230F"/><stop offset="1" stopColor="#34160A"/>
+  </radialGradient>
+  <linearGradient id="bb-fat" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stopColor="#FBF0DC"/><stop offset="0.6" stopColor="#EBD7B3"/><stop offset="1" stopColor="#C9AE82"/>
+  </linearGradient>
+  <linearGradient id="bb-steel" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stopColor="#7C8088"/><stop offset="0.35" stopColor="#F4F6FA"/><stop offset="0.6" stopColor="#B8BCC6"/><stop offset="1" stopColor="#6A6E77"/>
+  </linearGradient>
+  <clipPath id="bb-clipSteak"><path id="bb-outline" d="M8 34 C5 24 13 13 27 10.5 C39 8.5 53 11 61 19 C68 26 67 38 60 45 C52 53 36 56 24 53 C14 50.5 9.5 43 8 34 Z"/></clipPath>
+</defs>
+{/* ground shadow */}
+<ellipse cx="37" cy="55" rx="28" ry="6" fill="#000" opacity="0.55" filter="url(#bb-shadow)"/>
+<g filter="url(#bb-rough)">
+  {/* thickness (side of steak) */}
+  <path d="M8 34 C9.5 43 14 50.5 24 53 C36 56 52 53 60 45 C67 38 68 26 61 19 L61 25 C67 32 66 43 59 50 C51 58 36 61 24 58 C13 55.5 8.5 49 8 41 Z" fill="#3A1209"/>
+  {/* seared crust edge */}
+  <path d="M8 34 C5 24 13 13 27 10.5 C39 8.5 53 11 61 19 C68 26 67 38 60 45 C52 53 36 56 24 53 C14 50.5 9.5 43 8 34 Z" fill="#4A1A0C"/>
+  {/* meat top face, inset */}
+  <path d="M11 33.5 C9 25 16 16 28 13.5 C39 11.5 51 14 58 21 C64 27 63 37 57 43 C50 50 36 52.5 25.5 50 C16.5 48 12 41.5 11 33.5 Z" fill="url(#bb-meat)"/>
+</g>
+<g clipPath="url(#bb-clipSteak)">
+  {/* browning mottle */}
+  <rect x="0" y="0" width="72" height="66" fill="#fff" filter="url(#bb-mottle)" opacity="0.9"/>
+  {/* marbling streaks */}
+  <g stroke="#E9C9A6" strokeLinecap="round" fill="none" opacity="0.42" filter="url(#bb-blur2)">
+    <path d="M15 36 C21 33 25 36 31 33" strokeWidth="0.9"/>
+    <path d="M30 44 C36 40 41 43 48 39" strokeWidth="1.1"/>
+    <path d="M22 26 C27 24 31 27 36 24" strokeWidth="0.8"/>
+    <path d="M44 31 C49 28 53 31 58 28" strokeWidth="0.9"/>
+  </g>
+  {/* fat cap along upper-right edge */}
+  <path d="M30 11 C42 8.5 55 11.5 62 20 C65 24 66 28 65 31 C62 24.5 56 19 47 16.5 C40 14.8 34 14.4 28 15.5 Z" fill="url(#bb-fat)" opacity="0.92" filter="url(#bb-blur2)"/>
+  {/* seared bands between marks */}
+  <g stroke="#B5683C" strokeWidth="2" strokeLinecap="round" opacity="0.32" filter="url(#bb-blur2)">
+    <path d="M20 46 L39 23"/><path d="M28 50 L47 26"/><path d="M37 51 L55 29"/>
+  </g>
+  {/* crisp grill marks */}
+  <g stroke="#1E0A04" strokeLinecap="round" opacity="0.78">
+    <path d="M16 43 L35 20" strokeWidth="2.2"/><path d="M24 48 L43 24" strokeWidth="2.9"/><path d="M32 51 L51 27" strokeWidth="2.7"/><path d="M41 51 L58 31" strokeWidth="2.1"/>
+  </g>
+  <g stroke="#5A2410" strokeWidth="0.8" strokeLinecap="round" opacity="0.7">
+    <path d="M17 41.5 L34 21"/><path d="M25 46.5 L42 25"/><path d="M33 49.5 L50 28"/><path d="M42 49.5 L57 32"/>
+  </g>
+  {/* fine grain */}
+  <rect x="0" y="0" width="72" height="66" fill="#fff" filter="url(#bb-grain)" opacity="0.7"/>
+  {/* subtle sheen + moisture glints */}
+  <ellipse cx="25" cy="24" rx="7" ry="2.4" fill="#F2B596" opacity="0.2" transform="rotate(-30 25 24)" filter="url(#bb-blur1)"/>
+  <circle cx="21" cy="31" r="0.7" fill="#FFE9DA" opacity="0.7"/><circle cx="51" cy="27" r="0.6" fill="#FFE9DA" opacity="0.6"/><circle cx="46" cy="42" r="0.55" fill="#FFE9DA" opacity="0.55"/>
+</g>
+{/* fork */}
+<g transform="rotate(9 38 24)">
+  <ellipse cx="38.5" cy="31" rx="7" ry="2.2" fill="#000" opacity="0.35" filter="url(#bb-blur2)"/>
+  <rect x="35.4" y="1" width="5" height="22" rx="2.5" fill="url(#bb-steel)" stroke="#555963" strokeWidth="0.5"/>
+  <path d="M31 21 L45.5 21 C45.5 25.5 43.5 27.8 40.6 28.6 L36 28.6 C33 27.8 31 25.5 31 21 Z" fill="url(#bb-steel)" stroke="#555963" strokeWidth="0.5"/>
+  <rect x="31.5" y="27.4" width="2.9" height="9" rx="1.4" fill="url(#bb-steel)" stroke="#555963" strokeWidth="0.4"/>
+  <rect x="36.4" y="28" width="2.9" height="10" rx="1.4" fill="url(#bb-steel)" stroke="#555963" strokeWidth="0.4"/>
+  <rect x="41.3" y="27.4" width="2.9" height="9" rx="1.4" fill="url(#bb-steel)" stroke="#555963" strokeWidth="0.4"/>
+  <path d="M36.6 3 L36.6 20" stroke="#fff" strokeWidth="0.8" opacity="0.7" strokeLinecap="round"/>
+</g>
+
     </svg>
   );
 }
@@ -618,7 +679,7 @@ export default function PoultryBowl() {
   const setConfig = (patch) => persist({ ...data, config: { ...cfg, ...patch } });
   const updateGame = (gid, patch) => setConfig({ games: cfg.games.map(g => g.id === gid ? { ...g, ...patch } : g) });
   const removeGame = (gid) => setConfig({ games: cfg.games.filter(g => g.id !== gid) });
-  const addBlankGame = () => setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: '', espnId: '' }] });
+  const addBlankGame = () => setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: '', total: '', espnId: '' }] });
 
   const loadFromEspn = async (refreshSpreads = false) => {
     setEspnMsg('Loading from ESPN…');
@@ -651,7 +712,9 @@ export default function PoultryBowl() {
         const m = details.match(/^([A-Z]{2,4})\s*([+-]?\d+(?:\.\d+)?)/);
         if (m) { const amt = Math.abs(Number(m[2])); spread = fixAbbr(m[1]) === home ? -amt : amt; }
         else if (/^EVEN|PK/i.test(details)) spread = 0;
-        return { id: 'g' + ev.id, espnId: String(ev.id), kickoff: ev.date, home, away, spread };
+        const ou = Number(comp?.odds?.[0]?.overUnder);
+        const total = comp?.odds?.[0]?.overUnder !== undefined && !Number.isNaN(ou) ? ou : undefined;
+        return { id: 'g' + ev.id, espnId: String(ev.id), kickoff: ev.date, home, away, spread, total };
       }).filter(g => g.home && g.away);
       if (!found.length) { setEspnMsg('ESPN has no games in that date range yet.'); return; }
       const byEspn = Object.fromEntries(cfg.games.filter(g => g.espnId).map(g => [g.espnId, g]));
@@ -661,11 +724,11 @@ export default function PoultryBowl() {
         const ex = byEspn[f.espnId];
         if (ex) {
           const i = merged.findIndex(g => g.id === ex.id);
-          merged[i] = { ...ex, kickoff: f.kickoff || ex.kickoff, spread: f.spread !== undefined && (refreshSpreads || ex.spread === undefined || ex.spread === '' || ex.spread === null) ? f.spread : ex.spread };
-        } else { merged.push({ ...f, spread: f.spread ?? '' }); added++; }
+          merged[i] = { ...ex, kickoff: f.kickoff || ex.kickoff, spread: f.spread !== undefined && (refreshSpreads || ex.spread === undefined || ex.spread === '' || ex.spread === null) ? f.spread : ex.spread, total: f.total !== undefined && (refreshSpreads || ex.total === undefined || ex.total === '' || ex.total === null) ? f.total : ex.total };
+        } else { merged.push({ ...f, spread: f.spread ?? '', total: f.total ?? '' }); added++; }
       });
       setConfig({ games: merged });
-      setEspnMsg(refreshSpreads ? `Refreshed spreads from ESPN for ${found.filter(g => g.spread !== undefined).length} of ${found.length} game(s). Games ESPN has no line for were left alone — check each one below.` : `Found ${found.length} game${found.length === 1 ? '' : 's'} (${added} new). Check the spreads below — ESPN sometimes has none yet.`);
+      setEspnMsg(refreshSpreads ? `Refreshed spreads & totals from ESPN for ${found.filter(g => g.spread !== undefined).length} of ${found.length} game(s). Games ESPN has no line for were left alone — check each one below.` : `Found ${found.length} game${found.length === 1 ? '' : 's'} (${added} new). Check the spreads below — ESPN sometimes has none yet.`);
     } catch (e) { setEspnMsg('Could not load from ESPN: ' + (e.message || e)); }
   };
 
@@ -981,10 +1044,12 @@ export default function PoultryBowl() {
               </Section>
             ),
             tot: () => (
-              <Section title={`Total points over/under ${cfg.totalLine} — 5 pts each`} sub="Combined score of both teams.">
+              <Section title="Total points over/under — 5 pts each" sub="Combined score of both teams.">
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
-                  return card(g, `Line ${cfg.totalLine}`, <Segmented disabled={!canEdit} value={gp.tot} onChange={v => guard(gp.tot, v, () => setGame(g.id, { tot: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
+                  const totReady = !!cfg.spreadsLive && g.total !== undefined && g.total !== null && g.total !== '' && !Number.isNaN(Number(g.total));
+                  if (!totReady) return card(g, 'Total TBD', <div className="font-mono text-xs" style={{ color: C.muted }}>📅 The over/under for this game is still TBD — it opens up with the spreads. Check back soon!</div>);
+                  return card(g, `Line ${g.total}`, <Segmented disabled={!canEdit} value={gp.tot} onChange={v => guard(gp.tot, v, () => setGame(g.id, { tot: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
                 }))}
               </Section>
             ),
@@ -1168,19 +1233,20 @@ export default function PoultryBowl() {
                     <div><Label>ESPN dates from</Label><input value={espnRange.start} onChange={e => setEspnRange(r => ({ ...r, start: e.target.value }))} style={{ ...inputStyle, width: 110 }} /></div>
                     <div><Label>to</Label><input value={espnRange.end} onChange={e => setEspnRange(r => ({ ...r, end: e.target.value }))} style={{ ...inputStyle, width: 110 }} /></div>
                     <button onClick={() => loadFromEspn(false)} className="font-head flex items-center gap-1" style={smallBtn(C.gold)}><RefreshCw size={12} /> Load games from ESPN</button>
-                    <button onClick={() => loadFromEspn(true)} className="font-head flex items-center gap-1" style={smallBtn(C.orange, '#fff')}><RefreshCw size={12} /> Refresh spreads from ESPN</button>
+                    <button onClick={() => loadFromEspn(true)} className="font-head flex items-center gap-1" style={smallBtn(C.orange, '#fff')}><RefreshCw size={12} /> Refresh spreads &amp; totals from ESPN</button>
                     <button onClick={addBlankGame} className="font-head" style={smallBtn(C.panel2, C.cream)}>+ Add game by hand</button>
                   </div>
                   {espnMsg && <div className="mb-2" style={{ color: C.muted }}>{espnMsg}</div>}
                   <div className="space-y-2">
                     {games.map(g => (
-                      <div key={g.id} className="rounded p-2 grid grid-cols-2 sm:grid-cols-6 gap-2 items-end" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                      <div key={g.id} className="rounded p-2 grid grid-cols-2 sm:grid-cols-7 gap-2 items-end" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
                         <div><Label>Away</Label><select value={g.away} onChange={e => updateGame(g.id, { away: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
                         <div><Label>Home</Label><select value={g.home} onChange={e => updateGame(g.id, { home: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
                         <div className="col-span-2"><Label>Kickoff (your time)</Label><input type="datetime-local" value={toLocalInput(g.kickoff)} onChange={e => updateGame(g.id, { kickoff: e.target.value ? new Date(e.target.value).toISOString() : '' })} style={inputStyle} /></div>
                         <div><Label>Home spread</Label><input type="number" step="0.5" value={g.spread ?? ''} onChange={e => updateGame(g.id, { spread: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} /></div>
+                        <div><Label>Total (O/U)</Label><input type="number" step="0.5" value={g.total ?? ''} onChange={e => updateGame(g.id, { total: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} /></div>
                         <div><Label>ESPN game id</Label><input value={g.espnId || ''} onChange={e => updateGame(g.id, { espnId: e.target.value.trim() })} style={inputStyle} /></div>
-                        <div className="col-span-2 sm:col-span-6 flex justify-between items-center" style={{ color: C.muted }}>
+                        <div className="col-span-2 sm:col-span-7 flex justify-between items-center" style={{ color: C.muted }}>
                           <span>Shows as: {g.away} @ {g.home} · {fmtSpread(g)} <i>(home spread: −3.5 = home favored by 3.5; use .5 to avoid pushes)</i></span>
                           <button onClick={() => window.confirm('Remove this game?') && removeGame(g.id)} style={{ color: C.red }}><Trash2 size={14} /></button>
                         </div>
@@ -1189,7 +1255,6 @@ export default function PoultryBowl() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                     <div><Label>Longest FG line</Label><input type="number" step="0.5" value={cfg.fgLine} onChange={e => setConfig({ fgLine: Number(e.target.value) })} style={inputStyle} /></div>
-                    <div><Label>Total points line</Label><input type="number" step="0.5" value={cfg.totalLine} onChange={e => setConfig({ totalLine: Number(e.target.value) })} style={inputStyle} /></div>
                     <div><Label>Tiebreaker team</Label><select value={cfg.tbTeam} onChange={e => setConfig({ tbTeam: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
                     <div><Label>Lock time override</Label><input type="datetime-local" value={toLocalInput(cfg.lockAt)} onChange={e => setConfig({ lockAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={inputStyle} /></div>
                   </div>

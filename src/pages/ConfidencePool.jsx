@@ -1916,6 +1916,16 @@ export default function ConfidencePool() {
               <div className="font-mono text-[10px] mb-3" style={{ color: '#5C6862' }}>
                 Ties broken by closest MNF guess. Reorders automatically as results come in. Tap a name to see their picks.
               </div>
+              <style>{`
+                    @keyframes me-shimmer { from { background-position: 250% 0; } to { background-position: -50% 0; } }
+                    @keyframes me-pulse {
+                      0%, 100% { box-shadow: 0 0 8px rgba(255,200,60,0.45), 0 0 0 1px #FFD54A; }
+                      50% { box-shadow: 0 0 22px rgba(255,200,60,0.95), 0 0 0 2px #FFD54A; }
+                    }
+                    .me-row { position: relative; z-index: 1; transform: scale(1.03); background: linear-gradient(90deg, #3A2A08, #4F3810 50%, #3A2A08) !important; border: 1px solid #FFD54A !important; animation: me-pulse 2s ease-in-out infinite; }
+                    .me-name { font-weight: 800; background: linear-gradient(100deg, #FFD54A, #FFF6C2 30%, #FF9F1A 50%, #FFF6C2 70%, #FFD54A); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: me-shimmer 2.6s linear infinite; filter: drop-shadow(0 0 5px rgba(255,190,40,0.85)); }
+                    .me-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #FFD54A; margin-left: 6px; -webkit-text-fill-color: #FFD54A; }
+                  `}</style>
               <div className="space-y-1.5">
                 {weeklyLeaderboard(viewWeek).map((p, i) => {
                   const weekEntry = data.picks[viewWeek]?.[p.id];
@@ -1938,12 +1948,12 @@ export default function ConfidencePool() {
                   return (
                     <div
                       key={p.id}
-                      className="rounded px-2.5 py-2"
+                      className={`rounded px-2.5 py-2${p.id === myId ? ' me-row' : ''}`}
                       style={{ background: '#1C2823', border: i === 0 ? '1px solid #E8A23D88' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}
                     >
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-2">
                         <div className="font-mono text-[10px] w-4 shrink-0" style={{ color: i === 0 ? '#E8A23D' : '#5C6862' }}>{i + 1}</div>
-                        <div className="font-head text-xs flex-1 text-left truncate">{p.name}</div>
+                        <div className="font-head text-xs flex-1 text-left truncate"><span className={p.id === myId ? 'me-name' : ''}>{p.name}</span>{p.id === myId && <span className="me-tag">← you</span>}</div>
                         {p.guess != null && isTiebreakerRevealed(p.id) && <div className="font-mono text-[9px] shrink-0 hidden sm:block" style={{ color: '#5C6862' }}>MNF Tie Breaker Score: {p.guess}</div>}
                         <div className="text-right shrink-0 leading-tight">
                           <div className="font-head text-sm" style={{ color: '#E8A23D' }}>{p.points}</div>

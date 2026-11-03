@@ -2094,6 +2094,16 @@ export default function LineupPool() {
                   <span style={{ color: '#E8A23D' }}>IP</span> = In Progress — their game has started but isn't final yet.
                 </div>
               )}
+              <style>{`
+                    @keyframes me-shimmer { from { background-position: 250% 0; } to { background-position: -50% 0; } }
+                    @keyframes me-pulse {
+                      0%, 100% { box-shadow: 0 0 8px rgba(255,200,60,0.45), 0 0 0 1px #FFD54A; }
+                      50% { box-shadow: 0 0 22px rgba(255,200,60,0.95), 0 0 0 2px #FFD54A; }
+                    }
+                    .me-row { position: relative; z-index: 1; transform: scale(1.03); background: linear-gradient(90deg, #3A2A08, #4F3810 50%, #3A2A08) !important; border: 1px solid #FFD54A !important; animation: me-pulse 2s ease-in-out infinite; }
+                    .me-name { font-weight: 800; background: linear-gradient(100deg, #FFD54A, #FFF6C2 30%, #FF9F1A 50%, #FFF6C2 70%, #FFD54A); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: me-shimmer 2.6s linear infinite; filter: drop-shadow(0 0 5px rgba(255,190,40,0.85)); }
+                    .me-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #FFD54A; margin-left: 6px; -webkit-text-fill-color: #FFD54A; }
+                  `}</style>
               <div className="space-y-1.5">
                 {weekStandingsRows.map(p => {
                   const { weekPicks, filledCount, lineupComplete, weekTotal } = p;
@@ -2110,14 +2120,14 @@ export default function LineupPool() {
                   });
                   const isMe = myId === p.id;
                   return (
-                    <div key={p.id} className="rounded px-3 py-2.5" style={{ background: '#1C2823', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
+                    <div key={p.id} className={`rounded px-3 py-2.5${isMe ? ' me-row' : ''}`} style={{ background: '#1C2823', border: isMe ? '1px solid #8A9A9088' : '1px solid #2A3830', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.5)' }}>
                       {filledCount > 0 && !lineupComplete && (
                         <div className="font-mono text-[9px] uppercase mb-1.5 px-2 py-1 rounded flex items-center gap-1.5" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#E28A82' }}>
                           <AlertTriangle size={10} /> Incomplete lineup ({filledCount}/{SLOTS.length} filled) — scores zero for the week
                         </div>
                       )}
                       <button onClick={() => setExpandedId(id => id === p.id ? null : p.id)} className="w-full flex items-center gap-3">
-                        <span className="font-head text-sm flex-1 text-left truncate">{p.name}</span>
+                        <span className="font-head text-sm flex-1 text-left truncate"><span className={isMe ? 'me-name' : ''}>{p.name}</span>{isMe && <span className="me-tag">← you</span>}</span>
                         {(ytpCount > 0 || ipCount > 0) && (
                           <div className="flex items-center gap-1.5 shrink-0">
                             {ytpCount > 0 && (

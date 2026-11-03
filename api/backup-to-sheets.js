@@ -6,6 +6,7 @@ const POOL_KEYS = [
   { key: 'revival-survivor-pool-v1', label: 'Revival' },
   { key: 'confidence-pool-v1', label: 'Confidence' },
   { key: 'lineup-pool-v1', label: 'Lineup' },
+  { key: 'poultry-bowl-v1', label: 'Poultry Bowl', optional: true }, // Thanksgiving pool — may legitimately be empty until it opens
 ];
 
 // ESPN's internal numeric team IDs, needed to fetch each team's roster.
@@ -165,7 +166,7 @@ export default async function handler(req, res) {
     // Safety: never overwrite a good backup with an empty one. This sheet is overwritten each run,
     // so if the database came back empty (or wiped) the previous good copy would be lost. If any
     // pool is missing or has no entrants, refuse to write and leave the last backup untouched.
-    const emptyPools = POOL_KEYS.filter(({ label }) => !pools[label] || !(pools[label].participants || []).length).map(p => p.label);
+    const emptyPools = POOL_KEYS.filter(({ label, optional }) => !optional && (!pools[label] || !(pools[label].participants || []).length)).map(p => p.label);
     if (emptyPools.length) {
       return res.status(200).json({ ok: false, skipped: true, error: `Backup skipped to protect the last good copy — no data found for: ${emptyPools.join(', ')}` });
     }

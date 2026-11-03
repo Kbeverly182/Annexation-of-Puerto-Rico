@@ -108,7 +108,7 @@ async function fetchGameStats(gameId) {
       if (r.ok) { json = await r.json(); break; }
     } catch (e) { /* try next url */ }
   }
-  if (!json) return { players: [], teams: [], scores: [], fieldGoals: [], defTds: [], defExtras: [] };
+  if (!json) return { players: [], teams: [], scores: [], fieldGoals: [], defTds: [], defExtras: [], completed: false, scoringTds: [] };
 
   const players = [];
   try {
@@ -283,7 +283,32 @@ async function fetchGameStats(gameId) {
     });
   } catch (e) { /* ignore */ }
 
-  return { players, teams, scores, fieldGoals, defTds, defExtras, scoringTypes, defSacks };
+  // Whether ESPN considers the game finished, and every touchdown's scorer + yardage (parsed
+  // from scoring-play text like "Brian Thomas Jr. 12 Yd pass from Trevor Lawrence"). Used by the
+  // Poultry Bowl pool for "TD scorer" picks and the longest-TD jackpot.
+  let completed = false;
+  try { completed = !!json?.header?.competitions?.[0]?.status?.type?.completed; } catch (e) { /* ignore */ }
+  const scoringTds = [];
+  try {
+    const idToAbbr3 = {};
+    (json?.header?.competitions?.[0]?.competitors || []).forEach(c => { if (c.team?.id) idToAbbr3[String(c.team.id)] = c.team.abbreviation; });
+    (json?.scoringPlays || []).forEach(play => {
+      const type = play?.type?.text || '';
+      const txt = play?.text || '';
+      if (!/touchdown/i.test(type) && play?.scoringType?.name !== 'touchdown') return;
+      const m = txt.match(/^(.+?)\s+(\d+)\s*Yd\b/i);
+      if (!m) return;
+      scoringTds.push({
+        name: m[1].trim(),
+        yards: Number(m[2]),
+        team: idToAbbr3[String(play?.team?.id)] || play?.team?.abbreviation || null,
+        type,
+        def: /interception|fumble|blocked/i.test(type),
+      });
+    });
+  } catch (e) { /* scoringTds stays [] */ }
+
+  return { players, teams, scores, fieldGoals, defTds, defExtras, scoringTypes, defSacks, completed, scoringTds };
 }
 
 function pickStat(stats, keys) {
@@ -460,3 +485,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 }
+
+// Shared with api/sync-poultry.js (the Poultry Bowl pool uses the same stat parsing and scoring).
+export { fetchGameStats, computeFantasyPoints, computeDstPoints, pickStat, namesMatch };

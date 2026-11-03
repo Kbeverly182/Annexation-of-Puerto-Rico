@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Skull, Flame, ListOrdered, Users, ChevronRight, Coins, Mail, Copy, Check, X, Loader2 } from 'lucide-react';
 import { useAdminMode } from '../lib/admin';
 import { apiGetPool } from '../lib/api';
@@ -51,6 +51,20 @@ export default function Landing() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
+  const [pbOpen, setPbOpen] = useState(false); // flips on when the admin opens the Poultry Bowl
+  const [pbTeaser, setPbTeaser] = useState(false); // admin has chosen to show the coming-soon teaser to everyone
+  const [pbMsg, setPbMsg] = useState(false); // Poultry Bowl click message while it's still locked
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const pb = await apiGetPool('poultry-bowl-v1');
+        setPbOpen(!!pb?.open);
+        setPbTeaser(!!pb?.showTeaser || !!pb?.open);
+      } catch (e) { /* stay locked if we can't tell */ }
+    })();
+  }, []);
 
   // Pulls every pool's participant list and returns one deduplicated set of email addresses
   // across all three — someone entered in more than one pool with the same address only shows
@@ -97,6 +111,57 @@ export default function Landing() {
         .font-display { font-family: 'Anton', sans-serif; }
         .font-head { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
+
+        /* ---- Poultry Bowl feature ---- */
+        .pb-text {
+          font-family: 'Anton', sans-serif;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          line-height: 1.05;
+          text-align: center;
+          background: linear-gradient(100deg, #FFD54A 0%, #FFF6C2 22%, #FF8A00 42%, #FFE27A 60%, #FFFFFF 72%, #FFB300 85%, #FFD54A 100%);
+          background-size: 250% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: transparent;
+          animation: pb-shimmer 2.8s linear infinite;
+          filter: drop-shadow(0 2px 0 #7A2E00) drop-shadow(0 0 8px rgba(255,170,0,0.75));
+        }
+        @keyframes pb-shimmer { from { background-position: 250% 0; } to { background-position: -50% 0; } }
+        .pb-sparkle {
+          position: absolute;
+          color: #FFE27A;
+          text-shadow: 0 0 6px #FFB300, 0 0 12px #FF8A00;
+          animation: pb-twinkle 1.6s ease-in-out infinite;
+          pointer-events: none;
+          line-height: 1;
+        }
+        @keyframes pb-twinkle {
+          0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+          50% { opacity: 1; transform: scale(1.15) rotate(35deg); }
+        }
+        .pb-arrow { animation: pb-bob 0.8s ease-in-out infinite; flex-shrink: 0; }
+        @keyframes pb-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+        .pb-card {
+          position: relative;
+          display: block;
+          width: 100%;
+          padding: 0;
+          border: 3px solid #E8A23D;
+          border-radius: 10px;
+          overflow: hidden;
+          background: #1C2823;
+          cursor: pointer;
+          box-shadow: 0 0 0 2px #7A2E00, 0 6px 18px rgba(232,162,61,0.55);
+          animation: pb-glow 2.2s ease-in-out infinite;
+          transition: transform 0.15s ease;
+        }
+        .pb-card:hover { transform: scale(1.02) rotate(-0.6deg); }
+        @keyframes pb-glow {
+          0%, 100% { box-shadow: 0 0 0 2px #7A2E00, 0 6px 16px rgba(232,162,61,0.45); }
+          50% { box-shadow: 0 0 0 2px #7A2E00, 0 6px 28px rgba(255,170,0,0.95); }
+        }
         .pool-card {
           transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
           border-left-width: 5px !important;
@@ -179,6 +244,53 @@ export default function Landing() {
               Check out my brother's pool here!
             </a>
           </div>
+
+          {/* THE POULTRY BOWL — Thanksgiving-week pool. Stays locked (clicking shows a note) until the
+              admin ticks "Open the pool to everyone" on the Poultry Bowl page, then it links through. */}
+          {(pbTeaser || isAdmin) && (
+          <div className="mb-2">
+            {isAdmin && !pbTeaser && (
+              <div className="font-mono text-[10px] uppercase px-2 py-1 rounded mb-1" style={{ background: '#C1443A22', border: '1px solid #C1443A', color: '#C1443A' }}>Admin preview — the public can't see this yet</div>
+            )}
+            <div className="relative flex items-center justify-center gap-2 px-2 pt-3 pb-1">
+              <span className="pb-sparkle" style={{ left: '4%', top: '2px', fontSize: '18px', animationDelay: '0s' }}>✦</span>
+              <span className="pb-sparkle" style={{ left: '30%', top: '-4px', fontSize: '12px', animationDelay: '0.5s' }}>✦</span>
+              <span className="pb-sparkle" style={{ right: '28%', top: '0px', fontSize: '15px', animationDelay: '1s' }}>✦</span>
+              <span className="pb-sparkle" style={{ right: '3%', top: '6px', fontSize: '20px', animationDelay: '0.3s' }}>✦</span>
+              <span className="pb-sparkle" style={{ left: '48%', bottom: '-2px', fontSize: '13px', animationDelay: '0.8s' }}>✦</span>
+              <svg className="pb-arrow" width="34" height="44" viewBox="0 0 34 44">
+                <rect x="11" y="2" width="12" height="22" rx="4" fill="#E23D3D" />
+                <polygon points="2,22 32,22 17,42" fill="#E23D3D" />
+              </svg>
+              <div className="pb-text" style={{ fontSize: '27px' }}>
+                Click here for<br />the Poultry Bowl!
+              </div>
+              <svg className="pb-arrow" width="34" height="44" viewBox="0 0 34 44" style={{ animationDelay: '0.4s' }}>
+                <rect x="11" y="2" width="12" height="22" rx="4" fill="#E23D3D" />
+                <polygon points="2,22 32,22 17,42" fill="#E23D3D" />
+              </svg>
+            </div>
+            <button
+              type="button"
+              className="pb-card"
+              onClick={() => { if (pbOpen) { navigate('/poultry'); return; } setPbMsg(true); setTimeout(() => setPbMsg(false), 5000); }}
+              aria-label="The Poultry Bowl — Thanksgiving week pool (opening soon)"
+            >
+              <img src="/poultry-bowl.jpg" alt="A turkey in a football helmet carrying a football" style={{ display: 'block', width: '100%', height: 'auto' }} />
+              <span className="font-mono uppercase" style={{ position: 'absolute', top: 8, right: 8, background: '#1C2823dd', color: '#FFE27A', border: '1px solid #E8A23D', borderRadius: 4, padding: '2px 8px', fontSize: 10, letterSpacing: '0.06em' }}>
+                {pbOpen ? '🏈 Now open — tap to play!' : '🔒 Opening soon'}
+              </span>
+              <span className="font-mono uppercase" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'linear-gradient(transparent, #000000cc)', color: '#FFFFFF', padding: '22px 10px 8px', fontSize: 11, letterSpacing: '0.05em', textAlign: 'center' }}>
+                Thanksgiving Week · 5 games · Entry 20 units
+              </span>
+            </button>
+            {pbMsg && (
+              <div className="font-mono text-xs mt-2 px-3 py-2 rounded" style={{ background: '#FFF6DD', border: '1px solid #E8A23D', color: '#7A4A00' }}>
+                🦃 Gobble gobble! The Poultry Bowl isn't open yet — Kenny is still cooking up the rules. Check back soon!
+              </div>
+            )}
+          </div>
+          )}
 
           {POOLS.map(pool => {
             const Icon = pool.icon;

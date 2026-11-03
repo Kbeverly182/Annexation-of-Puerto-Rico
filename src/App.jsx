@@ -6,6 +6,7 @@ import RevivalSurvivorPool from './pages/RevivalSurvivorPool';
 import ConfidencePool from './pages/ConfidencePool';
 import LineupPool from './pages/LineupPool';
 import PlayerProps from './pages/PlayerProps';
+import PoultryBowl from './pages/PoultryBowl';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/confidence" element={<ConfidencePool />} />
         <Route path="/lineup" element={<LineupPool />} />
         <Route path="/props" element={<PlayerProps />} />
+        <Route path="/poultry" element={<PoultryBowl />} />
       </Routes>
     </HashRouter>
   );

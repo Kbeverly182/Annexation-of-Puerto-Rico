@@ -337,6 +337,91 @@ function Drumstick({ active, done }) {
 }
 
 
+// Section selector icons — one per pool section (the first is the classic turkey leg).
+function LegIcon({ k, active, done }) {
+  const wrap = { filter: active ? 'drop-shadow(0 0 6px #FFB300)' : 'none', transition: 'transform 0.15s', transform: active ? 'scale(1.12)' : 'none' };
+  const ring = done ? '#3D9B5C' : 'transparent';
+  if (k === 'tb') return (
+    <img src="/poultry-photo.jpg" alt="" width="54" height="54" style={{ ...wrap, width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${done ? '#3D9B5C' : '#FFB300'}`, boxSizing: 'border-box' }} />
+  );
+  const S = { stroke: '#4A2A0E', strokeWidth: 1.6, strokeLinejoin: 'round', strokeLinecap: 'round' };
+  const body = {
+    win: ( // cornucopia
+      <g {...S}>
+        <path d="M10 44 C6 30 16 16 34 20 C46 23 56 36 56 50 C48 40 38 38 30 42 C24 44 18 50 10 44 Z" fill="#C98A3C" />
+        <path d="M14 38 C20 32 28 32 36 36" fill="none" stroke="#8A5520" />
+        <circle cx="48" cy="46" r="6" fill="#D93B2B" /><circle cx="55" cy="52" r="5" fill="#E8A21B" />
+        <ellipse cx="42" cy="54" rx="5" ry="4" fill="#8E4FB0" /><circle cx="36" cy="49" r="4" fill="#6FA83A" />
+        <path d="M44 41 q3 -5 7 -3" fill="none" stroke="#3E7A25" />
+      </g>),
+    ats: ( // pilgrim
+      <g {...S}>
+        <path d="M14 62 C14 50 22 46 32 46 C42 46 50 50 50 62 Z" fill="#2B2B33" />
+        <path d="M22 48 L32 56 L42 48 Z" fill="#FFF8E7" />
+        <circle cx="32" cy="32" r="11" fill="#F2C39B" />
+        <rect x="20" y="22" width="24" height="5" rx="1" fill="#1E1E24" />
+        <path d="M23 23 L26 5 H38 L41 23 Z" fill="#2B2B33" />
+        <rect x="25" y="17" width="14" height="5" fill="#FFB300" stroke="#4A2A0E" strokeWidth="1" />
+        <rect x="29" y="16" width="6" height="7" fill="none" stroke="#4A2A0E" strokeWidth="1.2" />
+        <circle cx="28" cy="32" r="1.3" fill="#222" stroke="none" /><circle cx="36" cy="32" r="1.3" fill="#222" stroke="none" />
+        <path d="M28 37 Q32 40 36 37" fill="none" strokeWidth="1.3" />
+      </g>),
+    tot: ( // turkey
+      <g {...S}>
+        {['#C0392B', '#E67E22', '#F1C40F', '#E67E22', '#C0392B'].map((c, i) => (
+          <ellipse key={i} cx="32" cy="26" rx="6" ry="20" fill={c} transform={`rotate(${(i - 2) * 30} 32 40)`} />
+        ))}
+        <ellipse cx="32" cy="44" rx="13" ry="12" fill="#8B5A2B" />
+        <circle cx="32" cy="30" r="7" fill="#8B5A2B" />
+        <path d="M32 33 q-2 6 1 8 q3 -2 1 -8 Z" fill="#D8281C" strokeWidth="1" />
+        <path d="M30 29 l-4 2 l4 1 Z" fill="#F1C40F" strokeWidth="1" />
+        <circle cx="34" cy="27.5" r="1.3" fill="#111" stroke="none" />
+        <path d="M27 55 v5 M37 55 v5" strokeWidth="2" stroke="#E0A02B" />
+      </g>),
+    fg: ( // apple pie
+      <g {...S}>
+        <path d="M18 14 q-3 -5 1 -9 M32 14 q-3 -5 1 -9 M46 14 q-3 -5 1 -9" fill="none" stroke="#CDBBA0" strokeWidth="2" />
+        <path d="M5 30 H59 L53 56 H11 Z" fill="#E9B866" />
+        <ellipse cx="32" cy="30" rx="27" ry="8" fill="#F2CB7E" />
+        <path d="M14 30 L50 30 M20 25 L28 36 M30 23 L38 37 M40 24 L46 34 M24 36 L18 27 M34 37 L28 23 M44 35 L38 24" fill="none" stroke="#B7791F" strokeWidth="1.4" />
+        <path d="M8 38 H56 M10 46 H54" fill="none" stroke="#C48A2C" strokeWidth="1" />
+      </g>),
+    exact: ( // football
+      <g {...S}>
+        <g transform="rotate(-35 32 32)">
+          <ellipse cx="32" cy="32" rx="27" ry="15" fill="#8B4A20" />
+          <path d="M14 22 q-3 10 0 20 M50 22 q3 10 0 20" fill="none" stroke="#FFF8E7" strokeWidth="2.2" />
+          <path d="M24 32 H40 M27 28 v8 M32 28 v8 M37 28 v8" fill="none" stroke="#FFF8E7" strokeWidth="1.8" />
+        </g>
+      </g>),
+    td: ( // Mayflower-style ship
+      <g {...S}>
+        <path d="M0 50 q8 -5 16 0 t16 0 t16 0 t16 0 V64 H0 Z" fill="#2E7DB5" stroke="none" />
+        <path d="M8 40 H56 L50 52 Q32 58 14 52 Z" fill="#8B5A2B" />
+        <path d="M32 6 V40 M20 18 V40 M44 20 V40" fill="none" />
+        <path d="M32 8 Q44 16 32 28 Z" fill="#FFF8E7" /><path d="M20 20 Q29 26 20 34 Z" fill="#FFF8E7" /><path d="M44 22 Q53 28 44 35 Z" fill="#FFF8E7" />
+        <path d="M32 6 l8 2 l-8 2 Z" fill="#C0392B" strokeWidth="1" />
+        <path d="M0 56 q8 -5 16 0 t16 0 t16 0 t16 0" fill="none" stroke="#9FD0EE" strokeWidth="2" />
+      </g>),
+    lineup: ( // parade balloon
+      <g {...S}>
+        <path d="M32 44 L28 60 M32 44 L36 60" fill="none" strokeWidth="1.2" />
+        <ellipse cx="32" cy="24" rx="19" ry="21" fill="#D93B2B" />
+        <path d="M20 8 Q32 22 20 40 M44 8 Q32 22 44 40" fill="none" stroke="#FFF8E7" strokeWidth="3" />
+        <path d="M32 3 Q36 24 32 45" fill="none" stroke="#F1C40F" strokeWidth="3" />
+        <ellipse cx="24" cy="14" rx="4" ry="6" fill="#fff" opacity="0.35" stroke="none" />
+        <path d="M28 44 h8 l-1 4 h-6 Z" fill="#8B5A2B" strokeWidth="1" />
+      </g>),
+  }[k];
+  if (!body) return <Drumstick active={active} done={done} />;
+  return (
+    <svg width="54" height="54" viewBox="0 0 64 64" style={wrap}>
+      {done && <circle cx="32" cy="32" r="31" fill="none" stroke={ring} strokeWidth="3" />}
+      {body}
+    </svg>
+  );
+}
+
 // The Big Beefy Bonus icon: a seared, grill-marked steak with a fork stuck in it.
 function JackpotIcon({ active }) {
   return (
@@ -1120,7 +1205,7 @@ export default function PoultryBowl() {
 
               <div className="rounded p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
                 <div className="font-head uppercase text-sm text-center mb-2" style={{ color: C.gold }}>
-                  {allDone ? '🦃 All picks are in — you\'re set!' : 'Tap a turkey leg (or the beef) to make your picks'}
+                  {allDone ? '🦃 All picks are in — you\'re set!' : 'Tap a symbol to make your picks'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: 6 }}>
                   {legs.map(l => {
@@ -1128,7 +1213,7 @@ export default function PoultryBowl() {
                     const active = l.key === leg.key;
                     return (
                       <button key={l.key} onClick={() => setActiveLeg(l.key)} style={{ background: active ? '#4A2E12' : 'transparent', border: `2px solid ${active ? C.gold : 'transparent'}`, borderRadius: 10, padding: '6px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                        {l.key === 'jackpot' ? <JackpotIcon active={active} /> : <Drumstick active={active} done={done} />}
+                        {l.key === 'jackpot' ? <JackpotIcon active={active} /> : l.key === 'big4' ? <Drumstick active={active} done={done} /> : <LegIcon k={l.key} active={active} done={done} />}
                         <div className="font-head" style={{ fontSize: 12, lineHeight: 1.1, color: C.cream, marginTop: 2 }}>{l.label}</div>
                         <div className="font-mono" style={{ fontSize: 13, marginTop: 2, color: done ? C.green : C.gold, fontWeight: 600 }}>
                           {done ? '✓' : `${l.done}/${l.total}`}

@@ -19,6 +19,7 @@ export default function App() {
         <Route path="/lineup" element={<LineupPool />} />
         <Route path="/props" element={<PlayerProps />} />
         <Route path="/poultry" element={<PoultryBowl />} />
+        <Route path="/poultry-beta" element={<PoultryBowl beta />} />
       </Routes>
     </HashRouter>
   );

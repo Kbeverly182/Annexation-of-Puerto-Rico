@@ -8,7 +8,8 @@ import { fetchGameStats, computeFantasyPoints, computeDstPoints, pickStat, names
 // player's + defense's fantasy points. Admin overrides (results.bowl.manual) are never touched.
 export const config = { maxDuration: 60 };
 
-const KEY = 'poultry-bowl-v1';
+const KEY_LIVE = 'poultry-bowl-v1';
+const KEY_BETA = 'poultry-bowl-beta-v1'; // practice pool — synced too, when it has games
 
 const TEAM_IDS = {
   ARI: 22, ATL: 1, BAL: 33, BUF: 2, CAR: 29, CHI: 3, CIN: 4, CLE: 5,
@@ -41,27 +42,21 @@ async function fetchRosters(abbrs) {
   return { pos, name };
 }
 
-export default async function handler(req, res) {
-  if (process.env.CRON_SECRET) {
-    const authHeader = req.headers['authorization'] || '';
-    const providedSecret = authHeader.replace(/^Bearer\s+/i, '') || req.query?.secret;
-    if (providedSecret !== process.env.CRON_SECRET) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized' });
-    }
-  }
-
+async function syncOne(KEY) {
   try {
     const data = await kv.get(KEY);
     const games = (data?.config?.games || []).filter(g => g.espnId);
-    if (!games.length) return res.status(200).json({ ok: true, updated: false, note: 'no games with an ESPN id set up yet' });
+    if (!games.length) return ({ ok: true, updated: false, note: 'no games with an ESPN id set up yet' });
 
     const abbrs = [...new Set(games.flatMap(g => [g.home, g.away]))];
     const { pos, name: nameMap } = await fetchRosters(abbrs);
 
     const auto = { updatedAt: new Date().toISOString(), games: {}, leaders: {}, lineupScores: {}, longestTd: null, allFinal: false };
     const best = { qb: null, rb: null, wr: null, te: null };
+    const board = { qb: [], rb: [], wr: [], te: [] };
     const consider = (key, id, name, value) => {
       if (!(value > 0)) return;
+      board[key].push({ id, name, value });
       if (!best[key] || value > best[key].value) best[key] = { id, name, value };
     };
     let finals = 0;
@@ -126,20 +121,38 @@ export default async function handler(req, res) {
     }
 
     Object.keys(best).forEach(k => { if (best[k]) auto.leaders[k] = best[k]; });
+    // Top of each stat board (a player's stats are summed across games, so ids are unique). Used for the 20/15/10/5 Big Four scoring.
+    auto.board = {};
+    Object.keys(board).forEach(k => { auto.board[k] = board[k].sort((a, b) => b.value - a.value).slice(0, 12); });
     auto.allFinal = games.length === (data.config.games || []).length && finals === games.length;
 
     // Only write (and bump the revision) when something other than the timestamp changed.
     const strip = (a) => JSON.stringify({ ...(a || {}), updatedAt: null });
     const prevAuto = data?.results?.bowl?.auto;
-    if (strip(prevAuto) === strip(auto)) return res.status(200).json({ ok: true, updated: false, note: 'no changes' });
+    if (strip(prevAuto) === strip(auto)) return ({ ok: true, updated: false, note: 'no changes' });
 
     // Re-read right before writing so a save that happened during this run isn't clobbered.
     const fresh = (await kv.get(KEY)) || data;
     const next = { ...fresh, results: { ...(fresh.results || {}), bowl: { ...(fresh.results?.bowl || {}), auto } } };
     await kv.set(KEY, next);
     await kv.set(KEY + ':rev', Date.now().toString(36));
-    return res.status(200).json({ ok: true, updated: true, syncedAt: auto.updatedAt, allFinal: auto.allFinal, leaders: auto.leaders, longestTd: auto.longestTd });
+    return ({ ok: true, updated: true, syncedAt: auto.updatedAt, allFinal: auto.allFinal, leaders: auto.leaders, longestTd: auto.longestTd });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    return ({ ok: false, error: String(e?.message || e) });
   }
+}
+
+export default async function handler(req, res) {
+  if (process.env.CRON_SECRET) {
+    const authHeader = req.headers['authorization'] || '';
+    const providedSecret = authHeader.replace(/^Bearer\s+/i, '') || req.query?.secret;
+    if (providedSecret !== process.env.CRON_SECRET) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+  }
+
+  const live = await syncOne(KEY_LIVE);
+  let beta = null;
+  try { beta = await syncOne(KEY_BETA); } catch (e) { beta = { ok: false, error: String(e?.message || e) }; }
+  return res.status(live.ok === false ? 500 : 200).json({ ...live, beta });
 }

@@ -9,8 +9,16 @@ import { TEAM_IDS } from '../lib/rosters';
 import PoolRules from '../components/PoolRules';
 import PoolChat from '../components/PoolChat';
 
-const POOL_KEY = 'poultry-bowl-v1';
-const IDENTITY_KEY = 'poultry-bowl-identity';
+const POOL_KEY_LIVE = 'poultry-bowl-v1';
+const POOL_KEY_BETA = 'poultry-bowl-beta-v1'; // practice copy of the pool for testing — separate data, never touches the real one
+// Next Thursday (today if it is Thursday) through the following Monday, as ESPN date strings.
+const betaDefaultRange = () => {
+  const d = new Date(); d.setHours(12, 0, 0, 0);
+  while (d.getDay() !== 4) d.setDate(d.getDate() + 1);
+  const f = (x) => `${x.getFullYear()}${String(x.getMonth() + 1).padStart(2, '0')}${String(x.getDate()).padStart(2, '0')}`;
+  const end = new Date(d); end.setDate(end.getDate() + 4);
+  return { start: f(d), end: f(end) };
+};
 const POLL_MS = 30000;
 const FEE = 20;
 const JACKPOT_PCT = 10;
@@ -22,6 +30,23 @@ const fixAbbr = (a) => ABBR_FIX[a] || a;
 const C = {
   bg: '#1A0F08', panel: '#2A1A0E', panel2: '#35210F', line: '#5A3A1F',
   gold: '#E8A23D', orange: '#E26A1D', cream: '#F5E9D3', muted: '#B79B7A', green: '#7FCB98', red: '#E5604F',
+};
+
+// Fantasy lineup slots lock one by one at the kickoff of the player's own game.
+const teamLocked = (games, team, now) => {
+  const g = (games || []).find(x => x.home === team || x.away === team);
+  const t = g ? Date.parse(g.kickoff) : NaN;
+  return !Number.isNaN(t) && now >= t;
+};
+
+const LEADER_PTS = [20, 15, 10, 5];
+// Underdog bonus = the size of the spread (e.g. a 5.5-point underdog that wins outright = +5.5).
+const dogBonus = (g) => Math.abs(Number(g?.spread)) || 0;
+// The underdog (team getting points) for a game, or null when there's no spread / it's a pick'em.
+const underdogOf = (g) => {
+  if (g?.spread === undefined || g?.spread === null || g?.spread === '') return null;
+  const s = Number(g.spread);
+  return Number.isNaN(s) || s === 0 ? null : (s > 0 ? g.home : g.away);
 };
 
 const LEADERS = [
@@ -43,15 +68,15 @@ const LINEUP_SLOTS = [
 ];
 
 const RULES = [
-  { heading: 'The Big Four — 20 pts each', body: ['Pick the player who will lead ALL 5 games in each category: QB passing yards, RB rushing yards, WR receiving yards, and TE receptions.', '20 points for each one you get right (80 possible).'] },
+  { heading: 'The Big Four — up to 20 pts each', body: ['Pick the player you think will lead ALL 5 games in each category: QB passing yards, RB rushing yards, WR receiving yards, and TE receptions.', 'Your player finishing 1st = 20 points, 2nd = 15, 3rd = 10, 4th = 5 (80 possible).', 'Ties push everyone below down: if two players tie for the most, both get 20 and the next player is 3rd (10 points). If three tie for the most, the next player is 4th (5 points).'] },
   { heading: 'Per game — 5 pts each', body: ['Longest field goal of the game: over or under the posted line (48.5 by default).', 'Total points of the game: over or under that game\'s posted over/under (from ESPN, set when the lines are released).', 'Pick against the spread for each game.', 'Lines use a half point so there are no pushes. (If a spread is ever posted on a whole number and lands exactly, everybody gets the 5 points.)'] },
-  { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.'] },
+  { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.', 'Underdog bonus: if you pick the underdog (the team getting points in the spread) and they win straight up, you get extra points equal to the spread — a 5.5-point underdog that wins is +5.5 on top. It is not multiplied by confidence.'] },
   { heading: 'Exact longest field goal', body: ['Guess the longest made field goal in each game. Exact = 5 points, then minus 1 point for every yard you are off (never below 0).', 'Examples: guess 47, longest 47 = 5 · longest 44 = 2 · longest 50 = 2 · longest 53 = 0. If a game has no field goals the longest counts as 0.'] },
-  { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', 'The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. (A QB who runs one in himself does count.)'] },
-  { heading: 'Fantasy lineup — 15 / 10 / 5', body: ['Build a lineup from players in the 5 games: 1 QB, 2 RB, 2 WR, 1 TE, 1 K, 1 D/ST. Every slot must be filled or you are not eligible.', 'Scored with the same full-PPR scoring as Where\'s the Beef (including the D/ST rules).', 'Highest lineup total earns 15 pts, 2nd earns 10, 3rd earns 5. Ties split the points for the spots they cover.'] },
+  { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', '⚠️ QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT. The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. A QB only scores if he RUNS one in himself.'] },
+  { heading: 'Fantasy lineup — 15 / 10 / 5', body: ['Build a lineup from players in the 5 games: 1 QB, 2 RB, 2 WR, 1 TE, 1 K, 1 D/ST. Every slot must be filled or you are not eligible.', 'Scored with the same full-PPR scoring as Where\'s the Beef (including the D/ST rules).', 'Highest lineup total earns 15 pts, 2nd earns 10, 3rd earns 5. Ties split the points for the spots they cover.', 'Each player locks individually at his own game\'s kickoff — until then you can swap him freely.'] },
   { heading: 'Tiebreakers', body: ['1) Closest to how many points the Cowboys score.', '2) Closest to the total number of field goals made across all 5 games.'] },
   { heading: 'Big Beefy Bonus — no points, 10% of the pot', body: ['Pick who will score the longest touchdown of the 5 games (defensive TDs and punt/kickoff return TDs do not count). If you are right, you automatically win the Big Beefy Bonus: 10% of the total pot.', 'If more than one person is right, the tiebreakers above decide. If nobody is right, that 10% goes back into the main prize pool.'] },
-  { heading: 'Locking', body: 'Everything locks at the kickoff of the first game. After that, every entry\'s picks are revealed to everyone.' },
+  { heading: 'Locking', body: ['🔒 Everything locks at the kickoff of the first game — Big Four, winners, spread, totals, field goals, TD scorers, tiebreakers and the Big Beefy Bonus. After that, those picks are revealed to everyone.', '✏️ The exception is your FANTASY LINEUP: you can change any player right up until his own game kicks off (for late injuries or inactives). Once a player\'s game starts his slot is locked and his name is revealed; players in later games stay changeable and hidden.'] },
   { heading: 'Payouts', body: 'Entry is 20 units. Payout structure is posted on this page once entries close.' },
 ];
 
@@ -83,9 +108,18 @@ function effectiveResults(res) {
   ids.forEach(id => { games[id] = { ...(auto.games?.[id] || {}), ...definedOnly(man.games?.[id]) }; });
   const leaders = {};
   ['qb', 'rb', 'wr', 'te'].forEach(k => { leaders[k] = man.leaders?.[k]?.name ? man.leaders[k] : auto.leaders?.[k]; });
+  // Stat boards (top players per category). A manual leader override goes on top of the board.
+  const board = {};
+  ['qb', 'rb', 'wr', 'te'].forEach(k => {
+    const base = auto.board?.[k] || (auto.leaders?.[k] ? [auto.leaders[k]] : []);
+    if (man.leaders?.[k]?.name) {
+      board[k] = [{ name: man.leaders[k].name, value: Number.MAX_SAFE_INTEGER }, ...base.filter(b => !sameName(b.name, man.leaders[k].name))];
+    } else board[k] = base;
+  });
   return {
     games,
     leaders,
+    board,
     longestTd: man.longestTd?.name ? man.longestTd : auto.longestTd || null,
     lineupScores: auto.lineupScores || {},
     allFinal: man.allFinal != null ? !!man.allFinal : !!auto.allFinal,
@@ -105,10 +139,18 @@ function scoreEntrant(pk, cfg, R) {
   if (R.allFinal) {
     LEADERS.forEach(({ key }) => {
       const pick = pk.leaders?.[key];
-      const lead = R.leaders?.[key];
-      const ok = !!(pick && lead && ((pick.id && lead.id && String(pick.id) === String(lead.id)) || sameName(pick.name, lead.name)));
-      detail.leaders[key] = ok;
-      if (ok) parts.leaders += 20;
+      const board = R.board?.[key] || [];
+      let pts = 0;
+      if (pick) {
+        const me = board.find(b => (pick.id && b.id && String(pick.id) === String(b.id)) || sameName(pick.name, b.name));
+        if (me) {
+          // Rank = 1 + number of players with strictly more, so a tie for the top pushes the next player down (1, 1, 3, ...).
+          const rank = 1 + board.filter(b => b.value > me.value).length;
+          pts = LEADER_PTS[rank - 1] || 0;
+        }
+      }
+      detail.leaders[key] = pts;
+      parts.leaders += pts;
     });
   }
 
@@ -118,7 +160,10 @@ function scoreEntrant(pk, cfg, R) {
     const gp = pk.games?.[g.id] || {};
     const d = {};
     const winner = rg.homeScore > rg.awayScore ? g.home : rg.awayScore > rg.homeScore ? g.away : null;
-    if (winner && gp.win === winner) { d.win = true; parts.win += 5 * (Number(gp.conf) || 0); }
+    if (winner && gp.win === winner) {
+      d.win = true; parts.win += 5 * (Number(gp.conf) || 0);
+      if (underdogOf(g) === winner) { d.dog = true; parts.win += dogBonus(g); }
+    }
 
     const margin = rg.homeScore - rg.awayScore + Number(g.spread || 0);
     const cover = margin > 0 ? g.home : margin < 0 ? g.away : 'push';
@@ -341,18 +386,38 @@ function Drumstick({ active, done }) {
 function LegIcon({ k, active, done }) {
   const wrap = { filter: active ? 'drop-shadow(0 0 6px #FFB300)' : 'none', transition: 'transform 0.15s', transform: active ? 'scale(1.12)' : 'none' };
   const ring = done ? '#3D9B5C' : 'transparent';
-  if (k === 'tb') return (
-    <img src="/poultry-photo.jpg" alt="" width="54" height="54" style={{ ...wrap, width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${done ? '#3D9B5C' : '#FFB300'}`, boxSizing: 'border-box' }} />
+  if (k === 'tb' || k === 'lineup') return (
+    <img src={k === 'tb' ? '/poultry-photo.jpg' : '/poultry-balloon.jpg'} alt="" width="54" height="54" style={{ ...wrap, width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${done ? '#3D9B5C' : '#FFB300'}`, boxSizing: 'border-box' }} />
   );
   const S = { stroke: '#4A2A0E', strokeWidth: 1.6, strokeLinejoin: 'round', strokeLinecap: 'round' };
   const body = {
-    win: ( // cornucopia
-      <g {...S}>
-        <path d="M10 44 C6 30 16 16 34 20 C46 23 56 36 56 50 C48 40 38 38 30 42 C24 44 18 50 10 44 Z" fill="#C98A3C" />
-        <path d="M14 38 C20 32 28 32 36 36" fill="none" stroke="#8A5520" />
-        <circle cx="48" cy="46" r="6" fill="#D93B2B" /><circle cx="55" cy="52" r="5" fill="#E8A21B" />
-        <ellipse cx="42" cy="54" rx="5" ry="4" fill="#8E4FB0" /><circle cx="36" cy="49" r="4" fill="#6FA83A" />
-        <path d="M44 41 q3 -5 7 -3" fill="none" stroke="#3E7A25" />
+    win: ( // cornucopia — woven horn spilling the harvest
+      <g strokeLinejoin="round" strokeLinecap="round">
+        <defs>
+          <linearGradient id="cc-wick" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#E3B06A" /><stop offset="0.55" stopColor="#B87A33" /><stop offset="1" stopColor="#7A4A18" /></linearGradient>
+          <clipPath id="cc-horn"><path d="M5 9 C11 3 21 8 29 19 C36 29 44 33 53 33 L58 56 C42 61 23 57 13 43 C5 31 2 17 5 9 Z" /></clipPath>
+          <radialGradient id="cc-pump" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stopColor="#FFB04A" /><stop offset="1" stopColor="#D2611A" /></radialGradient>
+          <radialGradient id="cc-app" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stopColor="#F26B5B" /><stop offset="1" stopColor="#A91E1E" /></radialGradient>
+        </defs>
+        <path d="M5 9 C11 3 21 8 29 19 C36 29 44 33 53 33 L58 56 C42 61 23 57 13 43 C5 31 2 17 5 9 Z" fill="url(#cc-wick)" stroke="#4A2A0E" strokeWidth="1.5" />
+        <g clipPath="url(#cc-horn)" stroke="#5A3512" strokeWidth="0.9" opacity="0.65" fill="none">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(n => <path key={'a' + n} d={`M${-10 + n * 8} 0 L${30 + n * 8} 64`} />)}
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(n => <path key={'b' + n} d={`M${70 - n * 8} 0 L${30 - n * 8} 64`} />)}
+          <path d="M10 14 C18 10 26 18 32 26 M7 26 C14 22 22 32 30 38 M12 40 C22 40 34 44 46 40" strokeWidth="1.2" opacity="0.6" />
+        </g>
+        <path d="M9 10 C13 7 19 11 25 18" stroke="#FFE2A8" strokeWidth="1.6" opacity="0.6" fill="none" />
+        {/* the harvest spilling out of the mouth */}
+        <path d="M46 36 C54 24 64 30 62 40 C60 46 52 46 46 44 Z" fill="#E7B923" stroke="#6A4B08" strokeWidth="1.2" />
+        <path d="M50 34 L58 44 M54 31 L61 40" stroke="#B88A12" strokeWidth="1" fill="none" />
+        <path d="M44 30 C40 22 48 20 52 24 C48 26 47 28 48 31 Z" fill="#4C9A3A" stroke="#27561B" strokeWidth="1" />
+        <circle cx="47" cy="44" r="8" fill="url(#cc-pump)" stroke="#7A3208" strokeWidth="1.3" />
+        <path d="M44 37 C43 45 43 51 45 52 M49 37 C50 45 50 51 49 52" stroke="#9A4410" strokeWidth="1" fill="none" />
+        <path d="M47 36 q1 -4 4 -4" stroke="#3F7A25" strokeWidth="1.6" fill="none" />
+        <circle cx="57" cy="52" r="6.5" fill="url(#cc-app)" stroke="#5E1010" strokeWidth="1.2" />
+        <path d="M57 46 q1 -3 3 -3" stroke="#4A2A0E" strokeWidth="1.2" fill="none" />
+        <ellipse cx="55" cy="49.5" rx="1.6" ry="1" fill="#fff" opacity="0.5" stroke="none" />
+        {[[38, 52], [43, 55], [35, 57], [40, 59], [46, 58], [38, 63]].map(([x, y], n) => <circle key={n} cx={x} cy={y - 4} r="3.3" fill="#7C3F9E" stroke="#3E1A55" strokeWidth="0.9" />)}
+        <path d="M40 46 q3 -4 6 -2" stroke="#3F7A25" strokeWidth="1.3" fill="none" />
       </g>),
     ats: ( // pilgrim
       <g {...S}>
@@ -402,15 +467,6 @@ function LegIcon({ k, active, done }) {
         <path d="M32 8 Q44 16 32 28 Z" fill="#FFF8E7" /><path d="M20 20 Q29 26 20 34 Z" fill="#FFF8E7" /><path d="M44 22 Q53 28 44 35 Z" fill="#FFF8E7" />
         <path d="M32 6 l8 2 l-8 2 Z" fill="#C0392B" strokeWidth="1" />
         <path d="M0 56 q8 -5 16 0 t16 0 t16 0 t16 0" fill="none" stroke="#9FD0EE" strokeWidth="2" />
-      </g>),
-    lineup: ( // parade balloon
-      <g {...S}>
-        <path d="M32 44 L28 60 M32 44 L36 60" fill="none" strokeWidth="1.2" />
-        <ellipse cx="32" cy="24" rx="19" ry="21" fill="#D93B2B" />
-        <path d="M20 8 Q32 22 20 40 M44 8 Q32 22 44 40" fill="none" stroke="#FFF8E7" strokeWidth="3" />
-        <path d="M32 3 Q36 24 32 45" fill="none" stroke="#F1C40F" strokeWidth="3" />
-        <ellipse cx="24" cy="14" rx="4" ry="6" fill="#fff" opacity="0.35" stroke="none" />
-        <path d="M28 44 h8 l-1 4 h-6 Z" fill="#8B5A2B" strokeWidth="1" />
       </g>),
   }[k];
   if (!body) return <Drumstick active={active} done={done} />;
@@ -549,7 +605,9 @@ function legCounts(pk, games) {
 }
 
 // ---------------------------------------------------------------- page
-export default function PoultryBowl() {
+export default function PoultryBowl({ beta = false }) {
+  const POOL_KEY = beta ? POOL_KEY_BETA : POOL_KEY_LIVE;
+  const IDENTITY_KEY = beta ? 'poultry-bowl-beta-identity' : 'poultry-bowl-identity';
   const { isAdmin, prompt: adminPrompt, setPrompt: setAdminPrompt, openPrompt: openAdminPrompt, submitPrompt: submitAdminPrompt, exitAdmin } = useAdminMode();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -568,7 +626,7 @@ export default function PoultryBowl() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [emailModal, setEmailModal] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [espnRange, setEspnRange] = useState({ start: '20261125', end: '20261127' });
+  const [espnRange, setEspnRange] = useState(beta ? betaDefaultRange() : { start: '20261125', end: '20261127' });
   const [espnMsg, setEspnMsg] = useState('');
   const [manualDraft, setManualDraft] = useState(null);
   const [activeLeg, setActiveLeg] = useState('big4');
@@ -686,6 +744,10 @@ export default function PoultryBowl() {
   const actingId = isAdmin && actAsId && data.participants.some(p => p.id === actAsId) ? actAsId : (myIdValid ? myId : null);
   const actingPerson = data.participants.find(p => p.id === actingId);
   const canEdit = !!actingId && (!locked || isAdmin);
+  // Lineup is editable per player until his own game starts (admin can always edit).
+  const canEditLineup = !!actingId;
+  const slotLocked = (val) => !isAdmin && !!val?.team && teamLocked(games, val.team, now);
+  const anyGameOpen = games.some(g => { const t = Date.parse(g.kickoff); return !Number.isNaN(t) && now < t; });
   const myPicks = (actingId && picksBowl[actingId]) || {};
   const progress = pickProgress(myPicks, { ...cfg, games });
   const standings = buildStandings({ ...cfg, games }, data.participants, picksBowl, R);
@@ -695,8 +757,8 @@ export default function PoultryBowl() {
   const joinClosed = locked && !isAdmin;
 
   // ---- actions
-  const setMyPicks = (fn) => {
-    if (!canEdit) return;
+  const setMyPicks = (fn, force = false) => {
+    if (!canEdit && !(force && canEditLineup)) return;
     const cur = picksBowl[actingId] || {};
     const nextP = { ...fn(cur), updatedAt: Date.now() };
     persist({ ...data, picks: { ...data.picks, bowl: { ...picksBowl, [actingId]: nextP } } });
@@ -714,13 +776,13 @@ export default function PoultryBowl() {
     gm[gid] = { ...(gm[gid] || {}), conf: v || undefined };
     return { ...cur, games: gm };
   });
-  const setSlot = (key, val) => setMyPicks(cur => ({ ...cur, lineup: { ...(cur.lineup || {}), [key]: val } }));
+  const setSlot = (key, val) => setMyPicks(cur => ({ ...cur, lineup: { ...(cur.lineup || {}), [key]: val } }), true);
 
   // Same rule as the other pools: a first-time pick saves straight away, but replacing a pick
   // that's already been made asks "Change X to Y?" first.
   const lbl = (v) => (v && typeof v === 'object' ? v.name : v);
-  const guard = (oldVal, newVal, apply) => {
-    if (!canEdit) return;
+  const guard = (oldVal, newVal, apply, force = false) => {
+    if (!canEdit && !(force && canEditLineup)) return;
     const o = lbl(oldVal); const nw = lbl(newVal);
     if (!has(o)) { apply(); return; }
     if (String(o) === String(nw ?? '')) return;
@@ -761,12 +823,20 @@ export default function PoultryBowl() {
   const postMessage = (text) => persist({ ...data, chatMessages: [...(data.chatMessages || []), { id: uid(), authorId: myId, authorName: data.participants.find(p => p.id === myId)?.name || 'Admin', text, at: new Date().toISOString() }] });
   const deleteMessage = (id) => persist({ ...data, chatMessages: (data.chatMessages || []).filter(m => m.id !== id) }, [], [id]);
 
-  const setConfig = (patch) => persist({ ...data, config: { ...cfg, ...patch } });
-  const updateGame = (gid, patch) => setConfig({ games: cfg.games.map(g => g.id === gid ? { ...g, ...patch } : g) });
-  const removeGame = (gid) => setConfig({ games: cfg.games.filter(g => g.id !== gid) });
-  const addBlankGame = () => setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: '', total: '', espnId: '' }] });
+  // Once the pool is open AND the spreads are final, the lines (teams, spreads, totals, FG line) are frozen for good.
+  const linesFrozen = !!cfg.linesFrozen;
+  const setConfig = (patch) => {
+    if (linesFrozen && ('fgLine' in patch || 'spreadsLive' in patch)) return;
+    persist({ ...data, config: { ...cfg, ...patch } });
+  };
+  const frozenKeys = ['away', 'home', 'spread', 'total', 'espnId'];
+  const updateGame = (gid, patch) => (linesFrozen && Object.keys(patch).some(k => frozenKeys.includes(k))) ? null : setConfig({ games: cfg.games.map(g => g.id === gid ? { ...g, ...patch } : g) });
+  const removeGame = (gid) => linesFrozen ? null : setConfig({ games: cfg.games.filter(g => g.id !== gid) });
+  const addBlankGame = () => linesFrozen ? null : setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: '', total: '', espnId: '' }] });
 
   const loadFromEspn = async (refreshSpreads = false) => {
+    if (linesFrozen) { setEspnMsg('The lines are frozen — nothing can change them now.'); return; }
+    if (refreshSpreads && cfg.spreadsLive) { setEspnMsg('Spreads are final — untick "Spreads are final" first if you really want to refresh them.'); return; }
     setEspnMsg('Loading from ESPN…');
     try {
       const base = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
@@ -878,7 +948,7 @@ export default function PoultryBowl() {
   }
 
   const showPicksOf = (pid) => locked || pid === actingId;
-  const lockText = lockAt == null ? 'Games not set up yet' : locked ? 'Picks are LOCKED' : `Locks ${fmtKick(new Date(lockAt).toISOString())}`;
+  const lockText = lockAt == null ? 'Games not set up yet' : locked ? (anyGameOpen ? 'Picks LOCKED · lineup open until each game' : 'Picks are LOCKED') : `Locks ${fmtKick(new Date(lockAt).toISOString())}`;
   const msLeft = lockAt != null ? lockAt - now : 0;
   const countdown = lockAt != null && !locked ? (() => {
     const m = Math.floor(msLeft / 60000); const d = Math.floor(m / 1440); const h = Math.floor((m % 1440) / 60);
@@ -911,6 +981,7 @@ export default function PoultryBowl() {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+        {beta && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#2A1A4A', color: '#D9C6FF', border: '1px solid #8E6BD8' }}>🧪 <b>BETA TEST</b> — practice pool with its own separate data. No money, nothing here counts toward the real Poultry Bowl.</div>}
         {/* Top bar */}
         <div className="flex flex-wrap items-center gap-2 justify-between">
           <div className="flex flex-wrap items-center gap-2">
@@ -1083,8 +1154,8 @@ export default function PoultryBowl() {
           );
           const usedConf = (gid) => games.map(x => x.id !== gid ? Number(myPicks.games?.[x.id]?.conf) : 0).filter(Boolean);
           const panels = {
-            big4: () => playersGate ? tbdPlayers('The Big Four — 20 pts each') : (
-              <Section title="The Big Four — 20 pts each" sub="Who leads ALL the games in each category?">
+            big4: () => playersGate ? tbdPlayers('The Big Four — up to 20 pts each') : (
+              <Section title="The Big Four — up to 20 pts each" sub="Who leads ALL the games in each category? 1st = 20 pts, 2nd = 15, 3rd = 10, 4th = 5.">
                 <div className="space-y-2">
                   {LEADERS.map(l => (
                     <div key={l.key}>
@@ -1096,13 +1167,13 @@ export default function PoultryBowl() {
               </Section>
             ),
             win: () => (
-              <Section title="Winners + confidence" sub="Pick the winner and rank your confidence — 5 pts × the number if you're right. Use each number once.">
+              <Section title="Winners + confidence" sub="Pick the winner and rank your confidence — 5 pts × the number if you're right. Use each number once. 🐶 = underdog: bonus equal to the spread if they win outright.">
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const used = usedConf(g.id);
                   return card(g, `Spread ${fmtSpread(g, cfg.spreadsLive)}`, (
                     <div className="flex gap-2 items-center">
-                      <div style={{ flex: 1 }}><Segmented disabled={!canEdit} value={gp.win} onChange={v => guard(gp.win, v, () => setGame(g.id, { win: v }))} options={[{ value: g.away, label: g.away }, { value: g.home, label: g.home }]} /></div>
+                      <div style={{ flex: 1 }}><Segmented disabled={!canEdit} value={gp.win} onChange={v => guard(gp.win, v, () => setGame(g.id, { win: v }))} options={[g.away, g.home].map(t => ({ value: t, label: cfg.spreadsLive && underdogOf(g) === t ? `${t} 🐶+${dogBonus(g)}` : t }))} /></div>
                       <select disabled={!canEdit} value={gp.conf || ''} onChange={e => { const v = Number(e.target.value) || 0; guard(gp.conf, v || '', () => setConf(g.id, v)); }} style={{ ...inputStyle, width: 100 }}>
                         <option value="">Conf…</option>
                         {Array.from({ length: games.length }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}{used.includes(n) ? ' (swap)' : ''}</option>)}
@@ -1155,7 +1226,11 @@ export default function PoultryBowl() {
               </Section>
             ),
             td: () => playersGate ? tbdPlayers('TD scorer — 12 pts each') : (
-              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return — a passing TD counts for the catcher, not the QB).">
+              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return).">
+                <div className="rounded px-3 py-2 mb-3 font-head" style={{ background: '#5A1F18', border: `2px solid ${C.red}`, color: '#FFD9D2', fontSize: 14, lineHeight: 1.3 }}>
+                  🚫 <b>QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT.</b><br />
+                  <span className="font-mono" style={{ fontSize: 12, color: '#FFB4A8' }}>A QB only scores for a TD he RUNS in himself. The player who catches a TD pass is the one who counts.</span>
+                </div>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   return card(g, '', <PlayerSelect value={gp.td} onChange={v => guard(gp.td, v, () => setGame(g.id, { td: v }))} options={roster.filter(p => (p.team === g.home || p.team === g.away) && p.position !== 'K')} disabled={!canEdit} />);
@@ -1164,16 +1239,20 @@ export default function PoultryBowl() {
             ),
             lineup: () => playersGate ? tbdPlayers('Fantasy lineup — 15 / 10 / 5') : (
               <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef. Fill all 8 slots.">
+                <div className="font-mono text-[11px] mb-2" style={{ color: C.muted }}>Each player locks at his own game's kickoff — swap him freely until then.</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {LINEUP_SLOTS.map(s => {
                     const chosen = LINEUP_SLOTS.map(x => myPicks.lineup?.[x.key]?.id).filter(Boolean);
                     const opts = s.pos === 'DST'
                       ? gameTeams.map(t => ({ id: t, name: `${TEAM_MAP[t] || t} D/ST`, team: t, position: 'D/ST' }))
                       : roster.filter(p => p.position === s.pos);
+                    const cur = myPicks.lineup?.[s.key];
+                    const lockedSlot = slotLocked(cur);
+                    const openOpts = isAdmin ? opts : opts.filter(o => !teamLocked(games, o.team, now));
                     return (
                       <div key={s.key}>
-                        <Label>{s.label}</Label>
-                        <PlayerSelect value={myPicks.lineup?.[s.key]} onChange={v => guard(myPicks.lineup?.[s.key], v, () => setSlot(s.key, v))} options={opts} disabled={!canEdit} exclude={chosen} />
+                        <Label>{s.label}{lockedSlot ? ' 🔒 locked — his game has started' : ''}</Label>
+                        <PlayerSelect value={cur} onChange={v => guard(cur, v, () => setSlot(s.key, v), true)} options={openOpts} disabled={!canEditLineup || lockedSlot} exclude={chosen} />
                       </div>
                     );
                   })}
@@ -1200,7 +1279,7 @@ export default function PoultryBowl() {
           return (
             <div className="space-y-4">
               {!actingId && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: C.panel, color: C.cream, border: `1px solid ${C.gold}` }}>👀 Preview — join the pool or pick your name above to start making picks{isAdmin ? ' (or use "edit picks as" in the admin row)' : ''}.</div>}
-              {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.</div>}
+              {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.{anyGameOpen ? ' Your fantasy lineup can still be changed for players whose games haven\'t started.' : ''}</div>}
               {rosterLoading && roster.length === 0 && <div className="font-mono text-xs flex items-center gap-2" style={{ color: C.muted }}><Loader2 size={12} className="animate-spin" /> Loading players…</div>}
 
               <div className="rounded p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -1222,6 +1301,14 @@ export default function PoultryBowl() {
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="font-mono text-xs rounded px-3 py-2" style={leg.key === 'lineup'
+                ? { background: '#14331F', color: '#9BE3B0', border: `1px solid ${C.green}` }
+                : { background: '#3A2A0A', color: C.gold, border: `1px solid ${C.gold}` }}>
+                {leg.key === 'lineup'
+                  ? '✏️ CAN BE CHANGED until each player\'s game kicks off — each slot locks separately at his own kickoff.'
+                  : `🔒 LOCKS at the start of the first game${lockAt != null ? ` (${fmtKick(new Date(lockAt).toISOString())})` : ''}.`}
               </div>
 
               {panels[leg.key]()}
@@ -1274,7 +1361,7 @@ export default function PoultryBowl() {
                     <div className="px-3 pb-3 font-mono text-[11px] space-y-1" style={{ color: C.muted }}>
                       <div>Big Four {r.parts.leaders} · Winners {r.parts.win} · Spread {r.parts.ats} · Totals {r.parts.tot} · FG O/U {r.parts.fgOU} · Exact FG {r.parts.fgExact} · TD scorers {r.parts.td} · Lineup bonus {r.lineupBonus}</div>
                       {r.lineupComplete && <div>Lineup total: {r.lineupPts} pts</div>}
-                      {showPicksOf(r.p.id) ? <PicksSummary r={r} games={games} cfg={cfg} R={R} /> : <div>🔒 Picks are hidden until the first kickoff.</div>}
+                      {showPicksOf(r.p.id) ? <PicksSummary r={r} games={games} cfg={cfg} R={R} now={now} reveal={isAdmin || r.p.id === actingId} /> : <div>🔒 Picks are hidden until the first kickoff.</div>}
                     </div>
                   )}
                 </div>
@@ -1295,8 +1382,8 @@ export default function PoultryBowl() {
               <div className="px-4 pb-4 space-y-5 font-mono text-xs">
                 <div className="space-y-2">
                   <label className="flex items-center gap-2" style={{ color: C.cream }}>
-                    <input type="checkbox" checked={!!cfg.spreadsLive} onChange={e => setConfig({ spreadsLive: e.target.checked })} />
-                    <b>Spreads are final — show them &amp; allow spread picks</b> <span style={{ color: C.muted }}>(off = everyone sees TBD)</span>
+                    <input type="checkbox" checked={!!cfg.spreadsLive} disabled={linesFrozen} onChange={e => setConfig({ spreadsLive: e.target.checked, ...(e.target.checked && data.open ? { linesFrozen: true } : {}) })} />
+                    <b>Spreads are final — show them &amp; allow spread picks</b> <span style={{ color: C.muted }}>(off = everyone sees TBD{linesFrozen ? '' : '; once the pool is open this freezes the lines for good'})</span>
                   </label>
                   <label className="flex items-center gap-2" style={{ color: C.cream }}>
                     <input type="checkbox" checked={!!cfg.playersOpen} onChange={e => setConfig({ playersOpen: e.target.checked })} />
@@ -1307,7 +1394,7 @@ export default function PoultryBowl() {
                     <b>Show the "coming soon" turkey on the landing page</b> <span style={{ color: C.muted }}>(it's still locked — people can't get in)</span>
                   </label>
                   <label className="flex items-center gap-2" style={{ color: C.cream }}>
-                    <input type="checkbox" checked={!!data.open} onChange={e => persist({ ...data, open: e.target.checked })} />
+                    <input type="checkbox" checked={!!data.open} onChange={e => { if (e.target.checked && cfg.spreadsLive && !window.confirm('Opening the pool with the spreads final FREEZES the spreads, totals, teams and FG line permanently. Continue?')) return; persist({ ...data, open: e.target.checked, config: e.target.checked && cfg.spreadsLive ? { ...cfg, linesFrozen: true } : cfg }); }} />
                     <b>Open the pool to everyone</b> <span style={{ color: C.muted }}>(also turns the landing-page turkey into a live link)</span>
                   </label>
                 </div>
@@ -1317,32 +1404,34 @@ export default function PoultryBowl() {
                   <div className="flex flex-wrap items-end gap-2 mb-2">
                     <div><Label>ESPN dates from</Label><input value={espnRange.start} onChange={e => setEspnRange(r => ({ ...r, start: e.target.value }))} style={{ ...inputStyle, width: 110 }} /></div>
                     <div><Label>to</Label><input value={espnRange.end} onChange={e => setEspnRange(r => ({ ...r, end: e.target.value }))} style={{ ...inputStyle, width: 110 }} /></div>
-                    <button onClick={() => loadFromEspn(false)} className="font-head flex items-center gap-1" style={smallBtn(C.gold)}><RefreshCw size={12} /> Load games from ESPN</button>
-                    <button onClick={() => loadFromEspn(true)} className="font-head flex items-center gap-1" style={smallBtn(C.orange, '#fff')}><RefreshCw size={12} /> Refresh spreads &amp; totals from ESPN</button>
-                    <button onClick={addBlankGame} className="font-head" style={smallBtn(C.panel2, C.cream)}>+ Add game by hand</button>
+                    <button onClick={() => loadFromEspn(false)} disabled={linesFrozen} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.gold), opacity: linesFrozen ? 0.4 : 1 }}><RefreshCw size={12} /> Load games from ESPN</button>
+                    <button onClick={() => loadFromEspn(true)} disabled={!!cfg.spreadsLive || linesFrozen} title={cfg.spreadsLive ? 'Spreads are final — untick "Spreads are final" first' : ''} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.orange, '#fff'), opacity: (cfg.spreadsLive || linesFrozen) ? 0.4 : 1, cursor: (cfg.spreadsLive || linesFrozen) ? 'not-allowed' : 'pointer' }}><RefreshCw size={12} /> Refresh spreads &amp; totals from ESPN</button>
+                    {cfg.spreadsLive && <span className="font-mono text-[11px]" style={{ color: C.muted }}>🔒 Spreads are final — untick "Spreads are final" to refresh again.</span>}
+                    <button onClick={addBlankGame} disabled={linesFrozen} className="font-head" style={{ ...smallBtn(C.panel2, C.cream), opacity: linesFrozen ? 0.4 : 1 }}>+ Add game by hand</button>
                   </div>
                   {espnMsg && <div className="mb-2" style={{ color: C.muted }}>{espnMsg}</div>}
                   <div className="space-y-2">
                     {games.map(g => (
                       <div key={g.id} className="rounded p-2 grid grid-cols-2 sm:grid-cols-7 gap-2 items-end" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                        <div><Label>Away</Label><select value={g.away} onChange={e => updateGame(g.id, { away: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
-                        <div><Label>Home</Label><select value={g.home} onChange={e => updateGame(g.id, { home: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
+                        <div><Label>Away</Label><select value={g.away} disabled={linesFrozen} onChange={e => updateGame(g.id, { away: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
+                        <div><Label>Home</Label><select value={g.home} disabled={linesFrozen} onChange={e => updateGame(g.id, { home: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
                         <div className="col-span-2"><Label>Kickoff (your time)</Label><input type="datetime-local" value={toLocalInput(g.kickoff)} onChange={e => updateGame(g.id, { kickoff: e.target.value ? new Date(e.target.value).toISOString() : '' })} style={inputStyle} /></div>
-                        <div><Label>Home spread</Label><input type="number" step="0.5" value={g.spread ?? ''} onChange={e => updateGame(g.id, { spread: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} /></div>
-                        <div><Label>Total (O/U)</Label><input type="number" step="0.5" value={g.total ?? ''} onChange={e => updateGame(g.id, { total: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} /></div>
-                        <div><Label>ESPN game id</Label><input value={g.espnId || ''} onChange={e => updateGame(g.id, { espnId: e.target.value.trim() })} style={inputStyle} /></div>
+                        <div><Label>Home spread</Label><input type="number" step="0.5" disabled={linesFrozen} value={g.spread ?? ''} onChange={e => updateGame(g.id, { spread: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} /></div>
+                        <div><Label>Total (O/U)</Label><input type="number" step="0.5" disabled={linesFrozen} value={g.total ?? ''} onChange={e => updateGame(g.id, { total: e.target.value === '' ? '' : Number(e.target.value) })} style={inputStyle} /></div>
+                        <div><Label>ESPN game id</Label><input value={g.espnId || ''} disabled={linesFrozen} onChange={e => updateGame(g.id, { espnId: e.target.value.trim() })} style={inputStyle} /></div>
                         <div className="col-span-2 sm:col-span-7 flex justify-between items-center" style={{ color: C.muted }}>
                           <span>Shows as: {g.away} @ {g.home} · {fmtSpread(g)} <i>(home spread: −3.5 = home favored by 3.5; use .5 to avoid pushes)</i></span>
-                          <button onClick={() => window.confirm('Remove this game?') && removeGame(g.id)} style={{ color: C.red }}><Trash2 size={14} /></button>
+                          <button disabled={linesFrozen} onClick={() => window.confirm('Remove this game?') && removeGame(g.id)} style={{ color: C.red, opacity: linesFrozen ? 0.3 : 1 }}><Trash2 size={14} /></button>
                         </div>
                       </div>
                     ))}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                    <div><Label>Longest FG line</Label><input type="number" step="0.5" value={cfg.fgLine} onChange={e => setConfig({ fgLine: Number(e.target.value) })} style={inputStyle} /></div>
+                    <div><Label>Longest FG line</Label><input type="number" step="0.5" disabled={linesFrozen} value={cfg.fgLine} onChange={e => setConfig({ fgLine: Number(e.target.value) })} style={inputStyle} /></div>
                     <div><Label>Tiebreaker team</Label><select value={cfg.tbTeam} onChange={e => setConfig({ tbTeam: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
                     <div><Label>Lock time override</Label><input type="datetime-local" value={toLocalInput(cfg.lockAt)} onChange={e => setConfig({ lockAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={inputStyle} /></div>
                   </div>
+                  {linesFrozen && <div className="mt-2 rounded px-2 py-1" style={{ background: '#14331F', color: '#9BE3B0', border: `1px solid ${C.green}` }}>🔒 Lines are FROZEN — teams, spreads, totals and the FG line can no longer be changed (kickoff times can).</div>}
                   <div className="mt-2" style={{ color: C.muted }}>Default lock is the first kickoff. Lines changed after people have picked still score against the new numbers — set them before opening.</div>
                   <div className="mt-2"><Label>Payout note shown to everyone (optional)</Label><textarea rows={3} value={cfg.payoutNote || ''} onChange={e => setConfig({ payoutNote: e.target.value })} style={inputStyle} placeholder="e.g. 1st 50% · 2nd 25% · 3rd 15% · Big Beefy Bonus 10%" /></div>
                 </div>
@@ -1489,14 +1578,14 @@ function AdminPrompt({ adminPrompt, setAdminPrompt, submitAdminPrompt }) {
   );
 }
 
-function PicksSummary({ r, games, cfg, R }) {
+function PicksSummary({ r, games, cfg, R, now, reveal }) {
   const pk = r.pk || {};
   const mark = (ok, final) => (!final ? '' : ok ? ' ✓' : ' ✗');
   return (
     <div className="space-y-2">
       <div>
         <b style={{ color: C.cream }}>Big Four:</b>{' '}
-        {LEADERS.map(l => `${l.key.toUpperCase()}: ${pk.leaders?.[l.key]?.name || '—'}${mark(r.detail.leaders[l.key], R.allFinal)}`).join(' · ')}
+        {LEADERS.map(l => `${l.key.toUpperCase()}: ${pk.leaders?.[l.key]?.name || '—'}${R.allFinal ? (r.detail.leaders[l.key] ? ` ✓ +${r.detail.leaders[l.key]}` : ' ✗') : ''}`).join(' · ')}
       </div>
       {games.map(g => {
         const gp = pk.games?.[g.id] || {};
@@ -1509,7 +1598,7 @@ function PicksSummary({ r, games, cfg, R }) {
           </div>
         );
       })}
-      <div><b style={{ color: C.cream }}>Lineup:</b> {LINEUP_SLOTS.map(s => `${s.label} ${pk.lineup?.[s.key]?.name || '—'}`).join(' · ')}</div>
+      <div><b style={{ color: C.cream }}>Lineup:</b> {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.label} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}</div>
       <div><b style={{ color: C.cream }}>Tiebreakers:</b> Cowboys {pk.tb1 ?? '—'} · Total FGs {pk.tb2 ?? '—'} · <b style={{ color: C.cream }}>Big Beefy Bonus:</b> {pk.jackpot?.name || '—'}</div>
     </div>
   );

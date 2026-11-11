@@ -834,6 +834,22 @@ export default function PoultryBowl({ beta = false }) {
   const removeGame = (gid) => linesFrozen ? null : setConfig({ games: cfg.games.filter(g => g.id !== gid) });
   const addBlankGame = () => linesFrozen ? null : setConfig({ games: [...cfg.games, { id: 'g' + uid(), away: 'DAL', home: 'DET', kickoff: '', spread: '', total: '', espnId: '' }] });
 
+  // Trim a long list (e.g. a full NFL week) to N games: the earliest game plus random others, spread across different kickoff times where possible.
+  const keepRandomGames = (n = 5) => {
+    if (linesFrozen || (cfg.games || []).length <= n) return;
+    const sorted = [...cfg.games].sort((a, b) => Date.parse(a.kickoff) - Date.parse(b.kickoff));
+    const first = sorted[0];
+    const rest = sorted.slice(1).sort(() => Math.random() - 0.5);
+    const picked = [first];
+    const slots = new Set([first.kickoff]);
+    for (const g of rest) { if (picked.length < n && !slots.has(g.kickoff)) { picked.push(g); slots.add(g.kickoff); } }
+    for (const g of rest) { if (picked.length < n && !picked.includes(g)) picked.push(g); }
+    const keep = sorted.filter(g => picked.includes(g));
+    const tbOk = keep.some(g => g.home === cfg.tbTeam || g.away === cfg.tbTeam);
+    setConfig({ games: keep, ...(tbOk ? {} : { tbTeam: keep[0].home }) });
+    setEspnMsg(`Kept ${keep.length} games: ${keep.map(g => `${g.away}@${g.home}`).join(', ')}.${tbOk ? '' : ` Tiebreaker team set to ${keep[0].home}.`}`);
+  };
+
   const loadFromEspn = async (refreshSpreads = false) => {
     if (linesFrozen) { setEspnMsg('The lines are frozen — nothing can change them now.'); return; }
     if (refreshSpreads && cfg.spreadsLive) { setEspnMsg('Spreads are final — untick "Spreads are final" first if you really want to refresh them.'); return; }
@@ -1407,6 +1423,7 @@ export default function PoultryBowl({ beta = false }) {
                     <button onClick={() => loadFromEspn(false)} disabled={linesFrozen} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.gold), opacity: linesFrozen ? 0.4 : 1 }}><RefreshCw size={12} /> Load games from ESPN</button>
                     <button onClick={() => loadFromEspn(true)} disabled={!!cfg.spreadsLive || linesFrozen} title={cfg.spreadsLive ? 'Spreads are final — untick "Spreads are final" first' : ''} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.orange, '#fff'), opacity: (cfg.spreadsLive || linesFrozen) ? 0.4 : 1, cursor: (cfg.spreadsLive || linesFrozen) ? 'not-allowed' : 'pointer' }}><RefreshCw size={12} /> Refresh spreads &amp; totals from ESPN</button>
                     {cfg.spreadsLive && <span className="font-mono text-[11px]" style={{ color: C.muted }}>🔒 Spreads are final — untick "Spreads are final" to refresh again.</span>}
+                    {(cfg.games || []).length > 5 && <button onClick={() => keepRandomGames(5)} disabled={linesFrozen} className="font-head" style={{ ...smallBtn(C.gold), opacity: linesFrozen ? 0.4 : 1 }}>🎲 Keep 5 random games (earliest + 4 random)</button>}
                     <button onClick={addBlankGame} disabled={linesFrozen} className="font-head" style={{ ...smallBtn(C.panel2, C.cream), opacity: linesFrozen ? 0.4 : 1 }}>+ Add game by hand</button>
                   </div>
                   {espnMsg && <div className="mb-2" style={{ color: C.muted }}>{espnMsg}</div>}

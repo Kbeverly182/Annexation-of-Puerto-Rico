@@ -1175,7 +1175,7 @@ export default function PoultryBowl({ beta = false }) {
           const usedConf = (gid) => games.map(x => x.id !== gid ? Number(myPicks.games?.[x.id]?.conf) : 0).filter(Boolean);
           const panels = {
             big4: () => playersGate ? tbdPlayers('The Big Four — up to 20 pts each') : (
-              <Section title="The Big Four — up to 20 pts each" sub="Who leads ALL the games in each category? 1st = 20 pts, 2nd = 15, 3rd = 10, 4th = 5.">
+              <Section title="The Big Four — up to 20 pts each" sub="Who leads ALL the games in each category? 1st = 20 pts, 2nd = 15, 3rd = 10, 4th = 5." how={["Pick one player for each category. You're scored on where your player finishes among ALL players in the 5 games:", "🥇 Most = 20 pts · 🥈 2nd most = 15 pts · 🥉 3rd most = 10 pts · 4th most = 5 pts · anyone else = 0", "Ties: if two players tie for the most, both get 20 and the next player counts as 3rd (10 pts). If three tie for the most, the next player is 4th (5 pts).", "Categories: QB passing yards, RB rushing yards, WR receiving yards, TE receptions. Scored once all games are final."]}>
                 <div className="space-y-2">
                   {LEADERS.map(l => (
                     <div key={l.key}>
@@ -1187,7 +1187,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             win: () => (
-              <Section title="Winners + confidence" sub="Pick the winner and rank your confidence — 5 pts × the number if you're right. Use each number once. 🐶 = underdog: bonus equal to the spread if they win outright.">
+              <Section title="Winners + confidence" sub="Pick the winner and rank your confidence — 5 pts × the number if you're right. Use each number once. 🐶 = underdog: bonus equal to the spread if they win outright." how={["1. Tap the team you think will win each game.", "2. Give every game a different confidence number — 1 = least sure, 5 = most sure (each number can only be used once).", "3. A correct pick earns 5 pts × your confidence number. Example: a correct pick ranked 5 = 25 pts; ranked 1 = 5 pts.", "🐶 Underdog bonus: if you pick the UNDERDOG (the team getting points) and they WIN the game, you also get bonus points equal to the spread. Example: you pick a 5.5-point underdog and they win → +5.5 extra. Favorites get no bonus, and the bonus is not multiplied by confidence."]}>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const used = usedConf(g.id);
@@ -1204,7 +1204,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             ats: () => (
-              <Section title="Against the spread — 5 pts each" sub="Pick who covers.">
+              <Section title="Against the spread — 5 pts each" sub="Pick who covers." how={["Pick which team covers the spread. Each correct pick = 5 pts.", "Example: a team at −3.5 must win by 4 or more to cover. The team at +3.5 covers by winning, or by losing by 3 or fewer.", "If a game lands exactly on the spread (a push), everyone gets the 5 pts."]}>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const sp = Number(g.spread);
@@ -1220,7 +1220,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             tot: () => (
-              <Section title="Total points over/under — 5 pts each" sub="Combined score of both teams.">
+              <Section title="Total points over/under — 5 pts each" sub="Combined score of both teams." how={["Pick OVER or UNDER the posted total (both teams' points added together). Each correct pick = 5 pts.", "Example: line 45.5 → Over needs 46 or more combined points; Under needs 45 or fewer.", "If a game lands exactly on the line (a push), everyone gets the 5 pts."]}>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const totReady = !!cfg.spreadsLive && g.total !== undefined && g.total !== null && g.total !== '' && !Number.isNaN(Number(g.total));
@@ -1230,7 +1230,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             fg: () => (
-              <Section title={`Longest field goal over/under ${cfg.fgLine} — 5 pts each`} sub="The longest made field goal in each game.">
+              <Section title={`Longest field goal over/under ${cfg.fgLine} — 5 pts each`} sub="The longest made field goal in each game." how={["Pick OVER or UNDER the line for the longest field goal MADE in each game (either team). Each correct pick = 5 pts.", "Example: line 48.5 → Over needs a made field goal of 49+ yards; Under means the longest was 48 or shorter. A game with no made field goals counts as Under.", "If the longest lands exactly on the line (a push), everyone gets the 5 pts."]}>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   return card(g, `Line ${cfg.fgLine}`, <Segmented disabled={!canEdit} value={gp.fg} onChange={v => guard(gp.fg, v, () => setGame(g.id, { fg: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
@@ -1238,7 +1238,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             exact: () => (
-              <Section title="Exact longest field goal" sub="5 pts for exact, minus 1 for every yard off (never below 0). Press Enter or tap away to save.">
+              <Section title="Exact longest field goal" sub="5 pts for exact, minus 1 for every yard off (never below 0). Press Enter or tap away to save." how={["Type the exact length (in yards) of the longest made field goal in each game.", "Exactly right = 5 pts. Every yard off costs 1 pt. Example: you say 52 and the longest is 49 → 2 pts. Five or more yards off = 0."]}>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   return card(g, '', <NumberPick tick={cancelTick} disabled={!canEdit} placeholder="yards, e.g. 47" value={gp.fgExact} onCommit={v => guard(gp.fgExact, v, () => setGame(g.id, { fgExact: v }))} />);
@@ -1246,7 +1246,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             td: () => playersGate ? tbdPlayers('TD scorer — 12 pts each') : (
-              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return).">
+              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return)." how={["Pick one player in each game you think will score a touchdown. If he scores at least one = 12 pts (no extra for multiple TDs).", "Rushing, receiving and return TDs count. Passing TDs count for the player who CAUGHT the ball — never for the QB who threw it."]}>
                 <div className="rounded px-3 py-2 mb-3 font-head" style={{ background: '#5A1F18', border: `2px solid ${C.red}`, color: '#FFD9D2', fontSize: 14, lineHeight: 1.3 }}>
                   🚫 <b>QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT.</b><br />
                   <span className="font-mono" style={{ fontSize: 12, color: '#FFB4A8' }}>A QB only scores for a TD he RUNS in himself. The player who catches a TD pass is the one who counts.</span>
@@ -1258,7 +1258,7 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             lineup: () => playersGate ? tbdPlayers('Fantasy lineup — 15 / 10 / 5') : (
-              <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef. Fill all 8 slots.">
+              <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef. Fill all 8 slots." how={["Fill all 8 spots: 1 QB, 2 RB, 2 WR, 1 TE, 1 K and 1 D/ST (defense). They earn fantasy points from their games, using the same scoring as the Where's the Beef pool.", "Highest lineup total in the pool = 15 pts · 2nd = 10 pts · 3rd = 5 pts (ties split the points).", "✏️ You can swap any player until HIS game kicks off — handy for late injuries."]}>
                 <div className="font-mono text-[11px] mb-2" style={{ color: C.muted }}>Each player locks at his own game's kickoff — swap him freely until then.</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {LINEUP_SLOTS.map(s => {
@@ -1280,9 +1280,9 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             tb: () => (
-              <Section title="Tiebreakers" sub="Closest wins. Press Enter or tap away to save.">
+              <Section title="Tiebreakers" sub="Closest wins. Press Enter or tap away to save." how={["These only matter if people finish tied on points — closest guess wins. 1st tiebreaker: the points the team below scores. 2nd: total field goals made across all the games."]}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div><Label>1) How many points will the Cowboys score?</Label><NumberPick tick={cancelTick} disabled={!canEdit} value={myPicks.tb1} onCommit={v => guard(myPicks.tb1, v, () => setTop({ tb1: v }))} /></div>
+                  <div><Label>1) How many points will the {cfg.tbTeam === 'DAL' ? 'Cowboys' : cfg.tbTeam} score?</Label><NumberPick tick={cancelTick} disabled={!canEdit} value={myPicks.tb1} onCommit={v => guard(myPicks.tb1, v, () => setTop({ tb1: v }))} /></div>
                   <div><Label>2) Total field goals made across all games</Label><NumberPick tick={cancelTick} disabled={!canEdit} value={myPicks.tb2} onCommit={v => guard(myPicks.tb2, v, () => setTop({ tb2: v }))} /></div>
                 </div>
               </Section>
@@ -1291,6 +1291,7 @@ export default function PoultryBowl({ beta = false }) {
               <div className="rounded p-4" style={{ background: '#3A2A0A', border: `2px solid ${C.gold}` }}>
                 <div className="font-head uppercase text-base" style={{ color: C.gold }}>🥩 The Big Beefy Bonus — {JACKPOT_PCT}% of the pot</div>
                 <div className="font-mono text-[11px] mb-3" style={{ color: C.muted }}>Who scores the longest TD of the 5 games? (Defensive TDs and punt/kickoff return TDs don't count.) No points — just the Big Beefy Bonus.</div>
+                <HowItWorks lines={[`Pick the player you think will score the LONGEST touchdown across all the games. If you're right you win the Big Beefy Bonus — ${JACKPOT_PCT}% of the pot — on top of your regular points.`, 'Defensive TDs and punt/kickoff return TDs do not count. A QB\'s TD pass counts for the player who caught it. If more than one person picks the winner, the tiebreakers decide who gets it. If nobody does, the bonus goes back into the main prize pool.']} />
                 <PlayerSelect value={myPicks.jackpot} onChange={v => guard(myPicks.jackpot, v, () => setTop({ jackpot: v }))} options={roster.filter(p => p.position !== 'K')} disabled={!canEdit} />
               </div>
             ),
@@ -1569,13 +1570,24 @@ export default function PoultryBowl({ beta = false }) {
 }
 
 // ---------------------------------------------------------------- small pieces
-function Section({ title, sub, children }) {
+// A plain-English "how this scores" box shown right inside each section so nobody has to flip to the rules page.
+function HowItWorks({ lines }) {
+  return (
+    <div className="rounded px-3 py-2 mb-3 font-mono text-xs" style={{ background: '#1F1710', borderLeft: `3px solid ${C.gold}`, color: C.cream, lineHeight: 1.5 }}>
+      <div className="font-head uppercase" style={{ color: C.gold, fontSize: 11, letterSpacing: 1 }}>How it works</div>
+      {lines.map((l, i) => <div key={i} className="mt-1">{l}</div>)}
+    </div>
+  );
+}
+
+function Section({ title, sub, how, children }) {
   return (
     <div className="rounded p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="mb-3">
         <div className="font-head uppercase text-base" style={{ color: C.gold }}>{title}</div>
         {sub ? <div className="font-mono text-[11px]" style={{ color: C.muted }}>{sub}</div> : null}
       </div>
+      {how ? <HowItWorks lines={how} /> : null}
       {children}
     </div>
   );

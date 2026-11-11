@@ -16,7 +16,7 @@ const betaDefaultRange = () => {
   const d = new Date(); d.setHours(12, 0, 0, 0);
   while (d.getDay() !== 4) d.setDate(d.getDate() + 1);
   const f = (x) => `${x.getFullYear()}${String(x.getMonth() + 1).padStart(2, '0')}${String(x.getDate()).padStart(2, '0')}`;
-  const end = new Date(d); end.setDate(end.getDate() + 4);
+  const end = new Date(d); end.setDate(end.getDate() + 3); // Thursday through Sunday — the beta ends Sunday night
   return { start: f(d), end: f(end) };
 };
 const POLL_MS = 30000;
@@ -837,7 +837,11 @@ export default function PoultryBowl({ beta = false }) {
   // Trim a long list (e.g. a full NFL week) to N games: the earliest game plus random others, spread across different kickoff times where possible.
   const keepRandomGames = (n = 5) => {
     if (linesFrozen || (cfg.games || []).length <= n) return;
-    const sorted = [...cfg.games].sort((a, b) => Date.parse(a.kickoff) - Date.parse(b.kickoff));
+    // Skip Monday-night games (Eastern time) so the practice pool wraps up Sunday; only fall back to them if there aren't enough other games.
+    const isMon = (g) => new Date(g.kickoff).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' }) === 'Mon';
+    let pool = [...cfg.games].filter(g => !isMon(g));
+    if (pool.length < n) pool = [...cfg.games];
+    const sorted = pool.sort((a, b) => Date.parse(a.kickoff) - Date.parse(b.kickoff));
     const first = sorted[0];
     const rest = sorted.slice(1).sort(() => Math.random() - 0.5);
     const picked = [first];
@@ -1423,7 +1427,7 @@ export default function PoultryBowl({ beta = false }) {
                     <button onClick={() => loadFromEspn(false)} disabled={linesFrozen} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.gold), opacity: linesFrozen ? 0.4 : 1 }}><RefreshCw size={12} /> Load games from ESPN</button>
                     <button onClick={() => loadFromEspn(true)} disabled={!!cfg.spreadsLive || linesFrozen} title={cfg.spreadsLive ? 'Spreads are final — untick "Spreads are final" first' : ''} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.orange, '#fff'), opacity: (cfg.spreadsLive || linesFrozen) ? 0.4 : 1, cursor: (cfg.spreadsLive || linesFrozen) ? 'not-allowed' : 'pointer' }}><RefreshCw size={12} /> Refresh spreads &amp; totals from ESPN</button>
                     {cfg.spreadsLive && <span className="font-mono text-[11px]" style={{ color: C.muted }}>🔒 Spreads are final — untick "Spreads are final" to refresh again.</span>}
-                    {(cfg.games || []).length > 5 && <button onClick={() => keepRandomGames(5)} disabled={linesFrozen} className="font-head" style={{ ...smallBtn(C.gold), opacity: linesFrozen ? 0.4 : 1 }}>🎲 Keep 5 random games (earliest + 4 random)</button>}
+                    {(cfg.games || []).length > 5 && <button onClick={() => keepRandomGames(5)} disabled={linesFrozen} className="font-head" style={{ ...smallBtn(C.gold), opacity: linesFrozen ? 0.4 : 1 }}>🎲 Keep 5 random games (earliest + 4 random, no Monday night)</button>}
                     <button onClick={addBlankGame} disabled={linesFrozen} className="font-head" style={{ ...smallBtn(C.panel2, C.cream), opacity: linesFrozen ? 0.4 : 1 }}>+ Add game by hand</button>
                   </div>
                   {espnMsg && <div className="mb-2" style={{ color: C.muted }}>{espnMsg}</div>}

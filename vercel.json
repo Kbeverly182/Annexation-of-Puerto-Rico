@@ -20,5 +20,11 @@
       "path": "/api/sync-lineup",
       "schedule": "0 11 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

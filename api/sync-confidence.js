@@ -5,6 +5,10 @@ import { kv } from '@vercel/kv';
 // slow pool can never crowd out a fast one within Vercel's per-function time limit.
 export const config = { maxDuration: 60 };
 
+// ESPN calls Washington 'WSH' and Jacksonville 'JAC'; this app uses 'WAS' and 'JAX' (same mapping as src/lib/teams.js).
+const ESPN_ABBR_FIX = { WSH: 'WAS', JAC: 'JAX' };
+const fixAbbr = (a) => ESPN_ABBR_FIX[a] || a;
+
 const PRESEASON_DATE_RANGES = {
   101: { start: '20260813', end: '20260819' },
   102: { start: '20260820', end: '20260826' },
@@ -42,7 +46,7 @@ async function fetchWeekGameResults(week, seasonYear) {
     const isTie = competitors.length === 2 && Number(competitors[0].score) === Number(competitors[1].score);
     let winnerAbbr = null;
     competitors.forEach(c => {
-      if (!isTie && c.winner && c.team?.abbreviation) winnerAbbr = c.team.abbreviation;
+      if (!isTie && c.winner && c.team?.abbreviation) winnerAbbr = fixAbbr(c.team.abbreviation);
     });
     gameResults[ev.id] = { winnerAbbr: isTie ? null : winnerAbbr, completed: true };
   });

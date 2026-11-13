@@ -13,6 +13,10 @@ function defaultSeasonYear() {
   return m <= 2 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
+// ESPN calls Washington 'WSH' and Jacksonville 'JAC'; this app uses 'WAS' and 'JAX' (same mapping as src/lib/teams.js).
+const ESPN_ABBR_FIX = { WSH: 'WAS', JAC: 'JAX' };
+const fixAbbr = (a) => ESPN_ABBR_FIX[a] || a;
+
 function buildScoreboardUrl(week, seasonYear) {
   const n = Number(week);
   return `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${n}&seasontype=2&dates=${seasonYear}`;
@@ -36,7 +40,7 @@ async function fetchWeekResults(week, seasonYear) {
     const competitors = comp.competitors || [];
     const isTie = competitors.length === 2 && Number(competitors[0].score) === Number(competitors[1].score);
     competitors.forEach(c => {
-      const abbr = c.team?.abbreviation;
+      const abbr = fixAbbr(c.team?.abbreviation);
       if (abbr) results[abbr] = isTie ? 'win' : (c.winner ? 'win' : 'loss');
     });
   });

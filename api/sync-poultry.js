@@ -143,6 +143,18 @@ async function syncOne(KEY) {
 }
 
 export default async function handler(req, res) {
+  // Manual "Sync now" button on the page: no secret needed (it only pulls public ESPN data), but it is
+  // limited to one run every 15 seconds per pool so nobody can hammer it.
+  if (req.query?.manual === '1') {
+    const which = req.query?.pool === 'beta' ? KEY_BETA : KEY_LIVE;
+    try {
+      const last = Number(await kv.get('poultry-sync-last:' + which)) || 0;
+      if (Date.now() - last < 15000) return res.status(200).json({ ok: true, throttled: true, note: 'Just synced a moment ago — try again in a few seconds.' });
+      await kv.set('poultry-sync-last:' + which, Date.now());
+    } catch (e) { /* throttle is best-effort */ }
+    const out = await syncOne(which);
+    return res.status(out.ok === false ? 500 : 200).json(out);
+  }
   if (process.env.CRON_SECRET) {
     const authHeader = req.headers['authorization'] || '';
     const providedSecret = authHeader.replace(/^Bearer\s+/i, '') || req.query?.secret;

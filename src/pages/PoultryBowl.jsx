@@ -628,6 +628,8 @@ export default function PoultryBowl({ beta = false }) {
   const [copied, setCopied] = useState(false);
   const [espnRange, setEspnRange] = useState(beta ? betaDefaultRange() : { start: '20261125', end: '20261127' });
   const [espnMsg, setEspnMsg] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
   const [manualDraft, setManualDraft] = useState(null);
   const [activeLeg, setActiveLeg] = useState('big4');
   const [pendingChange, setPendingChange] = useState(null); // { apply, oldLabel, newLabel, who }
@@ -852,6 +854,21 @@ export default function PoultryBowl({ beta = false }) {
     const tbOk = keep.some(g => g.home === cfg.tbTeam || g.away === cfg.tbTeam);
     setConfig({ games: keep, ...(tbOk ? {} : { tbTeam: keep[0].home }) });
     setEspnMsg(`Kept ${keep.length} games: ${keep.map(g => `${g.away}@${g.home}`).join(', ')}.${tbOk ? '' : ` Tiebreaker team set to ${keep[0].home}.`}`);
+  };
+
+  // Pulls the latest scores & stats from ESPN right now (same work the scheduled job does), then reloads the pool.
+  const syncNow = async () => {
+    setSyncing(true); setSyncMsg('');
+    try {
+      const resp = await fetch(`/api/sync-poultry?manual=1&pool=${beta ? 'beta' : 'live'}`);
+      const j = await resp.json().catch(() => ({}));
+      const remote = await apiGetPool(POOL_KEY);
+      if (remote) setData(withDefaults(remote));
+      if (!resp.ok || j.ok === false) setSyncMsg(`Sync problem: ${j.error || resp.status}`);
+      else if (j.throttled) setSyncMsg(j.note);
+      else setSyncMsg(j.updated ? 'Synced — scores and stats updated.' : (j.note === 'no games with an ESPN id set up yet' ? 'No games with an ESPN id yet — load the games from ESPN first.' : 'Synced — nothing new from ESPN yet.'));
+    } catch (e) { setSyncMsg('Could not reach the sync service.'); }
+    finally { setSyncing(false); }
   };
 
   const loadFromEspn = async (refreshSpreads = false) => {
@@ -1340,6 +1357,14 @@ export default function PoultryBowl({ beta = false }) {
         {/* Games + results board */}
         {games.length > 0 && (
           <Section title="Games & results" sub="">
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <button onClick={syncNow} disabled={syncing} className="font-head flex items-center gap-1" style={{ ...smallBtn(C.gold), opacity: syncing ? 0.6 : 1 }}>
+                {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Sync scores &amp; stats now
+              </button>
+              <span className="font-mono text-[11px]" style={{ color: C.muted }}>
+                {syncMsg || (data.results?.bowl?.auto?.updatedAt ? `Last updated ${new Date(data.results.bowl.auto.updatedAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET` : 'Not synced yet')}
+              </span>
+            </div>
             <div className="space-y-2">
               {games.map(g => {
                 const rg = R.games[g.id];

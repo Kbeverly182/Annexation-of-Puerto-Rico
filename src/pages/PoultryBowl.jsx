@@ -1405,8 +1405,6 @@ export default function PoultryBowl({ beta = false }) {
                   </button>
                   {open && (
                     <div className="px-3 pb-3 font-mono text-[11px] space-y-1" style={{ color: C.muted }}>
-                      <div>Big Four {r.parts.leaders} · Winners {r.parts.win} · Spread {r.parts.ats} · Totals {r.parts.tot} · FG O/U {r.parts.fgOU} · Exact FG {r.parts.fgExact} · TD scorers {r.parts.td} · Lineup bonus {r.lineupBonus}</div>
-                      {r.lineupComplete && <div>Lineup total: {r.lineupPts} pts</div>}
                       {showPicksOf(r.p.id) ? <PicksSummary r={r} games={games} cfg={cfg} R={R} now={now} reveal={isAdmin || r.p.id === actingId} /> : <div>🔒 Picks are hidden until the first kickoff.</div>}
                     </div>
                   )}
@@ -1639,25 +1637,51 @@ function AdminPrompt({ adminPrompt, setAdminPrompt, submitAdminPrompt }) {
 function PicksSummary({ r, games, cfg, R, now, reveal }) {
   const pk = r.pk || {};
   const mark = (ok, final) => (!final ? '' : ok ? ' ✓' : ' ✗');
+  const num = (n) => (Math.round((Number(n) || 0) * 10) / 10);
+  // One block per category: the points earned in that category sit in parentheses next to its name, then the picks.
+  const Cat = ({ title, pts, children }) => (
+    <div>
+      <b style={{ color: C.cream }}>{title}{pts !== undefined ? ` (${num(pts)})` : ''}:</b>{' '}
+      {children}
+    </div>
+  );
+  const tag = (g) => `${g.away}@${g.home}`;
+  const perGame = (fn) => games.map((g, i) => {
+    const gp = pk.games?.[g.id] || {};
+    const d = r.detail.games[g.id];
+    return <span key={g.id}>{i > 0 ? ' · ' : ''}<span style={{ color: C.cream }}>{tag(g)}</span> {fn(gp, d, !!d, g)}</span>;
+  });
   return (
     <div className="space-y-2">
-      <div>
-        <b style={{ color: C.cream }}>Big Four:</b>{' '}
+      <Cat title="Big Four" pts={r.parts.leaders}>
         {LEADERS.map(l => `${l.key.toUpperCase()}: ${pk.leaders?.[l.key]?.name || '—'}${R.allFinal ? (r.detail.leaders[l.key] ? ` ✓ +${r.detail.leaders[l.key]}` : ' ✗') : ''}`).join(' · ')}
-      </div>
-      {games.map(g => {
-        const gp = pk.games?.[g.id] || {};
-        const d = r.detail.games[g.id];
-        const fin = !!d;
-        return (
-          <div key={g.id}>
-            <b style={{ color: C.cream }}>{g.away} @ {g.home}:</b>{' '}
-            Win {gp.win || '—'} ({gp.conf || '—'}){mark(d?.win, fin)} · ATS {gp.ats || '—'}{mark(d?.ats, fin)} · Total {gp.tot || '—'}{mark(d?.tot, fin)} · FG {gp.fg || '—'}{mark(d?.fg, fin)} · Exact FG {gp.fgExact ?? '—'}{fin ? ` (+${d.fgPts ?? 0})` : ''} · TD {gp.td?.name || '—'}{mark(d?.td, fin)}
-          </div>
-        );
-      })}
-      <div><b style={{ color: C.cream }}>Lineup:</b> {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.label} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}</div>
-      <div><b style={{ color: C.cream }}>Tiebreakers:</b> Cowboys {pk.tb1 ?? '—'} · Total FGs {pk.tb2 ?? '—'} · <b style={{ color: C.cream }}>Big Beefy Bonus:</b> {pk.jackpot?.name || '—'}</div>
+      </Cat>
+      <Cat title="Winners" pts={r.parts.win}>
+        {perGame((gp, d, fin) => <>{gp.win || '—'} ({gp.conf || '—'}){d?.dog ? ' 🐶' : ''}{mark(d?.win, fin)}</>)}
+      </Cat>
+      <Cat title="Spread" pts={r.parts.ats}>
+        {perGame((gp, d, fin) => <>{gp.ats || '—'}{mark(d?.ats, fin)}</>)}
+      </Cat>
+      <Cat title="Totals" pts={r.parts.tot}>
+        {perGame((gp, d, fin) => <>{gp.tot || '—'}{mark(d?.tot, fin)}</>)}
+      </Cat>
+      <Cat title="FG over/under" pts={r.parts.fgOU}>
+        {perGame((gp, d, fin) => <>{gp.fg || '—'}{mark(d?.fg, fin)}</>)}
+      </Cat>
+      <Cat title="Exact FG" pts={r.parts.fgExact}>
+        {perGame((gp, d, fin) => <>{gp.fgExact ?? '—'}{fin ? ` (+${d.fgPts ?? 0})` : ''}</>)}
+      </Cat>
+      <Cat title="TD scorers" pts={r.parts.td}>
+        {perGame((gp, d, fin) => <>{gp.td?.name || '—'}{mark(d?.td, fin)}</>)}
+      </Cat>
+      <Cat title="Lineup" pts={r.lineupBonus}>
+        {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.label} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}
+        {r.lineupComplete ? <span style={{ color: C.cream }}> — fantasy total {num(r.lineupPts)}</span> : null}
+      </Cat>
+      <Cat title="Tiebreakers">
+        {cfg.tbTeam === 'DAL' ? 'Cowboys' : cfg.tbTeam} {pk.tb1 ?? '—'} · Total FGs {pk.tb2 ?? '—'}
+      </Cat>
+      <Cat title="Big Beefy Bonus">{pk.jackpot?.name || '—'}</Cat>
     </div>
   );
 }

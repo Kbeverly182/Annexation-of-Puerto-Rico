@@ -1646,6 +1646,10 @@ function PicksSummary({ r, games, cfg, R, now, reveal }) {
     </div>
   );
   const tag = (g) => `${g.away}@${g.home}`;
+  // Once a pick has been scored it is highlighted green (earned points) or red (didn't).
+  const chip = (ok, final, content) => !final ? <>{content}</> : (
+    <span style={{ background: ok ? 'rgba(61,155,92,0.25)' : 'rgba(217,59,43,0.25)', color: ok ? '#9BE3B0' : '#FFB4A8', borderRadius: 4, padding: '0 4px' }}>{content}</span>
+  );
   const perGame = (fn) => games.map((g, i) => {
     const gp = pk.games?.[g.id] || {};
     const d = r.detail.games[g.id];
@@ -1654,25 +1658,25 @@ function PicksSummary({ r, games, cfg, R, now, reveal }) {
   return (
     <div className="space-y-2">
       <Cat title="Big Four" pts={r.parts.leaders}>
-        {LEADERS.map(l => `${l.key.toUpperCase()}: ${pk.leaders?.[l.key]?.name || '—'}${R.allFinal ? (r.detail.leaders[l.key] ? ` ✓ +${r.detail.leaders[l.key]}` : ' ✗') : ''}`).join(' · ')}
+        {LEADERS.map((l, i) => <span key={l.key}>{i > 0 ? ' · ' : ''}{chip(!!r.detail.leaders[l.key], R.allFinal, `${l.key.toUpperCase()}: ${pk.leaders?.[l.key]?.name || '—'}${R.allFinal ? (r.detail.leaders[l.key] ? ` ✓ +${r.detail.leaders[l.key]}` : ' ✗') : ''}`)}</span>)}
       </Cat>
       <Cat title="Winners" pts={r.parts.win}>
-        {perGame((gp, d, fin) => <>{gp.win || '—'} ({gp.conf || '—'}){d?.dog ? ' 🐶' : ''}{mark(d?.win, fin)}</>)}
+        {perGame((gp, d, fin) => chip(d?.win, fin, `${gp.win || '—'} (${gp.conf || '—'})${d?.dog ? ' 🐶' : ''}${mark(d?.win, fin)}`))}
       </Cat>
       <Cat title="Spread" pts={r.parts.ats}>
-        {perGame((gp, d, fin) => <>{gp.ats || '—'}{mark(d?.ats, fin)}</>)}
+        {perGame((gp, d, fin) => chip(d?.ats, fin, `${gp.ats || '—'}${mark(d?.ats, fin)}`))}
       </Cat>
       <Cat title="Totals" pts={r.parts.tot}>
-        {perGame((gp, d, fin) => <>{gp.tot || '—'}{mark(d?.tot, fin)}</>)}
+        {perGame((gp, d, fin) => chip(d?.tot, fin, `${gp.tot || '—'}${mark(d?.tot, fin)}`))}
       </Cat>
       <Cat title="FG over/under" pts={r.parts.fgOU}>
-        {perGame((gp, d, fin) => <>{gp.fg || '—'}{mark(d?.fg, fin)}</>)}
+        {perGame((gp, d, fin) => chip(d?.fg, fin, `${gp.fg || '—'}${mark(d?.fg, fin)}`))}
       </Cat>
       <Cat title="Exact FG" pts={r.parts.fgExact}>
-        {perGame((gp, d, fin) => <>{gp.fgExact ?? '—'}{fin ? ` (+${d.fgPts ?? 0})` : ''}</>)}
+        {perGame((gp, d, fin) => chip((d?.fgPts ?? 0) > 0, fin, `${gp.fgExact ?? '—'}${fin ? ` (+${d.fgPts ?? 0})` : ''}`))}
       </Cat>
       <Cat title="TD scorers" pts={r.parts.td}>
-        {perGame((gp, d, fin) => <>{gp.td?.name || '—'}{mark(d?.td, fin)}</>)}
+        {perGame((gp, d, fin) => chip(d?.td, fin, `${gp.td?.name || '—'}${mark(d?.td, fin)}`))}
       </Cat>
       <Cat title="Lineup" pts={r.lineupBonus}>
         {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.label} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}

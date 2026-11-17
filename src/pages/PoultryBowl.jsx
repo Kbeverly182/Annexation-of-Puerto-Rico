@@ -1574,13 +1574,17 @@ function CountdownBanner({ target }) {
   return (
     <div className="rounded p-3 text-center" style={{ background: 'linear-gradient(180deg,#4A2E12,#2A1A0A)', border: `2px solid ${C.gold}` }}>
       <div className="font-head uppercase" style={{ color: C.gold, fontSize: 13, letterSpacing: 1 }}>⏱ Picks lock at the first kickoff</div>
-      <div className="flex justify-center gap-2 my-2">
-        {parts.map(([label, v]) => (
-          <div key={label} className="rounded" style={{ background: '#140D06', border: `1px solid ${C.line}`, minWidth: 62, padding: '6px 4px' }}>
-            <div className="font-mono" style={{ fontSize: 26, fontWeight: 700, color: C.cream, lineHeight: 1 }}>{String(v).padStart(2, '0')}</div>
-            <div className="font-mono" style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{label}</div>
-          </div>
-        ))}
+      <div className="flex items-center justify-center gap-2 my-2">
+        <img src="/poultry-pilgrim.jpg" alt="" style={{ width: 'clamp(52px, 16vw, 96px)', height: 'clamp(52px, 16vw, 96px)', borderRadius: 10, border: `2px solid ${C.gold}`, objectFit: 'cover', flexShrink: 0 }} />
+        <div className="flex justify-center gap-1.5" style={{ minWidth: 0 }}>
+          {parts.map(([label, v]) => (
+            <div key={label} className="rounded" style={{ background: '#140D06', border: `1px solid ${C.line}`, width: 'clamp(40px, 11vw, 62px)', padding: '6px 2px' }}>
+              <div className="font-mono" style={{ fontSize: 'clamp(18px, 5vw, 26px)', fontWeight: 700, color: C.cream, lineHeight: 1 }}>{String(v).padStart(2, '0')}</div>
+              <div className="font-mono" style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+        <img src="/poultry-headdress.jpg" alt="" style={{ width: 'clamp(52px, 16vw, 96px)', height: 'clamp(52px, 16vw, 96px)', borderRadius: 10, border: `2px solid ${C.gold}`, objectFit: 'cover', flexShrink: 0 }} />
       </div>
       <div className="font-mono" style={{ fontSize: 11, color: C.muted }}>{fmtKick(new Date(target).toISOString())} · your fantasy lineup stays open until each player's own game starts</div>
     </div>

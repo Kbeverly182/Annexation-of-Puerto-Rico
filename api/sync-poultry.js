@@ -9,7 +9,7 @@ import { fetchGameStats, computeFantasyPoints, computeDstPoints, pickStat, names
 export const config = { maxDuration: 60 };
 
 const KEY_LIVE = 'poultry-bowl-v1';
-const KEY_BETA = 'poultry-bowl-beta-v1'; // practice pool — synced too, when it has games
+const KEY_BETA = 'poultry-bowl-beta-v2'; // practice pool — synced too, when it has games
 
 const TEAM_IDS = {
   ARI: 22, ATL: 1, BAL: 33, BUF: 2, CAR: 29, CHI: 3, CIN: 4, CLE: 5,

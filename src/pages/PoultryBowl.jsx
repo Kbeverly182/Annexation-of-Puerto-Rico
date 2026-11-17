@@ -10,7 +10,7 @@ import PoolRules from '../components/PoolRules';
 import PoolChat from '../components/PoolChat';
 
 const POOL_KEY_LIVE = 'poultry-bowl-v1';
-const POOL_KEY_BETA = 'poultry-bowl-beta-v1'; // practice copy of the pool for testing — separate data, never touches the real one
+const POOL_KEY_BETA = 'poultry-bowl-beta-v2'; // practice copy of the pool for testing — separate data, never touches the real one
 // Next Thursday (today if it is Thursday) through the following Monday, as ESPN date strings.
 const betaDefaultRange = () => {
   const d = new Date(); d.setHours(12, 0, 0, 0);
@@ -56,24 +56,24 @@ const LEADERS = [
   { key: 'te', label: 'TE — most receptions', pos: 'TE' },
 ];
 
+// Five spots. FLEX can be any RB, WR or TE. You may use only ONE player from each game across the whole lineup.
 const LINEUP_SLOTS = [
   { key: 'QB', label: 'QB', pos: 'QB' },
-  { key: 'RB1', label: 'RB', pos: 'RB' },
-  { key: 'RB2', label: 'RB', pos: 'RB' },
-  { key: 'WR1', label: 'WR', pos: 'WR' },
-  { key: 'WR2', label: 'WR', pos: 'WR' },
+  { key: 'RB', label: 'RB', pos: 'RB' },
+  { key: 'WR', label: 'WR', pos: 'WR' },
   { key: 'TE', label: 'TE', pos: 'TE' },
-  { key: 'K', label: 'K', pos: 'K' },
-  { key: 'DST', label: 'D/ST', pos: 'DST' },
+  { key: 'FLEX', label: 'FLEX (RB / WR / TE)', pos: 'FLEX' },
 ];
+const LINEUP_POSITIONS = { QB: ['QB'], RB: ['RB'], WR: ['WR'], TE: ['TE'], FLEX: ['RB', 'WR', 'TE'] };
+const gameIdOfTeam = (games, team) => (games || []).find(g => g.home === team || g.away === team)?.id;
 
 const RULES = [
   { heading: 'The Big Four — up to 20 pts each', body: ['Pick the player you think will lead ALL 5 games in each category: QB passing yards, RB rushing yards, WR receiving yards, and TE receptions.', 'Your player finishing 1st = 20 points, 2nd = 15, 3rd = 10, 4th = 5 (80 possible).', 'Ties push everyone below down: if two players tie for the most, both get 20 and the next player is 3rd (10 points). If three tie for the most, the next player is 4th (5 points).'] },
-  { heading: 'Per game — 5 pts each', body: ['Longest field goal of the game: over or under the posted line (48.5 by default).', 'Total points of the game: over or under that game\'s posted over/under (from ESPN, set when the lines are released).', 'Pick against the spread for each game.', 'Lines use a half point so there are no pushes. (If a spread is ever posted on a whole number and lands exactly, everybody gets the 5 points.)'] },
-  { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.', 'Underdog bonus: if you pick the underdog (the team getting points in the spread) and they win straight up, you get extra points equal to the spread — a 5.5-point underdog that wins is +5.5 on top. It is not multiplied by confidence.'] },
+  { heading: 'Total points over/under — 5 pts each', body: ['Pick over or under each game\'s posted total (both teams\' points added together). 5 points for each correct pick.', '📅 Total picks open on Tuesday, Nov 24, when the official lines are set — everything else is open now. If a total lands exactly on the line, everybody gets the 5 points.'] },
+  { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.', 'Underdog bonus: if you pick the underdog (the team getting points in the spread) and they win straight up, you get extra points equal to the spread — a 5.5-point underdog that wins is +5.5 on top. It is not multiplied by confidence. (Spreads are posted Tuesday, Nov 24 — you can change your winner picks any time until the first kickoff.)'] },
   { heading: 'Exact longest field goal', body: ['Guess the longest made field goal in each game. Exact = 5 points, then minus 1 point for every yard you are off (never below 0).', 'Examples: guess 47, longest 47 = 5 · longest 44 = 2 · longest 50 = 2 · longest 53 = 0. If a game has no field goals the longest counts as 0.'] },
   { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', '⚠️ QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT. The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. A QB only scores if he RUNS one in himself.'] },
-  { heading: 'Fantasy lineup — 15 / 10 / 5', body: ['Build a lineup from players in the 5 games: 1 QB, 2 RB, 2 WR, 1 TE, 1 K, 1 D/ST. Every slot must be filled or you are not eligible.', 'Scored with the same full-PPR scoring as Where\'s the Beef (including the D/ST rules).', 'Highest lineup total earns 15 pts, 2nd earns 10, 3rd earns 5. Ties split the points for the spots they cover.', 'Each player locks individually at his own game\'s kickoff — until then you can swap him freely.'] },
+  { heading: 'Fantasy lineup — 15 / 10 / 5', body: ['Build a lineup from players in the 5 games: QB, RB, WR, TE and a FLEX (any RB, WR or TE). Every spot must be filled or you are not eligible.', '⚠️ You may use only ONE player from each game. If you use the DAL QB, you can\'t use any other DAL player — or any player from DAL\'s opponent — in another spot, including the FLEX.', 'Scored with the same full-PPR scoring as Where\'s the Beef.', 'Highest lineup total earns 15 pts, 2nd earns 10, 3rd earns 5. Ties split the points for the spots they cover.', 'Each player locks individually at his own game\'s kickoff — until then you can swap him freely.'] },
   { heading: 'Tiebreakers', body: ['1) Closest to how many points the Cowboys score.', '2) Closest to the total number of field goals made across all 5 games.'] },
   { heading: 'Big Beefy Bonus — no points, 10% of the pot', body: ['Pick who will score the longest touchdown of the 5 games (defensive TDs and punt/kickoff return TDs do not count). If you are right, you automatically win the Big Beefy Bonus: 10% of the total pot.', 'If more than one person is right, the tiebreakers above decide. If nobody is right, that 10% goes back into the main prize pool.'] },
   { heading: 'Locking', body: ['🔒 Everything locks at the kickoff of the first game — Big Four, winners, spread, totals, field goals, TD scorers, tiebreakers and the Big Beefy Bonus. After that, those picks are revealed to everyone.', '✏️ The exception is your FANTASY LINEUP: you can change any player right up until his own game kicks off (for late injuries or inactives). Once a player\'s game starts his slot is locked and his name is revealed; players in later games stay changeable and hidden.'] },
@@ -85,7 +85,7 @@ const SUFFIX = /\b(jr|sr|ii|iii|iv|v)\b/g;
 const normName = (s) => (s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(SUFFIX, '').replace(/\s+/g, ' ').trim();
 const sameName = (a, b) => !!a && !!b && normName(a) === normName(b);
 
-const defaultConfig = () => ({ games: [], fgLine: 48.5, lockAt: null, tbTeam: 'DAL', payoutNote: '', spreadsLive: false, playersOpen: false });
+const defaultConfig = () => ({ games: [], fgLine: 48.5, linesDate: 'Tuesday, Nov 24', lockAt: null, tbTeam: 'DAL', payoutNote: '', spreadsLive: false, playersOpen: false });
 const emptyData = () => ({
   name: 'The Poultry Bowl', open: false, participants: [], config: defaultConfig(),
   picks: { bowl: {} }, results: { bowl: {} }, chatMessages: [],
@@ -130,7 +130,7 @@ function effectiveResults(res) {
 const gameFinal = (rg) => !!rg?.final && rg.homeScore != null && rg.awayScore != null;
 
 function scoreEntrant(pk, cfg, R) {
-  const parts = { leaders: 0, win: 0, ats: 0, tot: 0, fgOU: 0, fgExact: 0, td: 0 };
+  const parts = { leaders: 0, win: 0, tot: 0, fgExact: 0, td: 0 };
   const detail = { leaders: {}, games: {} };
   let lineupPts = 0;
   let lineupComplete = false;
@@ -165,18 +165,12 @@ function scoreEntrant(pk, cfg, R) {
       if (underdogOf(g) === winner) { d.dog = true; parts.win += dogBonus(g); }
     }
 
-    const margin = rg.homeScore - rg.awayScore + Number(g.spread || 0);
-    const cover = margin > 0 ? g.home : margin < 0 ? g.away : 'push';
-    if (gp.ats && (cover === 'push' || gp.ats === cover)) { d.ats = true; parts.ats += 5; }
-
     const total = rg.homeScore + rg.awayScore;
     const tl = g.total === undefined || g.total === null || g.total === '' ? NaN : Number(g.total);
     const totOU = Number.isNaN(tl) ? null : total > tl ? 'over' : total < tl ? 'under' : 'push';
     if (gp.tot && totOU && (totOU === 'push' || gp.tot === totOU)) { d.tot = true; parts.tot += 5; }
 
     const lf = Number(rg.longestFG) || 0;
-    const fgOU = lf > cfg.fgLine ? 'over' : lf < cfg.fgLine ? 'under' : 'push';
-    if (gp.fg && (fgOU === 'push' || gp.fg === fgOU)) { d.fg = true; parts.fgOU += 5; }
 
     if (gp.fgExact !== undefined && gp.fgExact !== null && gp.fgExact !== '') {
       const pts = Math.max(0, 5 - Math.abs(Number(gp.fgExact) - lf));
@@ -254,13 +248,11 @@ function pickProgress(pk, cfg) {
     const tag = `${g.away} @ ${g.home}`;
     chk(!!gp.win, `${tag}: winner`);
     chk(!!gp.conf, `${tag}: confidence`);
-    chk(!!gp.ats, `${tag}: spread`);
     chk(!!gp.tot, `${tag}: total`);
-    chk(!!gp.fg, `${tag}: FG over/under`);
     chk(gp.fgExact !== undefined && gp.fgExact !== '', `${tag}: exact FG`);
     chk(!!gp.td?.name, `${tag}: TD scorer`);
   });
-  LINEUP_SLOTS.forEach(s => chk(!!pk?.lineup?.[s.key]?.id, `Lineup ${s.label}`));
+  LINEUP_SLOTS.forEach(s => chk(!!pk?.lineup?.[s.key]?.id, `Lineup ${s.key}`));
   chk(pk?.tb1 !== undefined && pk?.tb1 !== '', 'Tiebreaker 1 (Cowboys points)');
   chk(pk?.tb2 !== undefined && pk?.tb2 !== '', 'Tiebreaker 2 (total FGs)');
   chk(!!pk?.jackpot?.name, 'Big Beefy Bonus pick');
@@ -419,18 +411,6 @@ function LegIcon({ k, active, done }) {
         {[[38, 52], [43, 55], [35, 57], [40, 59], [46, 58], [38, 63]].map(([x, y], n) => <circle key={n} cx={x} cy={y - 4} r="3.3" fill="#7C3F9E" stroke="#3E1A55" strokeWidth="0.9" />)}
         <path d="M40 46 q3 -4 6 -2" stroke="#3F7A25" strokeWidth="1.3" fill="none" />
       </g>),
-    ats: ( // pilgrim
-      <g {...S}>
-        <path d="M14 62 C14 50 22 46 32 46 C42 46 50 50 50 62 Z" fill="#2B2B33" />
-        <path d="M22 48 L32 56 L42 48 Z" fill="#FFF8E7" />
-        <circle cx="32" cy="32" r="11" fill="#F2C39B" />
-        <rect x="20" y="22" width="24" height="5" rx="1" fill="#1E1E24" />
-        <path d="M23 23 L26 5 H38 L41 23 Z" fill="#2B2B33" />
-        <rect x="25" y="17" width="14" height="5" fill="#FFB300" stroke="#4A2A0E" strokeWidth="1" />
-        <rect x="29" y="16" width="6" height="7" fill="none" stroke="#4A2A0E" strokeWidth="1.2" />
-        <circle cx="28" cy="32" r="1.3" fill="#222" stroke="none" /><circle cx="36" cy="32" r="1.3" fill="#222" stroke="none" />
-        <path d="M28 37 Q32 40 36 37" fill="none" strokeWidth="1.3" />
-      </g>),
     tot: ( // turkey
       <g {...S}>
         {['#C0392B', '#E67E22', '#F1C40F', '#E67E22', '#C0392B'].map((c, i) => (
@@ -442,14 +422,6 @@ function LegIcon({ k, active, done }) {
         <path d="M30 29 l-4 2 l4 1 Z" fill="#F1C40F" strokeWidth="1" />
         <circle cx="34" cy="27.5" r="1.3" fill="#111" stroke="none" />
         <path d="M27 55 v5 M37 55 v5" strokeWidth="2" stroke="#E0A02B" />
-      </g>),
-    fg: ( // apple pie
-      <g {...S}>
-        <path d="M18 14 q-3 -5 1 -9 M32 14 q-3 -5 1 -9 M46 14 q-3 -5 1 -9" fill="none" stroke="#CDBBA0" strokeWidth="2" />
-        <path d="M5 30 H59 L53 56 H11 Z" fill="#E9B866" />
-        <ellipse cx="32" cy="30" rx="27" ry="8" fill="#F2CB7E" />
-        <path d="M14 30 L50 30 M20 25 L28 36 M30 23 L38 37 M40 24 L46 34 M24 36 L18 27 M34 37 L28 23 M44 35 L38 24" fill="none" stroke="#B7791F" strokeWidth="1.4" />
-        <path d="M8 38 H56 M10 46 H54" fill="none" stroke="#C48A2C" strokeWidth="1" />
       </g>),
     exact: ( // football
       <g {...S}>
@@ -593,9 +565,7 @@ function legCounts(pk, games) {
   return [
     { key: 'big4', label: 'The Big Four', done: LEADERS.filter(l => pk?.leaders?.[l.key]?.name).length, total: 4 },
     { key: 'win', label: 'Winners', done: g(p => p.win && p.conf), total: n },
-    { key: 'ats', label: 'Spread', done: g(p => p.ats), total: n },
     { key: 'tot', label: 'Total Pts', done: g(p => p.tot), total: n },
-    { key: 'fg', label: 'FG Over/Under', done: g(p => p.fg), total: n },
     { key: 'exact', label: 'Exact FG', done: g(p => has(p.fgExact)), total: n },
     { key: 'td', label: 'TD Scorer', done: g(p => p.td?.name), total: n },
     { key: 'lineup', label: 'Fantasy Lineup', done: LINEUP_SLOTS.filter(s => pk?.lineup?.[s.key]?.id).length, total: LINEUP_SLOTS.length },
@@ -1205,6 +1175,11 @@ export default function PoultryBowl({ beta = false }) {
             ),
             win: () => (
               <Section title="Winners + confidence" sub="Pick the winner and rank your confidence — 5 pts × the number if you're right. Use each number once. 🐶 = underdog: bonus equal to the spread if they win outright." how={["1. Tap the team you think will win each game.", "2. Give every game a different confidence number — 1 = least sure, 5 = most sure (each number can only be used once).", "3. A correct pick earns 5 pts × your confidence number. Example: a correct pick ranked 5 = 25 pts; ranked 1 = 5 pts.", "🐶 Underdog bonus: if you pick the UNDERDOG (the team getting points) and they WIN the game, you also get bonus points equal to the spread. Example: you pick a 5.5-point underdog and they win → +5.5 extra. Favorites get no bonus, and the bonus is not multiplied by confidence."]}>
+                {!cfg.spreadsLive && (
+                  <div className="rounded px-3 py-2 mb-3 font-mono text-xs" style={{ background: '#2E2410', border: `1px solid ${C.gold}`, color: '#FFD98A' }}>
+                    🐶 The spreads (and who the underdogs are) get posted {cfg.linesDate || 'Tuesday, Nov 24'}. You can pick winners now and change them any time until the first kickoff.
+                  </div>
+                )}
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const used = usedConf(g.id);
@@ -1220,37 +1195,19 @@ export default function PoultryBowl({ beta = false }) {
                 }))}
               </Section>
             ),
-            ats: () => (
-              <Section title="Against the spread — 5 pts each" sub="Pick who covers." how={["Pick which team covers the spread. Each correct pick = 5 pts.", "Example: a team at −3.5 must win by 4 or more to cover. The team at +3.5 covers by winning, or by losing by 3 or fewer.", "If a game lands exactly on the spread (a push), everyone gets the 5 pts."]}>
-                {needGames(games.map(g => {
-                  const gp = myPicks.games?.[g.id] || {};
-                  const sp = Number(g.spread);
-                  const spreadReady = !!cfg.spreadsLive && has(g.spread);
-                  if (!spreadReady) return card(g, 'Spread TBD', <div className="font-mono text-xs" style={{ color: C.muted }}>📅 The spread for this game is still TBD — it opens up closer to kickoff week. Check back soon!</div>);
-                  return card(g, `Spread ${fmtSpread(g, true)}`, (
-                    <Segmented disabled={!canEdit} value={gp.ats} onChange={v => guard(gp.ats, v, () => setGame(g.id, { ats: v }))} options={[
-                      { value: g.away, label: `${g.away} ${sp > 0 ? '-' + g.spread : sp < 0 ? '+' + Math.abs(g.spread) : 'PK'}` },
-                      { value: g.home, label: `${g.home} ${sp < 0 ? g.spread : sp > 0 ? '+' + g.spread : 'PK'}` },
-                    ]} />
-                  ));
-                }))}
-              </Section>
-            ),
             tot: () => (
               <Section title="Total points over/under — 5 pts each" sub="Combined score of both teams." how={["Pick OVER or UNDER the posted total (both teams' points added together). Each correct pick = 5 pts.", "Example: line 45.5 → Over needs 46 or more combined points; Under needs 45 or fewer.", "If a game lands exactly on the line (a push), everyone gets the 5 pts."]}>
+                {!cfg.spreadsLive && (
+                  <div className="rounded px-3 py-3 mb-3 font-head" style={{ background: '#5A3A0E', border: `3px solid ${C.gold}`, color: '#FFE9B8', fontSize: 16, lineHeight: 1.3, textAlign: 'center' }}>
+                    ⏳ <b>TOTAL POINTS PICKS OPEN {String(cfg.linesDate || 'Tuesday, Nov 24').toUpperCase()}</b><br />
+                    <span className="font-mono" style={{ fontSize: 12, color: '#FFD98A' }}>The over/under lines aren't final yet, so you can't make these picks until then. Everything else is open now — and we'll email you when these open up.</span>
+                  </div>
+                )}
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
                   const totReady = !!cfg.spreadsLive && g.total !== undefined && g.total !== null && g.total !== '' && !Number.isNaN(Number(g.total));
-                  if (!totReady) return card(g, 'Total TBD', <div className="font-mono text-xs" style={{ color: C.muted }}>📅 The over/under for this game is still TBD — it opens up with the spreads. Check back soon!</div>);
+                  if (!totReady) return card(g, 'Total TBD', <div className="font-mono text-xs" style={{ color: C.muted }}>📅 The over/under for this game isn't set yet — total picks open {cfg.linesDate || 'Tuesday, Nov 24'}.</div>);
                   return card(g, `Line ${g.total}`, <Segmented disabled={!canEdit} value={gp.tot} onChange={v => guard(gp.tot, v, () => setGame(g.id, { tot: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
-                }))}
-              </Section>
-            ),
-            fg: () => (
-              <Section title={`Longest field goal over/under ${cfg.fgLine} — 5 pts each`} sub="The longest made field goal in each game." how={["Pick OVER or UNDER the line for the longest field goal MADE in each game (either team). Each correct pick = 5 pts.", "Example: line 48.5 → Over needs a made field goal of 49+ yards; Under means the longest was 48 or shorter. A game with no made field goals counts as Under.", "If the longest lands exactly on the line (a push), everyone gets the 5 pts."]}>
-                {needGames(games.map(g => {
-                  const gp = myPicks.games?.[g.id] || {};
-                  return card(g, `Line ${cfg.fgLine}`, <Segmented disabled={!canEdit} value={gp.fg} onChange={v => guard(gp.fg, v, () => setGame(g.id, { fg: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
                 }))}
               </Section>
             ),
@@ -1275,14 +1232,17 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             lineup: () => playersGate ? tbdPlayers('Fantasy lineup — 15 / 10 / 5') : (
-              <Section title="Fantasy lineup — 15 / 10 / 5" sub="Same scoring as Where's the Beef. Fill all 8 slots." how={["Fill all 8 spots: 1 QB, 2 RB, 2 WR, 1 TE, 1 K and 1 D/ST (defense). They earn fantasy points from their games, using the same scoring as the Where's the Beef pool.", "Highest lineup total in the pool = 15 pts · 2nd = 10 pts · 3rd = 5 pts (ties split the points).", "✏️ You can swap any player until HIS game kicks off — handy for late injuries."]}>
+              <Section title="Fantasy lineup — 15 / 10 / 5" sub="5 spots — and only ONE player from each game." how={["Fill 5 spots: QB, RB, WR, TE and a FLEX (any RB, WR or TE). They earn fantasy points from their games, using the same scoring as the Where's the Beef pool.", "⚠️ The catch: you can only use ONE player from each game. If you use the DAL QB, nobody else from DAL or his opponent can be in your lineup (that includes the FLEX). With 5 games and 5 spots, your lineup uses every game exactly once.", "Highest lineup total in the pool = 15 pts · 2nd = 10 pts · 3rd = 5 pts (ties split the points).", "✏️ You can swap any player until HIS game kicks off — handy for late injuries."]}>
+                <div className="rounded px-3 py-2 mb-3 font-head" style={{ background: '#5A3A0E', border: `2px solid ${C.gold}`, color: '#FFE9B8', fontSize: 14, lineHeight: 1.3 }}>
+                  ☝️ <b>ONE PLAYER PER GAME.</b>{' '}
+                  <span className="font-mono" style={{ fontSize: 12, color: '#FFD98A' }}>Pick a player and his game is used up — you can't pick anyone else from either team in that game.</span>
+                </div>
                 <div className="font-mono text-[11px] mb-2" style={{ color: C.muted }}>Each player locks at his own game's kickoff — swap him freely until then.</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {LINEUP_SLOTS.map(s => {
                     const chosen = LINEUP_SLOTS.map(x => myPicks.lineup?.[x.key]?.id).filter(Boolean);
-                    const opts = s.pos === 'DST'
-                      ? gameTeams.map(t => ({ id: t, name: `${TEAM_MAP[t] || t} D/ST`, team: t, position: 'D/ST' }))
-                      : roster.filter(p => p.position === s.pos);
+                    const usedElsewhere = new Set(LINEUP_SLOTS.filter(x => x.key !== s.key).map(x => gameIdOfTeam(games, myPicks.lineup?.[x.key]?.team)).filter(Boolean));
+                    const opts = roster.filter(p => LINEUP_POSITIONS[s.key].includes(p.position) && !usedElsewhere.has(gameIdOfTeam(games, p.team)));
                     const cur = myPicks.lineup?.[s.key];
                     const lockedSlot = slotLocked(cur);
                     const openOpts = isAdmin ? opts : opts.filter(o => !teamLocked(games, o.team, now));
@@ -1292,6 +1252,13 @@ export default function PoultryBowl({ beta = false }) {
                         <PlayerSelect value={cur} onChange={v => guard(cur, v, () => setSlot(s.key, v), true)} options={openOpts} disabled={!canEditLineup || lockedSlot} exclude={chosen} />
                       </div>
                     );
+                  })}
+                </div>
+                <div className="mt-3 font-mono text-[11px]" style={{ color: C.muted }}>
+                  Games used so far:{' '}
+                  {games.map((g, i) => {
+                    const slot = LINEUP_SLOTS.find(x => gameIdOfTeam(games, myPicks.lineup?.[x.key]?.team) === g.id);
+                    return <span key={g.id} style={{ color: slot ? C.green : C.muted }}>{i > 0 ? ' · ' : ''}{g.away}@{g.home} {slot ? `✓ (${slot.key})` : '—'}</span>;
                   })}
                 </div>
               </Section>
@@ -1318,6 +1285,7 @@ export default function PoultryBowl({ beta = false }) {
             <div className="space-y-4">
               {!actingId && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: C.panel, color: C.cream, border: `1px solid ${C.gold}` }}>👀 Preview — join the pool or pick your name above to start making picks{isAdmin ? ' (or use "edit picks as" in the admin row)' : ''}.</div>}
               {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.{anyGameOpen ? ' Your fantasy lineup can still be changed for players whose games haven\'t started.' : ''}</div>}
+              {!cfg.spreadsLive && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#3A2A0A', color: C.gold, border: `1px solid ${C.gold}` }}>📅 <b>Heads up:</b> Total-points picks open {cfg.linesDate || 'Tuesday, Nov 24'} (when the official lines are set). Everything else is open now — go ahead and make those picks!</div>}
               {rosterLoading && roster.length === 0 && <div className="font-mono text-xs flex items-center gap-2" style={{ color: C.muted }}><Loader2 size={12} className="animate-spin" /> Loading players…</div>}
 
               <div className="rounded p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
@@ -1333,7 +1301,7 @@ export default function PoultryBowl({ beta = false }) {
                         {l.key === 'jackpot' ? <JackpotIcon active={active} /> : l.key === 'big4' ? <Drumstick active={active} done={done} /> : <LegIcon k={l.key} active={active} done={done} />}
                         <div className="font-head" style={{ fontSize: 12, lineHeight: 1.1, color: C.cream, marginTop: 2 }}>{l.label}</div>
                         <div className="font-mono" style={{ fontSize: 13, marginTop: 2, color: done ? C.green : C.gold, fontWeight: 600 }}>
-                          {done ? '✓' : `${l.done}/${l.total}`}
+                          {l.key === 'tot' && !cfg.spreadsLive ? '📅 Nov 24' : done ? '✓' : `${l.done}/${l.total}`}
                         </div>
                       </button>
                     );
@@ -1427,7 +1395,7 @@ export default function PoultryBowl({ beta = false }) {
                 <div className="space-y-2">
                   <label className="flex items-center gap-2" style={{ color: C.cream }}>
                     <input type="checkbox" checked={!!cfg.spreadsLive} disabled={linesFrozen} onChange={e => setConfig({ spreadsLive: e.target.checked, ...(e.target.checked && data.open ? { linesFrozen: true } : {}) })} />
-                    <b>Spreads are final — show them &amp; allow spread picks</b> <span style={{ color: C.muted }}>(off = everyone sees TBD{linesFrozen ? '' : '; once the pool is open this freezes the lines for good'})</span>
+                    <b>Spreads &amp; totals are final — show them, open the Total points picks and the underdog bonus</b> <span style={{ color: C.muted }}>(off = everyone sees TBD{linesFrozen ? '' : '; once the pool is open this freezes the lines for good'})</span>
                   </label>
                   <label className="flex items-center gap-2" style={{ color: C.cream }}>
                     <input type="checkbox" checked={!!cfg.playersOpen} onChange={e => setConfig({ playersOpen: e.target.checked })} />
@@ -1472,7 +1440,7 @@ export default function PoultryBowl({ beta = false }) {
                     ))}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                    <div><Label>Longest FG line</Label><input type="number" step="0.5" disabled={linesFrozen} value={cfg.fgLine} onChange={e => setConfig({ fgLine: Number(e.target.value) })} style={inputStyle} /></div>
+                    <div><Label>Date total picks open (shown to players)</Label><input value={cfg.linesDate || ''} onChange={e => setConfig({ linesDate: e.target.value })} placeholder="Tuesday, Nov 24" style={inputStyle} /></div>
                     <div><Label>Tiebreaker team</Label><select value={cfg.tbTeam} onChange={e => setConfig({ tbTeam: e.target.value })} style={inputStyle}>{TEAMS.map(([a]) => <option key={a} value={a}>{a}</option>)}</select></div>
                     <div><Label>Lock time override</Label><input type="datetime-local" value={toLocalInput(cfg.lockAt)} onChange={e => setConfig({ lockAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={inputStyle} /></div>
                   </div>
@@ -1663,14 +1631,8 @@ function PicksSummary({ r, games, cfg, R, now, reveal }) {
       <Cat title="Winners" pts={r.parts.win}>
         {perGame((gp, d, fin) => chip(d?.win, fin, `${gp.win || '—'} (${gp.conf || '—'})${d?.dog ? ' 🐶' : ''}${mark(d?.win, fin)}`))}
       </Cat>
-      <Cat title="Spread" pts={r.parts.ats}>
-        {perGame((gp, d, fin) => chip(d?.ats, fin, `${gp.ats || '—'}${mark(d?.ats, fin)}`))}
-      </Cat>
       <Cat title="Totals" pts={r.parts.tot}>
         {perGame((gp, d, fin) => chip(d?.tot, fin, `${gp.tot || '—'}${mark(d?.tot, fin)}`))}
-      </Cat>
-      <Cat title="FG over/under" pts={r.parts.fgOU}>
-        {perGame((gp, d, fin) => chip(d?.fg, fin, `${gp.fg || '—'}${mark(d?.fg, fin)}`))}
       </Cat>
       <Cat title="Exact FG" pts={r.parts.fgExact}>
         {perGame((gp, d, fin) => chip((d?.fgPts ?? 0) > 0, fin, `${gp.fgExact ?? '—'}${fin ? ` (+${d.fgPts ?? 0})` : ''}`))}
@@ -1679,7 +1641,7 @@ function PicksSummary({ r, games, cfg, R, now, reveal }) {
         {perGame((gp, d, fin) => chip(d?.td, fin, `${gp.td?.name || '—'}${mark(d?.td, fin)}`))}
       </Cat>
       <Cat title="Lineup" pts={r.lineupBonus}>
-        {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.label} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}
+        {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.key} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}
         {r.lineupComplete ? <span style={{ color: C.cream }}> — fantasy total {num(r.lineupPts)}</span> : null}
       </Cat>
       <Cat title="Tiebreakers">

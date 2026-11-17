@@ -989,6 +989,7 @@ export default function PoultryBowl({ beta = false }) {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-5">
         {beta && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#2A1A4A', color: '#D9C6FF', border: '1px solid #8E6BD8' }}>🧪 <b>BETA TEST</b> — practice pool with its own separate data. No money, nothing here counts toward the real Poultry Bowl.</div>}
+        {!locked && <CountdownBanner target={lockAt} />}
         {/* Top bar */}
         <div className="flex flex-wrap items-center gap-2 justify-between">
           <div className="flex flex-wrap items-center gap-2">
@@ -1561,6 +1562,31 @@ export default function PoultryBowl({ beta = false }) {
 }
 
 // ---------------------------------------------------------------- small pieces
+// Live countdown to the first kickoff (ticks every second on its own so the rest of the page isn't re-rendered).
+function CountdownBanner({ target }) {
+  const [t, setT] = useState(Date.now());
+  useEffect(() => { const i = setInterval(() => setT(Date.now()), 1000); return () => clearInterval(i); }, []);
+  if (target == null) return null;
+  const ms = target - t;
+  if (ms <= 0) return null;
+  const sec = Math.floor(ms / 1000);
+  const parts = [['DAYS', Math.floor(sec / 86400)], ['HRS', Math.floor(sec / 3600) % 24], ['MIN', Math.floor(sec / 60) % 60], ['SEC', sec % 60]];
+  return (
+    <div className="rounded p-3 text-center" style={{ background: 'linear-gradient(180deg,#4A2E12,#2A1A0A)', border: `2px solid ${C.gold}` }}>
+      <div className="font-head uppercase" style={{ color: C.gold, fontSize: 13, letterSpacing: 1 }}>⏱ Picks lock at the first kickoff</div>
+      <div className="flex justify-center gap-2 my-2">
+        {parts.map(([label, v]) => (
+          <div key={label} className="rounded" style={{ background: '#140D06', border: `1px solid ${C.line}`, minWidth: 62, padding: '6px 4px' }}>
+            <div className="font-mono" style={{ fontSize: 26, fontWeight: 700, color: C.cream, lineHeight: 1 }}>{String(v).padStart(2, '0')}</div>
+            <div className="font-mono" style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="font-mono" style={{ fontSize: 11, color: C.muted }}>{fmtKick(new Date(target).toISOString())} · your fantasy lineup stays open until each player's own game starts</div>
+    </div>
+  );
+}
+
 // A plain-English "how this scores" box shown right inside each section so nobody has to flip to the rules page.
 function HowItWorks({ lines }) {
   return (

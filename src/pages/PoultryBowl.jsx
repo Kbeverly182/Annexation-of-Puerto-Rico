@@ -972,6 +972,11 @@ export default function PoultryBowl({ beta = false }) {
         .font-head { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
         .pb-shimmer { background: linear-gradient(100deg,#FFD54A,#FFF6C2 25%,#FF8A00 45%,#FFE27A 65%,#FFB300); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation: pbs 3s linear infinite; }
+        .pb-glint { position:relative; overflow:hidden; display:inline-flex; align-items:baseline; gap:6px; padding:3px 12px; border-radius:999px; color:#2A1A0A; font-family:'Anton',Impact,sans-serif; font-weight:900; font-size:22px; letter-spacing:.5px; line-height:1.15; background:linear-gradient(135deg,#FFB300,#FFE27A 45%,#FF8A00); border:2px solid #FFF6C2; box-shadow:0 0 10px rgba(255,179,0,.65), 0 0 22px rgba(255,138,0,.35); animation: pbglow 2s ease-in-out infinite; }
+        .pb-glint small { font-family:'Baloo 2',sans-serif; font-weight:800; font-size:11px; letter-spacing:1px; }
+        .pb-glint::after { content:''; position:absolute; top:0; bottom:0; width:40%; left:-60%; background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent); transform:skewX(-20deg); animation: pbsweep 2.4s ease-in-out infinite; }
+        @keyframes pbsweep { 0% { left:-60% } 60%,100% { left:130% } }
+        @keyframes pbglow { 0%,100% { box-shadow:0 0 8px rgba(255,179,0,.55), 0 0 18px rgba(255,138,0,.3) } 50% { box-shadow:0 0 16px rgba(255,214,74,.95), 0 0 30px rgba(255,138,0,.55) } }
         @keyframes pbs { from { background-position: 250% 0 } to { background-position: -50% 0 } }
         select option, select optgroup { background: #1A0F08; color: #F5E9D3; }
       `}</style>
@@ -1145,14 +1150,14 @@ export default function PoultryBowl({ beta = false }) {
           const legs = legCounts(myPicks, games);
           const leg = legs.find(l => l.key === activeLeg) || legs[0];
           const needGames = (children) => <div className="space-y-3">{children}</div>;
-          const gameHead = (g, extra) => (
-            <div className="flex flex-wrap justify-between items-baseline gap-1 mb-2">
-              <div className="font-head text-base">{g.away} @ {g.home}</div>
+          const gameHead = (g, extra, badge) => (
+            <div className="flex flex-wrap justify-between items-center gap-1 mb-2">
+              <div className="flex flex-wrap items-center gap-2"><div className="font-head text-base">{g.away} @ {g.home}</div>{badge}</div>
               <div className="font-mono text-[11px]" style={{ color: C.muted }}>{fmtKick(g.kickoff)}{extra ? ` · ${extra}` : ''}</div>
             </div>
           );
-          const card = (g, extra, body) => (
-            <div key={g.id} className="rounded p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>{gameHead(g, extra)}{body}</div>
+          const card = (g, extra, body, badge) => (
+            <div key={g.id} className="rounded p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>{gameHead(g, extra, badge)}{body}</div>
           );
           const playersGate = !cfg.playersOpen && !isAdmin;
           const tbdPlayers = (title) => (
@@ -1208,7 +1213,7 @@ export default function PoultryBowl({ beta = false }) {
                   const gp = myPicks.games?.[g.id] || {};
                   const totReady = !!cfg.spreadsLive && g.total !== undefined && g.total !== null && g.total !== '' && !Number.isNaN(Number(g.total));
                   if (!totReady) return card(g, 'Total TBD', <div className="font-mono text-xs" style={{ color: C.muted }}>📅 The over/under for this game isn't set yet — total picks open {cfg.linesDate || 'Tuesday, Nov 24'}.</div>);
-                  return card(g, `Line ${g.total}`, <Segmented disabled={!canEdit} value={gp.tot} onChange={v => guard(gp.tot, v, () => setGame(g.id, { tot: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />);
+                  return card(g, '', <Segmented disabled={!canEdit} value={gp.tot} onChange={v => guard(gp.tot, v, () => setGame(g.id, { tot: v }))} options={[{ value: 'over', label: 'Over' }, { value: 'under', label: 'Under' }]} />, <span className="pb-glint"><small>O/U</small>{g.total}</span>);
                 }))}
               </Section>
             ),

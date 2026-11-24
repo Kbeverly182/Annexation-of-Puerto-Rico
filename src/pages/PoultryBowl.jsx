@@ -1304,13 +1304,23 @@ export default function PoultryBowl({ beta = false }) {
                   {legs.map(l => {
                     const done = l.total > 0 && l.done === l.total;
                     const active = l.key === leg.key;
+                    const waiting = l.key === 'tot' && !cfg.spreadsLive; // can't be filled in yet — not "missing", just not open
+                    const RED = '#E5483A';
+                    const tone = waiting ? C.gold : done ? '#3FBF6A' : RED;
+                    const bg = waiting ? 'rgba(232,162,61,0.08)' : done ? 'rgba(63,191,106,0.13)' : 'rgba(229,72,58,0.13)';
+                    const glow = waiting ? 'none' : done ? '0 0 12px rgba(63,191,106,0.55)' : '0 0 10px rgba(229,72,58,0.35)';
                     return (
-                      <button key={l.key} onClick={() => setActiveLeg(l.key)} style={{ background: active ? '#4A2E12' : 'transparent', border: `2px solid ${active ? C.gold : 'transparent'}`, borderRadius: 10, padding: '6px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                      <button key={l.key} onClick={() => setActiveLeg(l.key)} style={{ background: active ? '#4A2E12' : bg, border: `3px solid ${tone}`, boxShadow: active ? `0 0 0 3px ${C.gold}, ${glow}` : glow, borderRadius: 12, padding: '6px 2px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                         {l.key === 'jackpot' ? <JackpotIcon active={active} /> : l.key === 'big4' ? <Drumstick active={active} done={done} /> : <LegIcon k={l.key} active={active} done={done} />}
                         <div className="font-head" style={{ fontSize: 12, lineHeight: 1.1, color: C.cream, marginTop: 2 }}>{l.label}</div>
-                        <div className="font-mono" style={{ fontSize: 13, marginTop: 2, color: done ? C.green : C.gold, fontWeight: 600 }}>
-                          {l.key === 'tot' && !cfg.spreadsLive ? '📅 Nov 24' : done ? '✓' : `${l.done}/${l.total}`}
-                        </div>
+                        {waiting
+                          ? <div className="font-mono" style={{ fontSize: 13, marginTop: 4, color: C.gold, fontWeight: 600 }}>📅 Nov 24</div>
+                          : (
+                            <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span style={{ width: 24, height: 24, borderRadius: '50%', background: tone, color: '#fff', fontSize: 16, fontWeight: 800, lineHeight: '24px', textAlign: 'center', boxShadow: `0 0 6px ${tone}` }}>{done ? '✓' : '✗'}</span>
+                              {!done && <span className="font-mono" style={{ fontSize: 13, color: '#FF9A8F', fontWeight: 700 }}>{l.done}/{l.total}</span>}
+                            </div>
+                          )}
                       </button>
                     );
                   })}

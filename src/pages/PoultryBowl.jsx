@@ -72,11 +72,11 @@ const RULES = [
   { heading: 'Total points over/under — 5 pts each', body: ['Pick over or under each game\'s posted total (both teams\' points added together). 5 points for each correct pick.', '📅 Total picks open on Tuesday, Nov 24, when the official lines are set — everything else is open now. If a total lands exactly on the line, everybody gets the 5 points.'] },
   { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.', 'Underdog bonus: if you pick the underdog (the team getting points in the spread) and they win straight up, you get extra points equal to the spread — a 5.5-point underdog that wins is +5.5 on top. It is not multiplied by confidence. (Spreads are posted Tuesday, Nov 24 — you can change your winner picks any time until the first kickoff.)'] },
   { heading: 'Exact longest field goal', body: ['Guess the longest made field goal in each game. Exact = 5 points, then minus 1 point for every yard you are off (never below 0).', 'Examples: guess 47, longest 47 = 5 · longest 44 = 2 · longest 50 = 2 · longest 53 = 0. If a game has no field goals the longest counts as 0.'] },
-  { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', '⚠️ QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT. The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. A QB only scores if he RUNS one in himself.'] },
+  { heading: 'TD scorer — 12 pts each', body: ['Pick one player in each game to score a touchdown. If he scores at least one TD in that game, you get 12 points.', '⚠️ QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT. The scorer is the player who runs it in, catches it, or returns it. A passing touchdown does NOT count for the quarterback who threw it — only the player who caught it. A QB only scores if he RUNS one in himself.', '✏️ You can change a game\'s TD pick until that game kicks off (for late injuries or inactives).'] },
   { heading: 'Fantasy lineup — 15 / 10 / 5', body: ['Build a lineup from players in the 5 games: QB, RB, WR, TE and a FLEX (any RB, WR or TE). Every spot must be filled or you are not eligible.', '⚠️ You may use only ONE player from each game. If you use the DAL QB, you can\'t use any other DAL player — or any player from DAL\'s opponent — in another spot, including the FLEX.', 'Scored with the same full-PPR scoring as Where\'s the Beef.', 'Highest lineup total earns 15 pts, 2nd earns 10, 3rd earns 5. Ties split the points for the spots they cover.', 'Each player locks individually at his own game\'s kickoff — until then you can swap him freely.'] },
   { heading: 'Tiebreakers', body: ['1) Closest to how many points the Cowboys score.', '2) Closest to the total number of field goals made across all 5 games.'] },
   { heading: 'Big Beefy Bonus — no points, 10% of the pot', body: ['Pick who will score the longest touchdown of the 5 games (defensive TDs and punt/kickoff return TDs do not count). If you are right, you automatically win the Big Beefy Bonus: 10% of the total pot.', 'If more than one person is right, the tiebreakers above decide. If nobody is right, that 10% goes back into the main prize pool.'] },
-  { heading: 'Locking', body: ['🔒 Everything locks at the kickoff of the first game — Big Four, winners, spread, totals, field goals, TD scorers, tiebreakers and the Big Beefy Bonus. After that, those picks are revealed to everyone.', '✏️ The exception is your FANTASY LINEUP: you can change any player right up until his own game kicks off (for late injuries or inactives). Once a player\'s game starts his slot is locked and his name is revealed; players in later games stay changeable and hidden.'] },
+  { heading: 'Locking', body: ['🔒 Everything locks at the kickoff of the first game — Big Four, winners, totals, exact field goal, tiebreakers and the Big Beefy Bonus. After that, those picks are revealed to everyone.', '✏️ The exceptions are your FANTASY LINEUP and your TD SCORER picks: you can change them right up until that game kicks off (for late injuries or inactives). Once a game starts, the lineup slot / TD pick for that game is locked and revealed; picks for later games stay changeable and hidden.'] },
   { heading: 'Payouts', body: 'Entry is 20 units. Payout structure is posted on this page once entries close.' },
 ];
 
@@ -748,6 +748,7 @@ export default function PoultryBowl({ beta = false }) {
     gm[gid] = { ...(gm[gid] || {}), conf: v || undefined };
     return { ...cur, games: gm };
   });
+  const setTd = (gid, val) => setMyPicks(cur => ({ ...cur, games: { ...(cur.games || {}), [gid]: { ...(cur.games?.[gid] || {}), td: val } } }), true);
   const setSlot = (key, val) => setMyPicks(cur => ({ ...cur, lineup: { ...(cur.lineup || {}), [key]: val } }), true);
 
   // Same rule as the other pools: a first-time pick saves straight away, but replacing a pick
@@ -955,7 +956,7 @@ export default function PoultryBowl({ beta = false }) {
   }
 
   const showPicksOf = (pid) => locked || pid === actingId;
-  const lockText = lockAt == null ? 'Games not set up yet' : locked ? (anyGameOpen ? 'Picks LOCKED · lineup open until each game' : 'Picks are LOCKED') : `Locks ${fmtKick(new Date(lockAt).toISOString())}`;
+  const lockText = lockAt == null ? 'Games not set up yet' : locked ? (anyGameOpen ? 'Picks LOCKED · lineup & TD picks open until each game' : 'Picks are LOCKED') : `Locks ${fmtKick(new Date(lockAt).toISOString())}`;
   const msLeft = lockAt != null ? lockAt - now : 0;
   const countdown = lockAt != null && !locked ? (() => {
     const m = Math.floor(msLeft / 60000); const d = Math.floor(m / 1440); const h = Math.floor((m % 1440) / 60);
@@ -1226,14 +1227,15 @@ export default function PoultryBowl({ beta = false }) {
               </Section>
             ),
             td: () => playersGate ? tbdPlayers('TD scorer — 12 pts each') : (
-              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return)." how={["Pick one player in each game you think will score a touchdown. If he scores at least one = 12 pts (no extra for multiple TDs).", "Rushing, receiving and return TDs count. Passing TDs count for the player who CAUGHT the ball — never for the QB who threw it."]}>
+              <Section title="TD scorer — 12 pts each" sub="Pick one player in each game to score a touchdown (rushing, receiving or return)." how={["Pick one player in each game you think will score a touchdown. If he scores at least one = 12 pts (no extra for multiple TDs).", "✏️ You can change your pick for a game until THAT game kicks off — handy for late injuries or inactives. Each game locks on its own, and your pick is revealed to everyone once that game starts.", "Rushing, receiving and return TDs count. Passing TDs count for the player who CAUGHT the ball — never for the QB who threw it."]}>
                 <div className="rounded px-3 py-2 mb-3 font-head" style={{ background: '#5A1F18', border: `2px solid ${C.red}`, color: '#FFD9D2', fontSize: 14, lineHeight: 1.3 }}>
                   🚫 <b>QUARTERBACKS: PASSING TOUCHDOWNS DO NOT COUNT.</b><br />
                   <span className="font-mono" style={{ fontSize: 12, color: '#FFB4A8' }}>A QB only scores for a TD he RUNS in himself. The player who catches a TD pass is the one who counts.</span>
                 </div>
                 {needGames(games.map(g => {
                   const gp = myPicks.games?.[g.id] || {};
-                  return card(g, '', <PlayerSelect value={gp.td} onChange={v => guard(gp.td, v, () => setGame(g.id, { td: v }))} options={roster.filter(p => (p.team === g.home || p.team === g.away) && p.position !== 'K')} disabled={!canEdit} />);
+                  const tdLocked = !isAdmin && gameHasStarted(g);
+                  return card(g, tdLocked ? '🔒 locked' : '✏️ open until kickoff', <PlayerSelect value={gp.td} onChange={v => guard(gp.td, v, () => setTd(g.id, v), true)} options={roster.filter(p => (p.team === g.home || p.team === g.away) && p.position !== 'K')} disabled={!canEditLineup || tdLocked} />);
                 }))}
               </Section>
             ),
@@ -1290,7 +1292,7 @@ export default function PoultryBowl({ beta = false }) {
           return (
             <div className="space-y-4">
               {!actingId && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: C.panel, color: C.cream, border: `1px solid ${C.gold}` }}>👀 Preview — join the pool or pick your name above to start making picks{isAdmin ? ' (or use "edit picks as" in the admin row)' : ''}.</div>}
-              {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.{anyGameOpen ? ' Your fantasy lineup can still be changed for players whose games haven\'t started.' : ''}</div>}
+              {locked && !isAdmin && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#5A1F18', color: '#FFB4A8', border: `1px solid ${C.red}` }}>Picks are locked — here's what you entered.{anyGameOpen ? ' Your fantasy lineup and TD scorer picks can still be changed for games that haven\'t started.' : ''}</div>}
               {!cfg.spreadsLive && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: '#3A2A0A', color: C.gold, border: `1px solid ${C.gold}` }}>📅 <b>Heads up:</b> Total-points picks open {cfg.linesDate || 'Tuesday, Nov 24'} (when the official lines are set). Everything else is open now — go ahead and make those picks!</div>}
               {rosterLoading && roster.length === 0 && <div className="font-mono text-xs flex items-center gap-2" style={{ color: C.muted }}><Loader2 size={12} className="animate-spin" /> Loading players…</div>}
 
@@ -1315,11 +1317,12 @@ export default function PoultryBowl({ beta = false }) {
                 </div>
               </div>
 
-              <div className="font-mono text-xs rounded px-3 py-2" style={leg.key === 'lineup'
+              <div className="font-mono text-xs rounded px-3 py-2" style={(leg.key === 'lineup' || leg.key === 'td')
                 ? { background: '#14331F', color: '#9BE3B0', border: `1px solid ${C.green}` }
                 : { background: '#3A2A0A', color: C.gold, border: `1px solid ${C.gold}` }}>
                 {leg.key === 'lineup'
                   ? '✏️ CAN BE CHANGED until each player\'s game kicks off — each slot locks separately at his own kickoff.'
+                  : leg.key === 'td' ? '✏️ CAN BE CHANGED until each game kicks off — each game\'s TD pick locks separately at that game\'s kickoff.'
                   : `🔒 LOCKS at the start of the first game${lockAt != null ? ` (${fmtKick(new Date(lockAt).toISOString())})` : ''}.`}
               </div>
 
@@ -1591,7 +1594,7 @@ function CountdownBanner({ target }) {
         </div>
         <img src="/poultry-headdress.jpg" alt="" style={{ width: 'clamp(52px, 16vw, 96px)', height: 'clamp(52px, 16vw, 96px)', borderRadius: 10, border: `2px solid ${C.gold}`, objectFit: 'cover', flexShrink: 0 }} />
       </div>
-      <div className="font-mono" style={{ fontSize: 11, color: C.muted }}>{fmtKick(new Date(target).toISOString())} · your fantasy lineup stays open until each player's own game starts</div>
+      <div className="font-mono" style={{ fontSize: 11, color: C.muted }}>{fmtKick(new Date(target).toISOString())} · your fantasy lineup and TD scorer picks stay open until each game starts</div>
     </div>
   );
 }
@@ -1673,7 +1676,7 @@ function PicksSummary({ r, games, cfg, R, now, reveal }) {
         {perGame((gp, d, fin) => chip((d?.fgPts ?? 0) > 0, fin, `${gp.fgExact ?? '—'}${fin ? ` (+${d.fgPts ?? 0})` : ''}`))}
       </Cat>
       <Cat title="TD scorers" pts={r.parts.td}>
-        {perGame((gp, d, fin) => chip(d?.td, fin, `${gp.td?.name || '—'}${mark(d?.td, fin)}`))}
+        {perGame((gp, d, fin, g) => chip(d?.td, fin, `${!gp.td?.name ? '—' : (reveal || Date.parse(g.kickoff) <= now) ? gp.td.name : '🔒'}${mark(d?.td, fin)}`))}
       </Cat>
       <Cat title="Lineup" pts={r.lineupBonus}>
         {LINEUP_SLOTS.map(s => { const v = pk.lineup?.[s.key]; return `${s.key} ${!v?.name ? '—' : (reveal || teamLocked(games, v.team, now)) ? v.name : '🔒'}`; }).join(' · ')}

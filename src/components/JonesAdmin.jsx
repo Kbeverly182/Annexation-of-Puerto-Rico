@@ -90,7 +90,11 @@ function TeamsEditor({ state, act }) {
         <Btn kind="ghost" small onClick={() => setRows(rs => [...rs, { name: '', owner: '' }])}>+ Add team</Btn>
         <Btn onClick={() => act('adminSetTeams', { teams: rows }, 'Teams saved.')}>Save teams ({rows.filter(r => r.name.trim()).length})</Btn>
       </div>
-      <div style={{ color: T.muted, fontSize: 12 }}>Each manager picks their own PIN the first time they open their team. {state.teams.length} / 14 teams.</div>
+      <div style={{ color: T.muted, fontSize: 12 }}>Each manager picks their own PIN the first time they open their team. {state.teams.length} / {state.config.maxTeams || 14} teams.</div>
+      <label className="flex items-center gap-2" style={{ fontSize: 13, marginTop: 6 }}>
+        <input type="checkbox" checked={state.config.joinOpen !== false} onChange={e => act('adminConfig', { patch: { joinOpen: e.target.checked } }, e.target.checked ? 'Signups are open — people can join from the link.' : 'Signups closed.')} />
+        <span><b>Let people join themselves</b> from the link (up to {state.config.maxTeams || 14} teams). Turn off once the league is full.</span>
+      </label>
     </div>
   );
 }

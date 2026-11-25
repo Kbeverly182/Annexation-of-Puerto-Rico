@@ -45,6 +45,22 @@ const actions = {
     team.pinHash = hashTeamPin(team.id, String(body.pin));
     return { state, data: { ok: true } };
   },
+  async joinLeague({ state, body }) {
+    if (state.config.joinOpen === false) bad('Signups are closed. Ask the commissioner to add you.');
+    const max = state.config.maxTeams || 14;
+    if (state.teams.length >= max) bad(`The league is full (${max} teams).`);
+    const name = String(body.name || '').trim().slice(0, 40), owner = String(body.owner || '').trim().slice(0, 40);
+    if (!name || !owner) bad('Enter a team name and your name.');
+    const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (state.teams.some(t => norm(t.name) === norm(name))) bad('That team name is already taken.');
+    if (state.teams.some(t => norm(t.owner) === norm(owner))) bad('One entry per person — that name is already in the league.');
+    if (!/^\d{4,8}$/.test(String(body.pin || ''))) bad('PIN must be 4–8 digits.');
+    const id = C.mkId();
+    state.teams.push({ id, name, owner, pinHash: hashTeamPin(id, String(body.pin)) });
+    state.config.tiebreakOrder = [...(state.config.tiebreakOrder || []), id];
+    pushFeed(state, `${name} (${owner}) joined the league.`);
+    return { state, data: { ok: true, teamId: id } };
+  },
   async login({ state, body }) { requireTeam(state, body); return { data: { ok: true } }; },
 
   async addClaim({ state, body }) {
@@ -181,6 +197,8 @@ const actions = {
     if (['avg', 'raw'].includes(p.priorityMode)) c.priorityMode = p.priorityMode;
     if (Array.isArray(p.tiebreakOrder)) c.tiebreakOrder = p.tiebreakOrder.filter(id => state.teams.some(t => t.id === id));
     if (Number.isFinite(Number(p.entryFee))) c.entryFee = Number(p.entryFee);
+    if (typeof p.joinOpen === 'boolean') c.joinOpen = p.joinOpen;
+    if (Number.isFinite(Number(p.maxTeams)) && Number(p.maxTeams) >= 2 && Number(p.maxTeams) <= 30) c.maxTeams = Math.floor(Number(p.maxTeams));
     if (Array.isArray(p.rounds)) {
       const rounds = p.rounds.map(r => ({ id: String(r.id || '').slice(0, 20), label: String(r.label || '').slice(0, 40), start: String(r.start || ''), end: String(r.end || '') }));
       if (rounds.some(r => !r.id || !/^\d{8}$/.test(r.start) || !/^\d{8}$/.test(r.end))) bad('Each round needs an id and start/end dates like 20270116.');

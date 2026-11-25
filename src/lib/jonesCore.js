@@ -50,6 +50,8 @@ export function initialState(pool) {
       waiverLabel: 'Wednesday 3:00 AM ET',
       tiebreakOrder: [],        // team ids; earlier = earlier waiver pick when everything else ties
       entryFee: 40,
+      joinOpen: true,           // managers can add their own team from the link
+      maxTeams: 14,
     },
     teams: [],        // { id, name, owner, pinHash }
     rosterLog: [],    // { ts, teamId, type:'add'|'drop', player:{id,name,pos,team}, source, runId?, tradeId? }

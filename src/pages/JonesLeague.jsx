@@ -117,7 +117,30 @@ function TeamLogin({ state, onLogin, flash, pool }) {
   const [pick, setPick] = useState(null);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
-  if (!state.teams.length) return <Panel title="No teams yet"><div style={{ color: T.muted }}>The commissioner hasn’t added the teams yet.</div></Panel>;
+  const [jf, setJf] = useState({ name: '', owner: '', pin: '' });
+  const [joining, setJoining] = useState(false);
+  const canJoin = state.config.joinOpen !== false && state.teams.length < (state.config.maxTeams || 14);
+  const join = async () => {
+    setBusy(true);
+    try {
+      const r = await jPost(pool, { action: 'joinLeague', ...jf });
+      onLogin({ teamId: r.teamId, pin: jf.pin });
+      flash('You’re in! Remember your PIN.');
+    } catch (e) { flash(String(e.message || e), false); } finally { setBusy(false); }
+  };
+  const joinPanel = canJoin && (
+    <Panel title="Not in the league yet?" sub={`${state.teams.length} of ${state.config.maxTeams || 14} spots taken. One entry per person.`}>
+      {!joining ? <Btn onClick={() => setJoining(true)}>＋ Join the league</Btn> : (
+        <div className="space-y-2">
+          <input value={jf.name} onChange={e => setJf(f => ({ ...f, name: e.target.value }))} placeholder="Team name" style={inputStyle} />
+          <input value={jf.owner} onChange={e => setJf(f => ({ ...f, owner: e.target.value }))} placeholder="Your name" style={inputStyle} />
+          <input type="password" inputMode="numeric" value={jf.pin} onChange={e => setJf(f => ({ ...f, pin: e.target.value }))} placeholder="Choose a 4–8 digit PIN" style={inputStyle} />
+          <div className="flex gap-2"><Btn onClick={join} disabled={busy || !jf.name.trim() || !jf.owner.trim() || jf.pin.length < 4}>Join</Btn><Btn kind="ghost" onClick={() => setJoining(false)}>Cancel</Btn></div>
+        </div>
+      )}
+    </Panel>
+  );
+  if (!state.teams.length) return canJoin ? joinPanel : <Panel title="No teams yet"><div style={{ color: T.muted }}>The commissioner hasn’t added the teams yet.</div></Panel>;
   const submit = async () => {
     setBusy(true);
     try {
@@ -128,6 +151,7 @@ function TeamLogin({ state, onLogin, flash, pool }) {
     } catch (e) { flash(String(e.message || e), false); } finally { setBusy(false); }
   };
   return (
+    <div className="space-y-3">
     <Panel title="Which team is yours?" sub="Tap your team, then enter your PIN (the first time you pick one).">
       <div className="grid gap-2 sm:grid-cols-2">
         {state.teams.map(t => (
@@ -145,6 +169,8 @@ function TeamLogin({ state, onLogin, flash, pool }) {
         </div>
       )}
     </Panel>
+    {joinPanel}
+    </div>
   );
 }
 

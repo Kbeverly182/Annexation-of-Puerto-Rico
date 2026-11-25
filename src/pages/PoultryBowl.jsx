@@ -67,7 +67,18 @@ const LINEUP_SLOTS = [
 const LINEUP_POSITIONS = { QB: ['QB'], RB: ['RB'], WR: ['WR'], TE: ['TE'], FLEX: ['RB', 'WR', 'TE'] };
 const gameIdOfTeam = (games, team) => (games || []).find(g => g.home === team || g.away === team)?.id;
 
+// Shown wherever someone could create an entry.
+function OneEntryNote() {
+  return (
+    <div className="rounded px-3 py-2 mb-2 font-head" style={{ background: '#5A3A0E', border: `2px solid ${C.gold}`, color: '#FFE9B8', fontSize: 14, lineHeight: 1.3 }}>
+      ☝️ <b>ONE ENTRY PER PERSON.</b>{' '}
+      <span className="font-mono" style={{ fontSize: 12, color: '#FFD98A' }}>Only one entry per person is allowed — duplicate or extra entries will be removed.</span>
+    </div>
+  );
+}
+
 const RULES = [
+  { heading: 'One entry per person', body: ['Each person may enter the Poultry Bowl once. Duplicate or extra entries will be removed.'] },
   { heading: 'The Big Four — up to 20 pts each', body: ['Pick the player you think will lead ALL 5 games in each category: QB passing yards, RB rushing yards, WR receiving yards, and TE receptions.', 'Your player finishing 1st = 20 points, 2nd = 15, 3rd = 10, 4th = 5 (80 possible).', 'Ties push everyone below down: if two players tie for the most, both get 20 and the next player is 3rd (10 points). If three tie for the most, the next player is 4th (5 points).'] },
   { heading: 'Total points over/under — 5 pts each', body: ['Pick over or under each game\'s posted total (both teams\' points added together). 5 points for each correct pick.', '📅 Total picks open on Tuesday, Nov 24, when the official lines are set — everything else is open now. If a total lands exactly on the line, everybody gets the 5 points.'] },
   { heading: 'Winners + confidence', body: ['Pick the winner of each game straight up and rank your confidence 1–5 (use each number once; 5 = most confident).', 'A correct pick earns 5 points × its confidence number. Max 75.', 'Underdog bonus: if you pick the underdog (the team getting points in the spread) and they win straight up, you get extra points equal to the spread — a 5.5-point underdog that wins is +5.5 on top. It is not multiplied by confidence. (Spreads are posted Tuesday, Nov 24 — you can change your winner picks any time until the first kickoff.)'] },
@@ -1100,6 +1111,7 @@ export default function PoultryBowl({ beta = false }) {
           ) : (
             <div>
               <div className="font-head uppercase text-sm mb-2" style={{ color: C.gold }}>Who are you?</div>
+              <OneEntryNote />
               <div className="flex flex-wrap gap-2 mb-2">
                 {data.participants.map(p => (
                   <button key={p.id} onClick={() => setClaim({ participantId: p.id, mode: p.pin ? 'enter' : 'set', input: '', error: '' })} className="font-mono text-xs px-2 py-1 rounded" style={{ background: C.bg, border: `1px solid ${C.line}`, color: C.cream }}>{p.name}</button>

@@ -7,6 +7,8 @@ import ConfidencePool from './pages/ConfidencePool';
 import LineupPool from './pages/LineupPool';
 import PlayerProps from './pages/PlayerProps';
 import PoultryBowl from './pages/PoultryBowl';
+import JonesLanding from './pages/JonesLanding';
+import JonesLeague from './pages/JonesLeague';
 
 export default function App() {
   return (
@@ -20,6 +22,9 @@ export default function App() {
         <Route path="/props" element={<PlayerProps />} />
         <Route path="/poultry" element={<PoultryBowl />} />
         <Route path="/poultry-beta" element={<PoultryBowl beta />} />
+        <Route path="/jones" element={<JonesLanding />} />
+        <Route path="/jones/league" element={<JonesLeague />} />
+        <Route path="/jones/beta" element={<JonesLeague beta />} />
       </Routes>
     </HashRouter>
   );

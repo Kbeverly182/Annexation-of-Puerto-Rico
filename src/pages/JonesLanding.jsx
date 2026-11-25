@@ -9,15 +9,17 @@ export default function JonesLanding() {
   return (
     <div style={{ background: C.bg, color: C.cream, minHeight: '100vh' }}>
       <div style={{ background: 'linear-gradient(180deg,#16213F 0%,#0A1020 100%)', borderBottom: `3px solid ${C.gold}` }}>
-        <div className="max-w-3xl mx-auto px-4 py-10 text-center">
-          <div style={{ fontSize: 44 }}>🏈</div>
-          <h1 style={{ fontFamily: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif', fontSize: 'clamp(36px, 9vw, 60px)', letterSpacing: 2, color: C.gold, lineHeight: 1.05, textTransform: 'uppercase' }}>
-            The Jones League
-          </h1>
-          <div style={{ color: C.muted, marginTop: 8, fontSize: 15 }}>The NFL playoffs fantasy league · 14 teams · best single game wins</div>
-          <div className="flex flex-wrap justify-center gap-3 mt-6">
-            <Link to="/jones/league" style={{ background: C.gold, color: '#1A1205', padding: '12px 22px', borderRadius: 10, fontWeight: 800, textDecoration: 'none' }}>Enter the league →</Link>
-            <Link to="/jones/beta" style={{ background: 'transparent', color: C.gold, padding: '12px 22px', borderRadius: 10, fontWeight: 800, textDecoration: 'none', border: `2px solid ${C.gold}` }}>🧪 Beta test league</Link>
+        <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col sm:flex-row items-center gap-6">
+          <img src="/jones-hero.jpg" alt="The Jones League" style={{ width: 'min(78vw, 300px)', aspectRatio: '4 / 5', objectFit: 'cover', objectPosition: '50% 8%', borderRadius: 16, border: `3px solid ${C.gold}`, boxShadow: '0 0 34px rgba(242,177,56,0.35)', flexShrink: 0 }} />
+          <div className="text-center sm:text-left">
+            <h1 style={{ fontFamily: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif', fontSize: 'clamp(36px, 9vw, 60px)', letterSpacing: 2, color: C.gold, lineHeight: 1.05, textTransform: 'uppercase' }}>
+              The Jones League
+            </h1>
+            <div style={{ color: C.muted, marginTop: 8, fontSize: 15 }}>The NFL playoffs fantasy league · 14 teams · best single game wins</div>
+            <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-6">
+              <Link to="/jones/league" style={{ background: C.gold, color: '#1A1205', padding: '12px 22px', borderRadius: 10, fontWeight: 800, textDecoration: 'none' }}>Enter the league →</Link>
+              <Link to="/jones/beta" style={{ background: 'transparent', color: C.gold, padding: '12px 22px', borderRadius: 10, fontWeight: 800, textDecoration: 'none', border: `2px solid ${C.gold}` }}>🧪 Beta test league</Link>
+            </div>
           </div>
         </div>
       </div>

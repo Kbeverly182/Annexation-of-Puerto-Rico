@@ -98,7 +98,8 @@ function Shell({ children, beta, name, right }) {
     <div style={{ background: T.bg, color: T.cream, minHeight: '100vh' }}>
       <div style={{ background: 'linear-gradient(180deg,#16213F 0%,#0A1020 100%)', borderBottom: `3px solid ${T.gold}` }}>
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div>
+          <img src="/jones-hero.jpg" alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', objectPosition: '50% 8%', border: `3px solid ${T.gold}`, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
             <Link to="/jones" style={{ color: T.muted, fontSize: 12, textDecoration: 'none' }}>← Jones League home</Link>
             <div style={{ fontFamily: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif', color: T.gold, fontSize: 28, letterSpacing: 1.5, textTransform: 'uppercase', lineHeight: 1.1 }}>{name || 'The Jones League'}</div>
           </div>

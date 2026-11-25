@@ -35,7 +35,7 @@ export default function JonesLanding() {
         </div>
 
         <div style={{ background: '#1B2540', border: `1px solid ${C.gold}`, borderRadius: 10, padding: '12px 16px', fontSize: 14 }}>
-          🧪 <b>Beta test:</b> until the playoffs start, the beta league runs the same rules on the last weeks of the regular season so we can make sure waivers, trades and scoring work. Nothing in the beta counts for money.
+          🧪 <b>Beta test:</b> until the playoffs start, the beta league runs the same rules on the last weeks of the regular season so we can make sure waivers, trades and scoring work. Nothing in the beta counts for money. To mimic the playoff field, the beta uses players from just 14 NFL teams — six Week 13 games among them plus the Raiders and Jets, who are on a bye that week (like the top seeds in the Wild Card round).
         </div>
 
         {JONES_RULES.map(sec => (

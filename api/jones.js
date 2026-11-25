@@ -31,6 +31,10 @@ function requireTeam(state, body) {
   if (!body.pin || hashTeamPin(team.id, String(body.pin)) !== team.pinHash) bad('Wrong PIN.', 403);
   return team;
 }
+const needAllowed = (state, p) => {
+  const allowed = C.allowedTeams(state);
+  if (allowed && !allowed.includes(p.team)) bad(`${p.name} (${p.team}) is not part of this league — only players from ${allowed.join(', ')} can be used.`);
+};
 const nameOf = (state, id) => (state.teams.find(t => t.id === id) || {}).name || 'a team';
 const pushFeed = (state, text) => { state.feed = [...(state.feed || []), { ts: Date.now(), text }].slice(-200); };
 
@@ -66,6 +70,7 @@ const actions = {
   async addClaim({ state, body }) {
     const team = requireTeam(state, body);
     const add = cleanPlayer(body.add);
+    needAllowed(state, add);
     const owner = C.ownerMap(state).get(add.id);
     if (owner) bad(`${add.name} is already on ${nameOf(state, owner)}.`);
     const drop = C.currentRoster(state, team.id).find(p => p.id === String(body.dropId));
@@ -169,6 +174,7 @@ const actions = {
       const team = state.teams.find(t => t.id === teamId);
       if (!team) bad('Unknown team in roster list.');
       const players = (list || []).map(cleanPlayer);
+      players.forEach(p => needAllowed(state, p));
       const problems = C.rosterProblems(players);
       if (problems.length) bad(`${team.name}: ${problems.join('; ')}`);
       for (const p of players) { if (claimed.has(p.id)) bad(`${p.name} is on both ${nameOf(state, claimed.get(p.id))} and ${team.name}.`); claimed.set(p.id, teamId); }
@@ -198,6 +204,7 @@ const actions = {
     if (Array.isArray(p.tiebreakOrder)) c.tiebreakOrder = p.tiebreakOrder.filter(id => state.teams.some(t => t.id === id));
     if (Number.isFinite(Number(p.entryFee))) c.entryFee = Number(p.entryFee);
     if (typeof p.joinOpen === 'boolean') c.joinOpen = p.joinOpen;
+    if (Array.isArray(p.allowedTeams)) c.allowedTeams = [...new Set(p.allowedTeams.map(String).filter(t => /^[A-Z]{2,3}$/.test(t)))];
     if (Number.isFinite(Number(p.maxTeams)) && Number(p.maxTeams) >= 2 && Number(p.maxTeams) <= 30) c.maxTeams = Math.floor(Number(p.maxTeams));
     if (Array.isArray(p.rounds)) {
       const rounds = p.rounds.map(r => ({ id: String(r.id || '').slice(0, 20), label: String(r.label || '').slice(0, 40), start: String(r.start || ''), end: String(r.end || '') }));

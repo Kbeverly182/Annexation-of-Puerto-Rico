@@ -181,10 +181,18 @@ function Standings({ state, standings, order, me, games }) {
   let rank = 0, last = null;
   const ranked = rows.map((r, i) => { if (last === null || r.total !== last) rank = i + 1; last = r.total; return { ...r, rank }; });
   const cols = [['QB', 0], ['RB', 0], ['RB', 1], ['WR', 0], ['WR', 1], ['TE', 0], ['K', 0], ['DST', 0]];
-  const gl = Object.values(games);
+  const allowed = C.allowedTeams(state);
+  const gl = Object.values(games).filter(g => !allowed || allowed.includes(g.home) || allowed.includes(g.away));
   if (!state.teams.length) return <Panel title="Standings"><div style={{ color: T.muted }}>The league hasn’t been set up yet.</div></Panel>;
   return (
     <div className="space-y-3">
+      {allowed && (
+        <Panel title={`Player pool: ${allowed.length} NFL teams`} sub="Only players from these teams can be drafted or claimed.">
+          <div className="flex flex-wrap gap-1">
+            {allowed.map(a => <span key={a} style={{ background: T.panel2, border: `1px solid ${C.BETA_BYES.includes(a) && state.pool === 'beta' ? T.gold : T.line}`, borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 800 }}>{a}{C.BETA_BYES.includes(a) && state.pool === 'beta' ? ' · bye wk 13' : ''}</span>)}
+          </div>
+        </Panel>
+      )}
       <Panel title="Standings" sub="Each position counts its BEST single game while on your roster — totals do not pile up. Higher is better.">
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
@@ -265,7 +273,9 @@ function MyTeam({ state, standings, me, games }) {
 
 // ---------------- Waivers ----------------
 function Waivers({ state, order, me, asTeam, busy }) {
-  const { players, loading, progress, retry, missingTeams } = usePlayerPool();
+  const { players: allPlayers, loading, progress, retry, missingTeams } = usePlayerPool();
+  const allowed = C.allowedTeams(state);
+  const players = useMemo(() => (allowed ? allPlayers.filter(p => allowed.includes(p.team)) : allPlayers), [allPlayers, state.config.allowedTeams]);
   const roster = C.currentRoster(state, me.id);
   const owned = useMemo(() => new Set([...C.ownerMap(state).keys()]), [state]);
   const [dropId, setDropId] = useState('');

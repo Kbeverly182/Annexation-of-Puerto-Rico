@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as C from '../lib/jonesCore';
 import { THEME as T, usePlayerPool, fmtKick, fmtWhen } from '../lib/jonesClient';
+import { TEAMS } from '../lib/teams';
 import { Panel, Btn, inputStyle, PlayerPicker } from './JonesBits';
 
 const SLOT_KEYS = ['QB', 'RB1', 'RB2', 'WR1', 'WR2', 'TE', 'K', 'DST'];
@@ -16,7 +17,9 @@ const draftFromRoster = (list) => {
 };
 
 function RosterEditor({ state, games, act }) {
-  const { players, loading, progress, missingTeams, retry } = usePlayerPool();
+  const { players: allPlayers, loading, progress, missingTeams, retry } = usePlayerPool();
+  const allowed = C.allowedTeams(state);
+  const players = useMemo(() => (allowed ? allPlayers.filter(p => allowed.includes(p.team)) : allPlayers), [allPlayers, state.config.allowedTeams]);
   const [drafts, setDrafts] = useState(() => Object.fromEntries(state.teams.map(t => [t.id, draftFromRoster(C.currentRoster(state, t.id))])));
   const taken = useMemo(() => {
     const s = new Set();
@@ -99,6 +102,28 @@ function TeamsEditor({ state, act }) {
   );
 }
 
+function TeamPoolEditor({ state, act }) {
+  const current = C.allowedTeams(state);
+  const [sel, setSel] = useState(() => new Set(current || []));
+  const toggle = (a) => setSel(s => { const n = new Set(s); n.has(a) ? n.delete(a) : n.add(a); return n; });
+  return (
+    <div className="space-y-2">
+      <div style={{ color: T.muted, fontSize: 12 }}>Only players from the ticked NFL teams can be drafted, claimed or rostered. Leave everything unticked to allow all 32 teams.</div>
+      <div className="flex flex-wrap gap-1">
+        {TEAMS.map(([a]) => (
+          <label key={a} style={{ background: sel.has(a) ? '#2A3560' : T.panel2, border: `1px solid ${sel.has(a) ? T.gold : T.line}`, borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+            <input type="checkbox" checked={sel.has(a)} onChange={() => toggle(a)} style={{ marginRight: 4 }} />{a}
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <Btn onClick={() => act('adminConfig', { patch: { allowedTeams: [...sel] } }, sel.size ? `Saved — ${sel.size} NFL teams.` : 'Saved — all 32 teams allowed.')}>Save NFL teams ({sel.size || 'all'})</Btn>
+        {state.pool === 'beta' && <Btn kind="ghost" small onClick={() => setSel(new Set(C.BETA_TEAMS))}>Reset to the beta 14</Btn>}
+      </div>
+    </div>
+  );
+}
+
 function RoundsEditor({ state, act }) {
   const [rows, setRows] = useState(() => state.config.rounds.map(r => ({ ...r })));
   const upd = (i, patch) => setRows(rs => rs.map((r, k) => (k === i ? { ...r, ...patch } : r)));
@@ -143,6 +168,13 @@ export default function JonesAdmin({ pool, state, games, standings, order, act, 
     <div className="space-y-4">
       <Panel title="1 · Teams" sub="Add the 14 managers.">
         <TeamsEditor key={state.teams.map(t => t.id + t.name).join('|')} state={state} act={act} />
+      </Panel>
+
+      <Panel title="NFL teams in this league" sub={C.allowedTeams(state) ? `${C.allowedTeams(state).length} teams: ${C.allowedTeams(state).join(', ')}` : 'All 32 NFL teams.'}>
+        <details>
+          <summary style={{ cursor: 'pointer', color: T.gold, fontWeight: 800 }}>Change which NFL teams count</summary>
+          <div className="mt-3"><TeamPoolEditor key={(state.config.allowedTeams || []).join(',')} state={state} act={act} /></div>
+        </details>
       </Panel>
 
       <Panel title="2 · Rosters (enter the draft results)" sub="Pick the 8 players each team drafted. Before the first waiver run this simply replaces the roster; after that edits are logged from now on.">

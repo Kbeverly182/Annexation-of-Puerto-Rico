@@ -38,6 +38,19 @@ export const BETA_ROUNDS = [
   { id: 'w18', label: 'Week 18', start: '20270107', end: '20270111' },
 ];
 
+// Beta only: the NFL teams whose players are in the beta pool. Drawn at random for the Week 13 test — six real
+// Week 13 games among these teams (like the six Wild Card games) plus LV and NYJ, who are on a bye that week
+// (like the two top seeds). Players from every other NFL team are NOT part of the beta.
+export const BETA_TEAMS = ['ARI', 'ATL', 'CHI', 'DET', 'HOU', 'JAX', 'KC', 'LAR', 'LV', 'NYJ', 'PHI', 'PIT', 'TEN', 'WAS'];
+export const BETA_BYES = ['LV', 'NYJ'];
+
+// null = every NFL team is allowed.
+export function allowedTeams(state) {
+  const a = state.config?.allowedTeams;
+  if (Array.isArray(a)) return a.length ? a : null;
+  return state.pool === 'beta' ? BETA_TEAMS : null;
+}
+
 export function initialState(pool) {
   return {
     version: 1,
@@ -50,6 +63,7 @@ export function initialState(pool) {
       waiverLabel: 'Wednesday 3:00 AM ET',
       tiebreakOrder: [],        // team ids; earlier = earlier waiver pick when everything else ties
       entryFee: 40,
+      allowedTeams: pool === 'beta' ? BETA_TEAMS : [], // NFL teams whose players can be used ([] = all 32)
       joinOpen: true,           // managers can add their own team from the link
       maxTeams: 14,
     },

@@ -22,6 +22,24 @@ const betaDefaultRange = () => {
 const POLL_MS = 30000;
 const FEE = 20;
 const JACKPOT_PCT = 10;
+const HOSTING_FEE = 20; // taken off the top for the site's hosting
+const r5 = (x) => Math.round(x / 5) * 5;
+// Payout plan for a given number of paid entries. 35 entries x 20 = 700: hosting 20, Big Beefy Bonus 70 (10% of the pot),
+// then 1st 350 / 2nd 170 / 3rd 90 from the remaining 610 (about 57.5% / 28% / 14.5%, rounded to 5s, 3rd takes the remainder).
+// If nobody wins the Bonus, it is added to the three places in the same proportion (40 / 20 / 10 at 35 entries).
+function payoutPlan(entries) {
+  const pot = entries * FEE;
+  const hosting = pot > HOSTING_FEE ? HOSTING_FEE : 0;
+  const bonus = pot * JACKPOT_PCT / 100;
+  const prizes = Math.max(0, pot - hosting - bonus);
+  const first = r5(prizes * 0.575);
+  const second = r5(prizes * 0.28);
+  const third = Math.max(0, prizes - first - second);
+  const rb1 = prizes ? r5(bonus * first / prizes) : 0;
+  const rb2 = prizes ? r5(bonus * second / prizes) : 0;
+  const rb3 = Math.max(0, bonus - rb1 - rb2);
+  return { pot, hosting, bonus, prizes, first, second, third, rb: [rb1, rb2, rb3] };
+}
 const LINEUP_AWARDS = [15, 10, 5];
 const ABBR_FIX = { WSH: 'WAS', JAC: 'JAX' };
 const fixAbbr = (a) => ABBR_FIX[a] || a;
@@ -88,7 +106,7 @@ const RULES = [
   { heading: 'Tiebreakers', body: ['1) Closest to how many points the Cowboys score.', '2) Closest to the total number of field goals made across all 5 games.'] },
   { heading: 'Big Beefy Bonus — no points, 10% of the pot', body: ['Pick who will score the longest touchdown of the 5 games (defensive TDs and punt/kickoff return TDs do not count). If you are right, you automatically win the Big Beefy Bonus: 10% of the total pot.', 'If more than one person is right, the tiebreakers above decide. If nobody is right, that 10% goes back into the main prize pool.'] },
   { heading: 'Locking', body: ['🔒 Everything locks at the kickoff of the first game — Big Four, winners, totals, exact field goal, tiebreakers and the Big Beefy Bonus. After that, those picks are revealed to everyone.', '✏️ The exceptions are your FANTASY LINEUP and your TD SCORER picks: you can change them right up until that game kicks off (for late injuries or inactives). Once a game starts, the lineup slot / TD pick for that game is locked and revealed; picks for later games stay changeable and hidden.'] },
-  { heading: 'Payouts', body: 'Entry is 20 units. Payout structure is posted on this page once entries close.' },
+  { heading: 'Payouts', body: ['Entry is 20 units. Here is how the pot is split (the example is 35 entries = a 700-unit pot):', '🥇 1st place — 350 · 🥈 2nd place — 170 · 🥉 3rd place — 90', '🥩 Big Beefy Bonus — 70 (10% of the pot), won by whoever picked the longest touchdown. It is paid on top of any place prize.', 'Site hosting — 20 comes off the top. If the number of paid entries is different, the page recalculates the amounts above.', 'If nobody picks the longest-TD player, the Bonus is added to the three places (+40 / +20 / +10 at 35 entries). If people tie for a place, they split the prize money for the places they cover.'] },
 ];
 
 // ---------------------------------------------------------------- helpers
@@ -737,6 +755,8 @@ export default function PoultryBowl({ beta = false }) {
   const paidCount = data.participants.filter(p => p.paid).length;
   const pot = paidCount * FEE;
   const jackpotAmt = pot * JACKPOT_PCT / 100;
+  const payBase = paidCount > 0 ? paidCount : data.participants.length;
+  const plan = payoutPlan(payBase);
   const joinClosed = locked && !isAdmin;
 
   // ---- actions
@@ -1036,6 +1056,22 @@ export default function PoultryBowl({ beta = false }) {
             </div>
           ))}
         </div>
+        {plan.prizes > 0 && (
+          <div className="rounded px-3 py-3" style={{ background: C.panel, border: `1px solid ${C.gold}` }}>
+            <div className="font-head uppercase" style={{ color: C.gold, fontSize: 15, letterSpacing: 1 }}>💰 Payouts</div>
+            <div className="grid grid-cols-4 gap-2 text-center mt-2">
+              {[['🥇 1st', plan.first], ['🥈 2nd', plan.second], ['🥉 3rd', plan.third], ['🥩 Beefy Bonus', plan.bonus]].map(([k, v]) => (
+                <div key={k} className="rounded py-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                  <div className="font-mono text-[10px] uppercase" style={{ color: C.muted }}>{k}</div>
+                  <div className="font-head text-lg" style={{ color: C.gold }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div className="font-mono text-[11px] mt-2" style={{ color: C.muted }}>
+              {paidCount > 0 ? `Based on ${paidCount} paid ${paidCount === 1 ? 'entry' : 'entries'}` : `Projected from ${payBase} entries (none marked paid yet)`} = {plan.pot} units{plan.hosting ? ` − ${plan.hosting} site hosting` : ''}. The Bonus goes to whoever picked the longest TD, on top of any place prize. If nobody picked him, it's added to the places (+{plan.rb[0]} / +{plan.rb[1]} / +{plan.rb[2]}). Ties split the prize money for the places they cover.
+            </div>
+          </div>
+        )}
         {cfg.payoutNote && <div className="font-mono text-xs rounded px-3 py-2" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.cream, whiteSpace: 'pre-wrap' }}>💰 {cfg.payoutNote}</div>}
 
         {/* Jackpot / results banner */}
@@ -1414,6 +1450,8 @@ export default function PoultryBowl({ beta = false }) {
           {R.allFinal && <div className="font-mono text-[10px] mt-2" style={{ color: C.muted }}>Tiebreak actuals — Cowboys points: {standings.tb1Actual ?? '—'} · total FGs made: {standings.tb2Actual ?? '—'}</div>}
         </Section>
 
+        <PickDistribution participants={data.participants} picksBowl={picksBowl} games={games} cfg={cfg} locked={locked} now={now} />
+
         {/* Admin */}
         {isAdmin && (
           <div className="rounded" style={{ background: '#2A1A0E', border: `2px solid ${C.orange}` }}>
@@ -1627,6 +1665,169 @@ function HowItWorks({ lines }) {
     <div className="rounded px-3 py-2 mb-3 font-mono text-xs" style={{ background: '#1F1710', borderLeft: `3px solid ${C.gold}`, color: C.cream, lineHeight: 1.5 }}>
       <div className="font-head uppercase" style={{ color: C.gold, fontSize: 11, letterSpacing: 1 }}>How it works</div>
       {lines.map((l, i) => <div key={i} className="mt-1">{l}</div>)}
+    </div>
+  );
+}
+
+// ---- Pick distribution: tap to open, pick a category, see who everyone picked and the % ownership.
+// Reveal rules match the leaderboard: most picks appear at the first kickoff; TD-scorer picks per game once that game
+// kicks off; lineup picks per player once his own game kicks off. Nothing is shown early.
+const PD_CATS = [
+  { key: 'big4', icon: '🏈', label: 'The Big Four' },
+  { key: 'win', icon: '🏆', label: 'Winners' },
+  { key: 'tot', icon: '🔢', label: 'Total Pts' },
+  { key: 'exact', icon: '🥅', label: 'Exact FG' },
+  { key: 'td', icon: '🏃', label: 'TD Scorer' },
+  { key: 'lineup', icon: '📋', label: 'Fantasy Lineup' },
+  { key: 'tb', icon: '⚖️', label: 'Tiebreakers' },
+  { key: 'jackpot', icon: '🥩', label: 'Big Beefy Bonus' },
+];
+function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) {
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState(null);
+  const entrants = participants.map(p => picksBowl[p.id]).filter(Boolean);
+  const group = (items) => {
+    const m = new Map();
+    items.forEach(({ key, label, extra }) => {
+      const e = m.get(key) || { label, n: 0, extras: [] };
+      e.n++; if (extra !== undefined) e.extras.push(extra);
+      m.set(key, e);
+    });
+    return [...m.values()].sort((a, b) => b.n - a.n || String(a.label).localeCompare(String(b.label)));
+  };
+  const playerItems = (vals) => vals.filter(v => v?.name).map(v => ({ key: v.id || normName(v.name), label: `${v.name}${v.team ? ` (${v.team})` : ''}` }));
+  const Bars = ({ rows, total, sub }) => (
+    <div className="space-y-1.5">
+      {rows.length === 0 && <div className="font-mono text-xs" style={{ color: C.muted }}>No picks yet.</div>}
+      {rows.map(r => {
+        const pct = total ? (r.n / total) * 100 : 0;
+        return (
+          <div key={r.label}>
+            <div className="flex justify-between font-mono text-xs" style={{ color: C.cream }}>
+              <span>{r.label}{sub ? sub(r) : ''}</span>
+              <span style={{ color: C.gold }}>{Math.round(pct * 10) / 10}% · {r.n}</span>
+            </div>
+            <div style={{ background: C.panel, borderRadius: 4, height: 6, marginTop: 2 }}><div style={{ width: `${pct}%`, height: 6, borderRadius: 4, background: C.gold }} /></div>
+          </div>
+        );
+      })}
+    </div>
+  );
+  const Block = ({ title, note, children }) => (
+    <div className="rounded px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+      <div className="font-head uppercase text-sm mb-1.5" style={{ color: C.gold }}>{title}</div>
+      {children}
+      {note ? <div className="font-mono text-[10px] mt-1.5" style={{ color: C.muted }}>{note}</div> : null}
+    </div>
+  );
+  const lockedMsg = <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 These picks are revealed at the first kickoff.</div>;
+  const nPicked = (n) => `${n} of ${entrants.length} entries picked`;
+  const gTag = (g) => `${g.away} @ ${g.home}`;
+  const numStats = (vals) => {
+    if (!vals.length) return null;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return `Average ${Math.round(avg * 10) / 10} · low ${Math.min(...vals)} · high ${Math.max(...vals)}`;
+  };
+
+  const panel = () => {
+    if (cat === 'big4') {
+      if (!locked) return lockedMsg;
+      return LEADERS.map(l => {
+        const vals = entrants.map(pk => pk.leaders?.[l.key]).filter(v => v?.name);
+        return <Block key={l.key} title={l.label} note={nPicked(vals.length)}><Bars rows={group(playerItems(vals))} total={vals.length} /></Block>;
+      });
+    }
+    if (cat === 'win') {
+      if (!locked) return lockedMsg;
+      return games.map(g => {
+        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp?.win);
+        const rows = group(gps.map(gp => ({ key: gp.win, label: gp.win, extra: Number(gp.conf) || 0 })));
+        return <Block key={g.id} title={gTag(g)} note={nPicked(gps.length)}><Bars rows={rows} total={gps.length} sub={r => { const c = r.extras.filter(Boolean); return c.length ? ` — avg confidence ${Math.round((c.reduce((a, b) => a + b, 0) / c.length) * 10) / 10}` : ''; }} /></Block>;
+      });
+    }
+    if (cat === 'tot') {
+      if (!locked) return lockedMsg;
+      return games.map(g => {
+        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp?.tot);
+        const rows = group(gps.map(gp => ({ key: gp.tot, label: gp.tot === 'over' ? 'Over' : 'Under' })));
+        return <Block key={g.id} title={`${gTag(g)} · O/U ${g.total ?? 'TBD'}`} note={nPicked(gps.length)}><Bars rows={rows} total={gps.length} /></Block>;
+      });
+    }
+    if (cat === 'exact') {
+      if (!locked) return lockedMsg;
+      return games.map(g => {
+        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp && gp.fgExact !== undefined && gp.fgExact !== '');
+        const rows = group(gps.map(gp => ({ key: String(gp.fgExact), label: `${gp.fgExact} FG` })));
+        return <Block key={g.id} title={gTag(g)} note={nPicked(gps.length)}><Bars rows={rows} total={gps.length} /></Block>;
+      });
+    }
+    if (cat === 'td') {
+      return games.map(g => {
+        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp?.td?.name);
+        const started = Date.parse(g.kickoff) <= now;
+        return (
+          <Block key={g.id} title={gTag(g)} note={started ? nPicked(gps.length) : null}>
+            {started ? <Bars rows={group(playerItems(gps.map(gp => gp.td)))} total={gps.length} />
+              : <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 Revealed at kickoff — {gps.length} {gps.length === 1 ? 'pick is' : 'picks are'} in.</div>}
+          </Block>
+        );
+      });
+    }
+    if (cat === 'lineup') {
+      return LINEUP_SLOTS.map(s => {
+        const vals = entrants.map(pk => pk.lineup?.[s.key]).filter(v => v?.name);
+        const shown = vals.filter(v => teamLocked(games, v.team, now));
+        const hidden = vals.length - shown.length;
+        return (
+          <Block key={s.key} title={s.label} note={`${nPicked(vals.length)}${hidden ? ` · ${hidden} still hidden until those players' games kick off` : ''}`}>
+            {shown.length ? <Bars rows={group(playerItems(shown))} total={vals.length} /> : <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 Revealed player by player as each game kicks off.</div>}
+          </Block>
+        );
+      });
+    }
+    if (cat === 'tb') {
+      if (!locked) return lockedMsg;
+      const one = (title, key) => {
+        const vals = entrants.map(pk => pk[key]).filter(v => v !== undefined && v !== '' && !Number.isNaN(Number(v))).map(Number);
+        const rows = group(vals.map(v => ({ key: String(v), label: String(v) })));
+        return <Block key={key} title={title} note={`${nPicked(vals.length)}${numStats(vals) ? ` · ${numStats(vals)}` : ''}`}><Bars rows={rows} total={vals.length} /></Block>;
+      };
+      return [one(`${cfg.tbTeam === 'DAL' ? 'Cowboys' : cfg.tbTeam} points`, 'tb1'), one('Total field goals (all games)', 'tb2')];
+    }
+    if (cat === 'jackpot') {
+      if (!locked) return lockedMsg;
+      const vals = entrants.map(pk => pk.jackpot).filter(v => v?.name);
+      return <Block title="Longest touchdown" note={nPicked(vals.length)}><Bars rows={group(playerItems(vals))} total={vals.length} /></Block>;
+    }
+    return null;
+  };
+
+  return (
+    <div className="rounded" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <button className="w-full flex justify-between items-center px-4 py-3 text-left" onClick={() => setOpen(o => !o)}>
+        <span>
+          <span className="font-head uppercase text-base" style={{ color: C.gold }}>📊 Pick distribution</span>
+          <span className="block font-mono text-[11px]" style={{ color: C.muted }}>See who everyone picked and the % ownership in each category</span>
+        </span>
+        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {PD_CATS.map(c => {
+              const on = cat === c.key;
+              return (
+                <button key={c.key} onClick={() => setCat(on ? null : c.key)} className="rounded px-2 py-2 text-center"
+                  style={{ background: on ? '#4A2F12' : C.panel2, border: `${on ? 2 : 1}px solid ${on ? C.gold : C.line}`, color: C.cream }}>
+                  <div style={{ fontSize: 20 }}>{c.icon}</div>
+                  <div className="font-head uppercase text-[11px]" style={{ color: on ? C.gold : C.cream }}>{c.label}</div>
+                </button>
+              );
+            })}
+          </div>
+          {cat ? <div className="space-y-2">{panel()}</div> : <div className="font-mono text-[11px]" style={{ color: C.muted }}>Tap a category to see the picks. Picks stay hidden until they lock: most at the first kickoff, TD scorers when that game kicks off, lineup players when their game kicks off.</div>}
+        </div>
+      )}
     </div>
   );
 }

@@ -1003,6 +1003,11 @@ export default function PoultryBowl({ beta = false }) {
         .font-display { font-family: 'Anton', sans-serif; }
         .font-head { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
+        @keyframes me-shimmer { from { background-position: 250% 0; } to { background-position: -50% 0; } }
+        @keyframes me-pulse { 0%, 100% { box-shadow: 0 0 8px rgba(255,200,60,0.45), 0 0 0 1px #FFD54A; } 50% { box-shadow: 0 0 22px rgba(255,200,60,0.95), 0 0 0 2px #FFD54A; } }
+        .me-row { position: relative; z-index: 1; transform: scale(1.03); background: linear-gradient(90deg, #3A2A08, #4F3810 50%, #3A2A08) !important; border: 1px solid #FFD54A !important; animation: me-pulse 2s ease-in-out infinite; }
+        .me-name { font-weight: 800; background: linear-gradient(100deg, #FFD54A, #FFF6C2 30%, #FF9F1A 50%, #FFF6C2 70%, #FFD54A); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: me-shimmer 2.6s linear infinite; filter: drop-shadow(0 0 5px rgba(255,190,40,0.85)); }
+        .me-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #FFD54A; margin-left: 6px; -webkit-text-fill-color: #FFD54A; }
         .pb-shimmer { background: linear-gradient(100deg,#FFD54A,#FFF6C2 25%,#FF8A00 45%,#FFE27A 65%,#FFB300); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation: pbs 3s linear infinite; }
         .pb-glint { position:relative; overflow:hidden; display:inline-flex; align-items:baseline; gap:6px; padding:3px 12px; border-radius:999px; color:#2A1A0A; font-family:'Anton',Impact,sans-serif; font-weight:900; font-size:22px; letter-spacing:.5px; line-height:1.15; background:linear-gradient(135deg,#FFB300,#FFE27A 45%,#FF8A00); border:2px solid #FFF6C2; box-shadow:0 0 10px rgba(255,179,0,.65), 0 0 22px rgba(255,138,0,.35); animation: pbglow 2s ease-in-out infinite; }
         .pb-glint small { font-family:'Baloo 2',sans-serif; font-weight:800; font-size:11px; letter-spacing:1px; }
@@ -1418,6 +1423,9 @@ export default function PoultryBowl({ beta = false }) {
           </Section>
         )}
 
+        {/* Pick distribution */}
+        <PickDistribution participants={data.participants} picksBowl={picksBowl} games={games} cfg={cfg} locked={locked} now={now} myId={actingId} />
+
         {/* Leaderboard */}
         <Section title="Leaderboard" sub={locked ? 'Tap a name to see their picks and points' : 'Everyone\'s picks are revealed at kickoff'}>
           <div className="space-y-1.5">
@@ -1426,11 +1434,11 @@ export default function PoultryBowl({ beta = false }) {
               const open = expandedId === r.p.id;
               const prog = pickProgress(r.pk, { ...cfg, games });
               return (
-                <div key={r.p.id} className="rounded" style={{ background: C.panel2, border: `1px solid ${r.p.id === actingId ? C.gold : C.line}` }}>
+                <div key={r.p.id} className={`rounded${r.p.id === actingId ? ' me-row' : ''}`} style={{ background: C.panel2, border: `1px solid ${r.p.id === actingId ? C.gold : C.line}` }}>
                   <button className="w-full flex items-center justify-between px-3 py-2 text-left" onClick={() => setExpandedId(open ? null : r.p.id)}>
                     <div className="flex items-center gap-3">
                       <span className="font-head text-lg" style={{ color: C.gold, width: 26 }}>{r.rank}</span>
-                      <span className="font-head text-base">{r.p.name}{r.p.paid ? '' : <span className="font-mono text-[10px] ml-2" style={{ color: C.red }}>unpaid</span>}</span>
+                      <span className="font-head text-base">{r.p.id === actingId ? <><span className="me-name">{r.p.name}</span><span className="me-tag">← you</span></> : r.p.name}{r.p.paid ? '' : <span className="font-mono text-[10px] ml-2" style={{ color: C.red }}>unpaid</span>}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       {!locked && <span className="font-mono text-[11px]" style={{ color: prog.done === prog.total ? C.green : C.muted }}>{prog.done}/{prog.total}</span>}
@@ -1449,8 +1457,6 @@ export default function PoultryBowl({ beta = false }) {
           </div>
           {R.allFinal && <div className="font-mono text-[10px] mt-2" style={{ color: C.muted }}>Tiebreak actuals — Cowboys points: {standings.tb1Actual ?? '—'} · total FGs made: {standings.tb2Actual ?? '—'}</div>}
         </Section>
-
-        <PickDistribution participants={data.participants} picksBowl={picksBowl} games={games} cfg={cfg} locked={locked} now={now} />
 
         {/* Admin */}
         {isAdmin && (
@@ -1670,8 +1676,8 @@ function HowItWorks({ lines }) {
 }
 
 // ---- Pick distribution: tap to open, pick a category, see who everyone picked and the % ownership.
-// Reveal rules match the leaderboard: most picks appear at the first kickoff; TD-scorer picks per game once that game
-// kicks off; lineup picks per player once his own game kicks off. Nothing is shown early.
+// Tap any row to see WHO picked it. Reveal rules match the leaderboard: most picks appear at the first kickoff; TD-scorer
+// picks per game once that game kicks off; lineup picks per player once his own game kicks off. Nothing is shown early.
 const PD_CATS = [
   { key: 'big4', icon: '🏈', label: 'The Big Four' },
   { key: 'win', icon: '🏆', label: 'Winners' },
@@ -1682,32 +1688,48 @@ const PD_CATS = [
   { key: 'tb', icon: '⚖️', label: 'Tiebreakers' },
   { key: 'jackpot', icon: '🥩', label: 'Big Beefy Bonus' },
 ];
-function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) {
+function PickDistribution({ participants, picksBowl, games, cfg, locked, now, myId }) {
   const [open, setOpen] = useState(false);
   const [cat, setCat] = useState(null);
-  const entrants = participants.map(p => picksBowl[p.id]).filter(Boolean);
+  const [sel, setSel] = useState(null); // the row whose pickers are showing
+  const E = participants.filter(p => picksBowl[p.id]).map(p => ({ id: p.id, who: p.name, pk: picksBowl[p.id] }));
+  const nEntries = E.length;
+  // [{ who, id, v }] for every entry whose pick (fn(pk)) is set
+  const pickOf = (fn) => E.map(e => ({ who: e.who, id: e.id, v: fn(e.pk) })).filter(x => x.v !== undefined && x.v !== null && x.v !== '');
   const group = (items) => {
     const m = new Map();
-    items.forEach(({ key, label, extra }) => {
-      const e = m.get(key) || { label, n: 0, extras: [] };
+    items.forEach(({ key, label, who, id, extra }) => {
+      const e = m.get(key) || { key, label, n: 0, extras: [], pickers: [] };
       e.n++; if (extra !== undefined) e.extras.push(extra);
+      e.pickers.push({ who, id });
       m.set(key, e);
     });
     return [...m.values()].sort((a, b) => b.n - a.n || String(a.label).localeCompare(String(b.label)));
   };
-  const playerItems = (vals) => vals.filter(v => v?.name).map(v => ({ key: v.id || normName(v.name), label: `${v.name}${v.team ? ` (${v.team})` : ''}` }));
-  const Bars = ({ rows, total, sub }) => (
+  const playerItems = (picks) => picks.filter(x => x.v?.name).map(x => ({ key: x.v.id || normName(x.v.name), label: `${x.v.name}${x.v.team ? ` (${x.v.team})` : ''}`, who: x.who, id: x.id }));
+  const Bars = ({ rows, total, sub, bid }) => (
     <div className="space-y-1.5">
       {rows.length === 0 && <div className="font-mono text-xs" style={{ color: C.muted }}>No picks yet.</div>}
       {rows.map(r => {
         const pct = total ? (r.n / total) * 100 : 0;
+        const k = `${cat}|${bid}|${r.key}`;
+        const isOpen = sel === k;
+        const names = [...r.pickers].sort((x, y) => x.who.localeCompare(y.who));
         return (
-          <div key={r.label}>
-            <div className="flex justify-between font-mono text-xs" style={{ color: C.cream }}>
-              <span>{r.label}{sub ? sub(r) : ''}</span>
-              <span style={{ color: C.gold }}>{Math.round(pct * 10) / 10}% · {r.n}</span>
-            </div>
-            <div style={{ background: C.panel, borderRadius: 4, height: 6, marginTop: 2 }}><div style={{ width: `${pct}%`, height: 6, borderRadius: 4, background: C.gold }} /></div>
+          <div key={r.key}>
+            <button className="w-full text-left" onClick={() => setSel(isOpen ? null : k)} style={{ display: 'block', background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
+              <div className="flex justify-between font-mono text-xs" style={{ color: C.cream }}>
+                <span style={{ textDecoration: isOpen ? 'none' : 'underline dotted', textUnderlineOffset: 3, textDecorationColor: C.muted }}>{r.label}{sub ? sub(r) : ''}</span>
+                <span style={{ color: C.gold, whiteSpace: 'nowrap', marginLeft: 8 }}>{Math.round(pct * 10) / 10}% · {r.n}</span>
+              </div>
+              <div style={{ background: C.panel, borderRadius: 4, height: 6, marginTop: 2 }}><div style={{ width: `${pct}%`, height: 6, borderRadius: 4, background: C.gold }} /></div>
+            </button>
+            {isOpen && (
+              <div className="font-mono text-[11px] rounded px-2 py-1.5 mt-1" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.cream }}>
+                <span style={{ color: C.muted }}>Picked by:</span>{' '}
+                {names.map((x, i) => <span key={x.id}>{i > 0 ? ', ' : ''}<span style={x.id === myId ? { color: C.gold, fontWeight: 700 } : undefined}>{x.who}{x.id === myId ? ' (you)' : ''}</span></span>)}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1721,7 +1743,7 @@ function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) 
     </div>
   );
   const lockedMsg = <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 These picks are revealed at the first kickoff.</div>;
-  const nPicked = (n) => `${n} of ${entrants.length} entries picked`;
+  const nPicked = (n) => `${n} of ${nEntries} entries picked`;
   const gTag = (g) => `${g.away} @ ${g.home}`;
   const numStats = (vals) => {
     if (!vals.length) return null;
@@ -1733,54 +1755,54 @@ function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) 
     if (cat === 'big4') {
       if (!locked) return lockedMsg;
       return LEADERS.map(l => {
-        const vals = entrants.map(pk => pk.leaders?.[l.key]).filter(v => v?.name);
-        return <Block key={l.key} title={l.label} note={nPicked(vals.length)}><Bars rows={group(playerItems(vals))} total={vals.length} /></Block>;
+        const pk = pickOf(x => (x.leaders?.[l.key]?.name ? x.leaders[l.key] : null));
+        return <Block key={l.key} title={l.label} note={nPicked(pk.length)}><Bars bid={l.key} rows={group(playerItems(pk))} total={pk.length} /></Block>;
       });
     }
     if (cat === 'win') {
       if (!locked) return lockedMsg;
       return games.map(g => {
-        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp?.win);
-        const rows = group(gps.map(gp => ({ key: gp.win, label: gp.win, extra: Number(gp.conf) || 0 })));
-        return <Block key={g.id} title={gTag(g)} note={nPicked(gps.length)}><Bars rows={rows} total={gps.length} sub={r => { const c = r.extras.filter(Boolean); return c.length ? ` — avg confidence ${Math.round((c.reduce((a, b) => a + b, 0) / c.length) * 10) / 10}` : ''; }} /></Block>;
+        const pk = pickOf(x => (x.games?.[g.id]?.win ? x.games[g.id] : null));
+        const rows = group(pk.map(x => ({ key: x.v.win, label: x.v.win, who: x.who, id: x.id, extra: Number(x.v.conf) || 0 })));
+        return <Block key={g.id} title={gTag(g)} note={nPicked(pk.length)}><Bars bid={g.id} rows={rows} total={pk.length} sub={r => { const c = r.extras.filter(Boolean); return c.length ? ` — avg confidence ${Math.round((c.reduce((a, b) => a + b, 0) / c.length) * 10) / 10}` : ''; }} /></Block>;
       });
     }
     if (cat === 'tot') {
       if (!locked) return lockedMsg;
       return games.map(g => {
-        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp?.tot);
-        const rows = group(gps.map(gp => ({ key: gp.tot, label: gp.tot === 'over' ? 'Over' : 'Under' })));
-        return <Block key={g.id} title={`${gTag(g)} · O/U ${g.total ?? 'TBD'}`} note={nPicked(gps.length)}><Bars rows={rows} total={gps.length} /></Block>;
+        const pk = pickOf(x => x.games?.[g.id]?.tot);
+        const rows = group(pk.map(x => ({ key: x.v, label: x.v === 'over' ? 'Over' : 'Under', who: x.who, id: x.id })));
+        return <Block key={g.id} title={`${gTag(g)} · O/U ${g.total ?? 'TBD'}`} note={nPicked(pk.length)}><Bars bid={g.id} rows={rows} total={pk.length} /></Block>;
       });
     }
     if (cat === 'exact') {
       if (!locked) return lockedMsg;
       return games.map(g => {
-        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp && gp.fgExact !== undefined && gp.fgExact !== '');
-        const rows = group(gps.map(gp => ({ key: String(gp.fgExact), label: `${gp.fgExact} FG` })));
-        return <Block key={g.id} title={gTag(g)} note={nPicked(gps.length)}><Bars rows={rows} total={gps.length} /></Block>;
+        const pk = pickOf(x => x.games?.[g.id]?.fgExact);
+        const rows = group(pk.map(x => ({ key: String(x.v), label: `${x.v} FG`, who: x.who, id: x.id })));
+        return <Block key={g.id} title={gTag(g)} note={nPicked(pk.length)}><Bars bid={g.id} rows={rows} total={pk.length} /></Block>;
       });
     }
     if (cat === 'td') {
       return games.map(g => {
-        const gps = entrants.map(pk => pk.games?.[g.id]).filter(gp => gp?.td?.name);
+        const pk = pickOf(x => (x.games?.[g.id]?.td?.name ? x.games[g.id].td : null));
         const started = Date.parse(g.kickoff) <= now;
         return (
-          <Block key={g.id} title={gTag(g)} note={started ? nPicked(gps.length) : null}>
-            {started ? <Bars rows={group(playerItems(gps.map(gp => gp.td)))} total={gps.length} />
-              : <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 Revealed at kickoff — {gps.length} {gps.length === 1 ? 'pick is' : 'picks are'} in.</div>}
+          <Block key={g.id} title={gTag(g)} note={started ? nPicked(pk.length) : null}>
+            {started ? <Bars bid={g.id} rows={group(playerItems(pk))} total={pk.length} />
+              : <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 Revealed at kickoff — {pk.length} {pk.length === 1 ? 'pick is' : 'picks are'} in.</div>}
           </Block>
         );
       });
     }
     if (cat === 'lineup') {
       return LINEUP_SLOTS.map(s => {
-        const vals = entrants.map(pk => pk.lineup?.[s.key]).filter(v => v?.name);
-        const shown = vals.filter(v => teamLocked(games, v.team, now));
-        const hidden = vals.length - shown.length;
+        const pk = pickOf(x => (x.lineup?.[s.key]?.name ? x.lineup[s.key] : null));
+        const shown = pk.filter(x => teamLocked(games, x.v.team, now));
+        const hidden = pk.length - shown.length;
         return (
-          <Block key={s.key} title={s.label} note={`${nPicked(vals.length)}${hidden ? ` · ${hidden} still hidden until those players' games kick off` : ''}`}>
-            {shown.length ? <Bars rows={group(playerItems(shown))} total={vals.length} /> : <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 Revealed player by player as each game kicks off.</div>}
+          <Block key={s.key} title={s.label} note={`${nPicked(pk.length)}${hidden ? ` · ${hidden} still hidden until those players' games kick off` : ''}`}>
+            {shown.length ? <Bars bid={s.key} rows={group(playerItems(shown))} total={pk.length} /> : <div className="font-mono text-xs" style={{ color: C.muted }}>🔒 Revealed player by player as each game kicks off.</div>}
           </Block>
         );
       });
@@ -1788,16 +1810,17 @@ function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) 
     if (cat === 'tb') {
       if (!locked) return lockedMsg;
       const one = (title, key) => {
-        const vals = entrants.map(pk => pk[key]).filter(v => v !== undefined && v !== '' && !Number.isNaN(Number(v))).map(Number);
-        const rows = group(vals.map(v => ({ key: String(v), label: String(v) })));
-        return <Block key={key} title={title} note={`${nPicked(vals.length)}${numStats(vals) ? ` · ${numStats(vals)}` : ''}`}><Bars rows={rows} total={vals.length} /></Block>;
+        const pk = pickOf(x => (x[key] !== undefined && x[key] !== '' && !Number.isNaN(Number(x[key])) ? Number(x[key]) : undefined));
+        const rows = group(pk.map(x => ({ key: String(x.v), label: String(x.v), who: x.who, id: x.id })));
+        const vals = pk.map(x => x.v);
+        return <Block key={key} title={title} note={`${nPicked(pk.length)}${numStats(vals) ? ` · ${numStats(vals)}` : ''}`}><Bars bid={key} rows={rows} total={pk.length} /></Block>;
       };
       return [one(`${cfg.tbTeam === 'DAL' ? 'Cowboys' : cfg.tbTeam} points`, 'tb1'), one('Total field goals (all games)', 'tb2')];
     }
     if (cat === 'jackpot') {
       if (!locked) return lockedMsg;
-      const vals = entrants.map(pk => pk.jackpot).filter(v => v?.name);
-      return <Block title="Longest touchdown" note={nPicked(vals.length)}><Bars rows={group(playerItems(vals))} total={vals.length} /></Block>;
+      const pk = pickOf(x => (x.jackpot?.name ? x.jackpot : null));
+      return <Block title="Longest touchdown" note={nPicked(pk.length)}><Bars bid="jp" rows={group(playerItems(pk))} total={pk.length} /></Block>;
     }
     return null;
   };
@@ -1817,7 +1840,7 @@ function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) 
             {PD_CATS.map(c => {
               const on = cat === c.key;
               return (
-                <button key={c.key} onClick={() => setCat(on ? null : c.key)} className="rounded px-2 py-2 text-center"
+                <button key={c.key} onClick={() => { setCat(on ? null : c.key); setSel(null); }} className="rounded px-2 py-2 text-center"
                   style={{ background: on ? '#4A2F12' : C.panel2, border: `${on ? 2 : 1}px solid ${on ? C.gold : C.line}`, color: C.cream }}>
                   <div style={{ fontSize: 20 }}>{c.icon}</div>
                   <div className="font-head uppercase text-[11px]" style={{ color: on ? C.gold : C.cream }}>{c.label}</div>
@@ -1825,7 +1848,7 @@ function PickDistribution({ participants, picksBowl, games, cfg, locked, now }) 
               );
             })}
           </div>
-          {cat ? <div className="space-y-2">{panel()}</div> : <div className="font-mono text-[11px]" style={{ color: C.muted }}>Tap a category to see the picks. Picks stay hidden until they lock: most at the first kickoff, TD scorers when that game kicks off, lineup players when their game kicks off.</div>}
+          {cat ? <div className="space-y-2">{panel()}</div> : <div className="font-mono text-[11px]" style={{ color: C.muted }}>Tap a category, then tap any player or pick to see who chose it. Picks stay hidden until they lock: most at the first kickoff, TD scorers when that game kicks off, lineup players when their game kicks off.</div>}
         </div>
       )}
     </div>
